@@ -3,16 +3,18 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthLayout, DashboardLayout } from '../layouts'
 import { AuthGuard, GuestGuard } from '../guards'
 
-// Module Pages
-import { LoginPage } from '@/modules/auth'
+// Module Descendant Route Elements
+import { AuthRoutes } from '@/modules/auth'
 import { DashboardPage } from '@/modules/dashboard'
-import { UsersListPage, UserDetailPage } from '@/modules/users'
-import { RidersListPage, RiderDetailPage } from '@/modules/riders'
-import { DriversListPage, DriverDetailPage } from '@/modules/drivers'
-import { VerificationListPage, VerificationDetailPage } from '@/modules/verification'
+import { UserRoutes } from '@/modules/users'
+import { RiderRoutes } from '@/modules/riders'
+import { DriverRoutes } from '@/modules/drivers'
+import { VerificationRoutes } from '@/modules/verification'
 
 /**
  * Main Application Routing Declarations for Zaroorat Mobility
+ * Configures top-level layout wrappers and delegates descendant sub-paths
+ * directly to the respective module routing components.
  */
 export const AppRouter: React.FC = () => {
   return (
@@ -25,7 +27,7 @@ export const AppRouter: React.FC = () => {
           </GuestGuard>
         }
       >
-        <Route path="login" element={<LoginPage />} />
+        <Route path="/*" element={<AuthRoutes />} />
       </Route>
 
       {/* Protected Dashboard/Admin Panel routes */}
@@ -40,20 +42,16 @@ export const AppRouter: React.FC = () => {
         <Route path="dashboard" element={<DashboardPage />} />
 
         {/* User Management */}
-        <Route path="users" element={<UsersListPage />} />
-        <Route path="users/:id" element={<UserDetailPage />} />
+        <Route path="users/*" element={<UserRoutes />} />
 
         {/* Rider Management */}
-        <Route path="riders" element={<RidersListPage />} />
-        <Route path="riders/:id" element={<RiderDetailPage />} />
+        <Route path="riders/*" element={<RiderRoutes />} />
 
         {/* Driver Management */}
-        <Route path="drivers" element={<DriversListPage />} />
-        <Route path="drivers/:id" element={<DriverDetailPage />} />
+        <Route path="drivers/*" element={<DriverRoutes />} />
 
         {/* Verification Reviews */}
-        <Route path="verification" element={<VerificationListPage />} />
-        <Route path="verification/:id" element={<VerificationDetailPage />} />
+        <Route path="verification/*" element={<VerificationRoutes />} />
       </Route>
 
       {/* Catch-all Redirect */}
@@ -61,4 +59,5 @@ export const AppRouter: React.FC = () => {
     </Routes>
   )
 }
+
 export default AppRouter

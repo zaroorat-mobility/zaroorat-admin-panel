@@ -5,7 +5,7 @@ import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card'
 import { StatusBadge } from '@/shared/components/StatusBadge'
-import { ShieldCheck, ShieldAlert, Star, Wallet, Calendar, AlertCircle } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, Star } from 'lucide-react'
 
 export const DriverDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -37,7 +37,7 @@ export const DriverDetailPage: React.FC = () => {
     },
   }
 
-  const activeDriver = driver ?? demoDetails
+  const activeDriver = (driver || demoDetails) as typeof demoDetails
 
   return (
     <PageWrapper>

@@ -27,4 +27,8 @@ export const Skeleton: React.FC<{ className?: string }> = ({ className = 'h-4 w-
     <div className={`animate-pulse rounded-md bg-slate-200 dark:bg-dark-800 ${className}`} />
   )
 }
+
+export { InfinityLoader } from './InfinityLoader'
+export type { InfinityLoaderProps } from './InfinityLoader'
+
 export default PageLoader

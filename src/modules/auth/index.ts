@@ -1,6 +1,8 @@
+export * from './routes/routes'
 export * from './pages/LoginPage'
 export * from './hooks'
 export * from './services'
 export * from './schemas'
 export * from './types'
 export { default as AuthService } from './services'
+export { default as AuthRoutes } from './routes/routes'

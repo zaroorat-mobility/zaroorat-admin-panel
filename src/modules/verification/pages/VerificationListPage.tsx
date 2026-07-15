@@ -14,7 +14,7 @@ export const VerificationListPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Query verifications matching state hook values
-  const { data, isLoading } = useVerifications()
+  const { data, isLoading, isError, refetch } = useVerifications()
 
   // Columns definition mapping for new DataTable
   const columns: DataTableColumn<VerificationEntity>[] = [
@@ -68,23 +68,26 @@ export const VerificationListPage: React.FC = () => {
             label="Total Verification Audits"
             value={totalAudits}
             icon={<ClipboardList className="w-5 h-5" />}
-            variant="purple"
+            variant="blue"
+            loading={isLoading}
           />
           <InfoCard
             label="Approved Drivers"
             value={approvedAudits}
             icon={<ShieldCheck className="w-5 h-5" />}
-            variant="green"
+            variant="blue"
+            loading={isLoading}
           />
           <InfoCard
             label="Pending Audits"
             value={pendingAudits}
             icon={<ShieldAlert className="w-5 h-5" />}
-            variant="amber"
+            variant="blue"
+            loading={isLoading}
           />
         </InfoCardGrid>
 
-        {/* Responsive data table */}
+        {/* Responsive data table with integrated state logic */}
         <DataTable
           columns={columns}
           data={activeData}
@@ -95,6 +98,13 @@ export const VerificationListPage: React.FC = () => {
           statusKey="status"
           actionConfig={{
             onView: (row) => navigate(`/verification/${row.id}`),
+          }}
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={refetch}
+          emptyState={{
+            title: "No Verifications Found",
+            description: "There are no pending document verification requests at the moment."
           }}
         />
       </div>
