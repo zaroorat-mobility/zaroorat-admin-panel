@@ -1,0 +1,128 @@
+:root {
+  --font-size: 14px;
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  
+  /* Brand System: Zaroorat MyRide Brand Colors */
+  --primary: #2B317A;
+  --primary-hover: #252B6A;
+  --primary-active: #1E2258;
+  --primary-foreground: #FFFFFF;
+  
+  --secondary: #F1F5F9;
+  --secondary-foreground: #0F172A;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #EFF6FF;
+  --accent-foreground: #2B317A;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --input-background: #F8FAFC;
+  --switch-background: #CBD5E1;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #2B317A;
+  --chart-1: #2B317A;
+  --chart-2: #22C55E;
+  --chart-3: #F59E0B;
+  --chart-4: #3B82F6;
+  --chart-5: #EF4444;
+  --radius: 0.75rem; /* 12px for premium layout */
+  
+  /* Sidebar Palette per Requirements */
+  --sidebar: #0F172A;
+  --sidebar-foreground: #94A3B8;
+  --sidebar-primary: #2B317A;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E293B;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-ring: #2B317A;
+  
+  /* Table Header Background Requirement (Solid Brand Blue) */
+  --color-table-header-bg: #2B317A;
+  --color-table-header-border: #1E2258;
+  --color-table-header-text: #FFFFFF;
+}
+
+.dark {
+  --background: #0F172A;
+  --foreground: #F8FAFC;
+  --card: #1E293B;
+  --card-foreground: #F8FAFC;
+  --popover: #1E293B;
+  --popover-foreground: #F8FAFC;
+  
+  /* Accessible dark mode brand colors */
+  --primary: #4F5FBF;
+  --primary-hover: #3F4FA3;
+  --primary-active: #2F3E87;
+  --primary-foreground: #FFFFFF;
+  
+  --secondary: #1E293B;
+  --secondary-foreground: #F8FAFC;
+  --muted: #1E293B;
+  --muted-foreground: #94A3B8;
+  --accent: #1E293B;
+  --accent-foreground: #818CF8;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: rgba(255,255,255,0.08);
+  --input: rgba(255,255,255,0.08);
+  --input-background: #1E293B;
+  --switch-background: #334155;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #4F5FBF;
+  --chart-1: #818CF8;
+  --chart-2: #34D399;
+  --chart-3: #FCD34D;
+  --chart-4: #60A5FA;
+  --chart-5: #F87171;
+  
+  /* Sidebar Palette for Dark Mode */
+  --sidebar: #020817;
+  --sidebar-foreground: #94A3B8;
+  --sidebar-primary: #4F5FBF;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E293B;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-ring: #4F5FBF;
+  
+  /* Table Variables */
+  --color-table-header-bg: #4F5FBF;
+  --color-table-header-border: #2F3E87;
+  --color-table-header-text: #FFFFFF;
+}
+
+/* Linear-like border styles and glass panels */
+.premium-card {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.premium-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.dark .glass-panel {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
