@@ -2,7 +2,7 @@
  * Application Configuration Registry
  */
 export const APP_CONFIG = {
-  appName: 'Zaroorat MyRide',
+  appName: 'Zaroorat Mobility',
   api: {
     baseUrl: import.meta.env.VITE_API_BASE_URL || 'https://api.zaroorat-myride.local/v1',
     timeout: 15000,

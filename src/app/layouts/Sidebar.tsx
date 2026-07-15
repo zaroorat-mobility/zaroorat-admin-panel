@@ -81,10 +81,10 @@ export const Sidebar: React.FC = () => {
       {/* Logo Header */}
       <div className="h-16 flex items-center px-6 border-b border-border">
         <Link to="/dashboard" className="flex items-center gap-2.5">
-          <img src={logoImg} alt="Zaroorat MyRide" className="w-8 h-8 rounded-lg object-contain" />
+          <img src={logoImg} alt="Zaroorat Mobility" className="w-8 h-8 rounded-lg object-contain" />
           {isSidebarOpen && (
             <div>
-              <div className="font-semibold text-sm text-foreground tracking-tight">Zaroorat MyRide</div>
+              <div className="font-semibold text-sm text-foreground tracking-tight">Zaroorat Mobility</div>
               <div className="text-[10px] text-muted-foreground font-medium -mt-0.5">Admin Operations</div>
             </div>
           )}
@@ -114,12 +114,12 @@ export const Sidebar: React.FC = () => {
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium cursor-pointer",
                     hasChildren
-                      ? (hasActiveChild 
-                          ? "text-[#2B317A] bg-[#2B317A]/[0.06] font-semibold dark:text-[#4F5FBF] dark:bg-[#4F5FBF]/[0.15]" 
-                          : "text-slate-600 hover:bg-[#2B317A]/[0.06] hover:text-[#2B317A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white")
-                      : (isItemActive(item.href) 
-                          ? "bg-[#2B317A] text-white font-bold shadow-sm" 
-                          : "text-slate-600 hover:bg-[#2B317A]/[0.06] hover:text-[#2B317A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white")
+                      ? (hasActiveChild
+                        ? "text-[#2B317A] bg-[#2B317A]/[0.06] font-semibold dark:text-[#4F5FBF] dark:bg-[#4F5FBF]/[0.15]"
+                        : "text-slate-600 hover:bg-[#2B317A]/[0.06] hover:text-[#2B317A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white")
+                      : (isItemActive(item.href)
+                        ? "bg-[#2B317A] text-white font-bold shadow-sm"
+                        : "text-slate-600 hover:bg-[#2B317A]/[0.06] hover:text-[#2B317A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white")
                   )}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
@@ -142,14 +142,14 @@ export const Sidebar: React.FC = () => {
                     </>
                   )}
                 </button>
- 
+
                 {/* Sub Items */}
                 {hasChildren && isExpanded && isSidebarOpen && (
                   <div className="ml-4 mt-1 space-y-1 border-l border-slate-200 dark:border-slate-800 pl-2">
                     {item.children!.map((child) => {
                       const ChildIcon = child.icon;
                       const isChildActiveItem = isItemActive(child.href);
- 
+
                       return (
                         <button
                           key={child.href}
@@ -183,10 +183,10 @@ export const Sidebar: React.FC = () => {
           })}
         </nav>
       </div>
- 
+
       {/* Footer / Account card */}
       <div className="p-3 border-t border-border mt-auto">
-        <div 
+        <div
           onClick={() => navigate("/settings")}
           className="p-2 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-200/60 dark:bg-slate-800/40 dark:border-slate-800 dark:hover:bg-slate-800 transition-all cursor-pointer flex items-center gap-2"
         >

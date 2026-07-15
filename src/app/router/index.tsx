@@ -12,7 +12,7 @@ import { DriversListPage, DriverDetailPage } from '@/modules/drivers'
 import { VerificationListPage, VerificationDetailPage } from '@/modules/verification'
 
 /**
- * Main Application Routing Declarations for Zaroorat MyRide
+ * Main Application Routing Declarations for Zaroorat Mobility
  */
 export const AppRouter: React.FC = () => {
   return (

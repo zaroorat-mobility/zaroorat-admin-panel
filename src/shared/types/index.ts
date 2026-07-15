@@ -1,5 +1,5 @@
 /**
- * Shared Type Declarations for Zaroorat MyRide Admin
+ * Shared Type Declarations for Zaroorat Mobility Admin
  */
 
 export interface BaseEntity {

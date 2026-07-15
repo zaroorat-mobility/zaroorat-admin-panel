@@ -21,7 +21,7 @@ export const AuthLayout: React.FC = () => {
             Z
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold tracking-tight text-slate-900 dark:text-dark-50">
-            Zaroorat MyRide
+            Zaroorat Mobility
           </h2>
           <p className="mt-2 text-center text-sm text-slate-500 dark:text-dark-400">
             Administration Portal

@@ -7,7 +7,7 @@ import {
 } from './interceptors'
 
 /**
- * Enterprise Axios Instance Configured for Zaroorat MyRide Admin
+ * Enterprise Axios Instance Configured for Zaroorat Mobility Admin
  */
 const api = axios.create({
   baseURL: APP_CONFIG.api.baseUrl,

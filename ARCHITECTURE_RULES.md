@@ -1,6 +1,6 @@
-# Zaroorat MyRide | Architecture Rules
+# Zaroorat Mobility | Architecture Rules
 
-These rules represent the coding guidelines for developers working on the Zaroorat MyRide Admin Panel.
+These rules represent the coding guidelines for developers working on the Zaroorat Mobility Admin Panel.
 
 ---
 

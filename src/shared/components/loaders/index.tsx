@@ -7,7 +7,7 @@ export interface PageLoaderProps {
 /**
  * Centered spinner for page-level loadings
  */
-export const PageLoader: React.FC<PageLoaderProps> = ({ message = 'Loading Zaroorat MyRide...' }) => {
+export const PageLoader: React.FC<PageLoaderProps> = ({ message = 'Loading Zaroorat Mobility...' }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
       <div className="relative h-12 w-12">
