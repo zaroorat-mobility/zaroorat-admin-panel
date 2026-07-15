@@ -17,7 +17,7 @@ export const UsersListPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Query users matching state hook values
-  const { data, isLoading } = useUsers()
+  const { data, isLoading, isError, refetch } = useUsers()
   const { mutate: deleteUser, isPending: isDeleting } = useDeleteUser()
 
   // Columns definition mapping for new DataTable
@@ -84,23 +84,26 @@ export const UsersListPage: React.FC = () => {
             label="Total Admins"
             value={totalUsers}
             icon={<Users className="w-5 h-5" />}
-            variant="purple"
+            variant="blue"
+            loading={isLoading}
           />
           <InfoCard
             label="Active Accounts"
             value={activeUsers}
             icon={<UserCheck className="w-5 h-5" />}
-            variant="green"
+            variant="blue"
+            loading={isLoading}
           />
           <InfoCard
             label="Inactive Accounts"
             value={inactiveUsers}
             icon={<UserX className="w-5 h-5" />}
-            variant="amber"
+            variant="blue"
+            loading={isLoading}
           />
         </InfoCardGrid>
 
-        {/* Clean table layout */}
+        {/* Clean table layout with integrated states */}
         <DataTable
           columns={columns}
           data={activeData}
@@ -113,6 +116,15 @@ export const UsersListPage: React.FC = () => {
             onView: (row) => navigate(`/users/${row.id}`),
             onEdit: (row) => navigate(`/users/${row.id}`),
             onDelete: (row) => setDeleteId(row.id)
+          }}
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={refetch}
+          emptyState={{
+            title: "No Users Found",
+            description: "There are no administrative users yet. Add the first user to grant dashboard access.",
+            actionLabel: "Add User",
+            onAction: () => navigate('/users/new')
           }}
         />
       </div>

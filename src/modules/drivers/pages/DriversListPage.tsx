@@ -15,7 +15,7 @@ export const DriversListPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Query drivers matching state hook values
-  const { data, isLoading } = useDrivers()
+  const { data, isLoading, isError, refetch } = useDrivers()
 
   // Columns definition mapping for new DataTable
   const columns: DataTableColumn<DriverEntity>[] = [
@@ -54,7 +54,7 @@ export const DriversListPage: React.FC = () => {
   ]
 
   const demoDrivers: DriverEntity[] = [
-    { id: 'd1', name: 'Rajesh Kumar', email: 'rajesh.k@gmail.com', phone: '9765432101', vehicleType: 'Sedan Cab', vehicleNumber: 'MH-12-PQ-4567', status: 'approved', rating: 4.9, createdAt: '12 Jan 2026', updatedAt: '' },
+    { id: 'd1', name: 'Rajesh Kumar', email: 'rajesh.k@gmail.com', phone: '9765432101', vehicleType: 'Sedan Cab', vehicleNumber: 'MH-12-PQ-4567', status: 'active', rating: 4.9, createdAt: '12 Jan 2026', updatedAt: '' },
     { id: 'd2', name: 'Sunil Verma', email: 'sunil.v@gmail.com', phone: '9765432102', vehicleType: 'Auto', vehicleNumber: 'KA-03-TR-9876', status: 'pending', rating: 4.2, createdAt: '14 Jan 2026', updatedAt: '' },
     { id: 'd3', name: 'Devendra Pal', email: 'dev.pal@gmail.com', phone: '9765432103', vehicleType: 'Bike', vehicleNumber: 'DL-04-MS-1212', status: 'inactive', rating: 3.5, createdAt: '18 Jan 2026', updatedAt: '' },
   ]
@@ -63,7 +63,7 @@ export const DriversListPage: React.FC = () => {
 
   // Metrics summary calculations
   const totalDrivers = activeData.length
-  const activeDrivers = activeData.filter(d => d.status === 'approved').length
+  const activeDrivers = activeData.filter(d => d.status === 'active').length
   const pendingDrivers = activeData.filter(d => d.status === 'pending').length
 
   return (
@@ -94,22 +94,25 @@ export const DriversListPage: React.FC = () => {
             value={totalDrivers}
             icon={<Users className="w-5 h-5" />}
             variant="blue"
+            loading={isLoading}
           />
           <InfoCard
             label="Verified Partners"
             value={activeDrivers}
             icon={<UserCheck className="w-5 h-5" />}
-            variant="green"
+            variant="blue"
+            loading={isLoading}
           />
           <InfoCard
             label="Pending Verification"
             value={pendingDrivers}
             icon={<UserX className="w-5 h-5" />}
-            variant="amber"
+            variant="blue"
+            loading={isLoading}
           />
         </InfoCardGrid>
 
-        {/* Responsive data table */}
+        {/* Responsive data table with integrated state logic */}
         <DataTable
           columns={columns}
           data={activeData}
@@ -122,9 +125,19 @@ export const DriversListPage: React.FC = () => {
             onView: (row) => navigate(`/drivers/${row.id}`),
             onEdit: (row) => navigate(`/drivers/${row.id}`),
           }}
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={refetch}
+          emptyState={{
+            title: "No Drivers Found",
+            description: "There are no registered drivers yet. Register the first driver to get started.",
+            actionLabel: "Register Driver",
+            onAction: () => navigate('/drivers/new')
+          }}
         />
       </div>
     </PageWrapper>
   )
 }
+
 export default DriversListPage

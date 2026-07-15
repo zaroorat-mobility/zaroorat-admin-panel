@@ -1,2 +1,6 @@
-// Placeholder export for auth module local components
-export {}
+export { LoginForm } from './LoginForm'
+export { ForgotPasswordForm } from './ForgotPasswordForm'
+export { VerifyOtpForm } from './VerifyOtpForm'
+export { ResetPasswordForm } from './ResetPasswordForm'
+export type { LoginResponse, AuthError } from '../types'
+export { AuthService } from '../services'

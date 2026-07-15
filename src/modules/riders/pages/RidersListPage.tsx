@@ -15,7 +15,7 @@ export const RidersListPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Query riders matching state hook values
-  const { data, isLoading } = useRiders()
+  const { data, isLoading, isError, refetch } = useRiders()
 
   // Columns definition mapping for new DataTable
   const columns: DataTableColumn<RiderEntity>[] = [
@@ -61,7 +61,7 @@ export const RidersListPage: React.FC = () => {
               <Download className="h-4 w-4" />
               <span>Export</span>
             </Button>
-            <Button className="gap-2 text-xs font-semibold h-9 rounded-lg">
+            <Button className="gap-2 text-xs font-semibold h-9 rounded-lg" onClick={() => navigate('/riders/new')}>
               <Plus className="h-4 w-4" />
               <span>Create Rider</span>
             </Button>
@@ -77,22 +77,25 @@ export const RidersListPage: React.FC = () => {
             value={totalRiders}
             icon={<Users className="w-5 h-5" />}
             variant="blue"
+            loading={isLoading}
           />
           <InfoCard
             label="Active Passengers"
             value={activeRiders}
             icon={<UserCheck className="w-5 h-5" />}
-            variant="green"
+            variant="blue"
+            loading={isLoading}
           />
           <InfoCard
             label="Inactive Passengers"
             value={inactiveRiders}
             icon={<UserX className="w-5 h-5" />}
-            variant="amber"
+            variant="blue"
+            loading={isLoading}
           />
         </InfoCardGrid>
 
-        {/* Responsive data table */}
+        {/* Responsive data table with integrated state logic */}
         <DataTable
           columns={columns}
           data={activeData}
@@ -105,9 +108,19 @@ export const RidersListPage: React.FC = () => {
             onView: (row) => navigate(`/riders/${row.id}`),
             onEdit: (row) => navigate(`/riders/${row.id}`),
           }}
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={refetch}
+          emptyState={{
+            title: "No Riders Found",
+            description: "There are no registered riders yet. Create the first rider to get started.",
+            actionLabel: "Create Rider",
+            onAction: () => navigate('/riders/new')
+          }}
         />
       </div>
     </PageWrapper>
   )
 }
+
 export default RidersListPage

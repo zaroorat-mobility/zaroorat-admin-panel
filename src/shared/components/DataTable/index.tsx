@@ -5,6 +5,9 @@ import {
 } from "lucide-react";
 import { ActionMenu } from "./ActionMenu";
 import { cn } from "@/shared/utils";
+import { Skeleton } from "../loaders";
+import { NoDataScreen } from "../NoDataScreen";
+import { NetworkErrorScreen } from "../NetworkErrorScreen";
 
 export interface DataTableColumn<T = any> {
   key: string;
@@ -38,11 +41,20 @@ export interface DataTableProps<T = any> {
     onEdit?: (row: T) => void;
     onDelete?: (row: T) => void;
   };
+  isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
+  emptyState?: {
+    title?: string;
+    description?: string;
+    actionLabel?: string;
+    onAction?: () => void;
+  };
 }
 
 export function DataTable<T extends Record<string, any> = any>({
   columns: initialColumns,
-  data,
+  data = [],
   selectable: _selectable = true,
   selectedIds: externalSelectedIds,
   onSelectionChange,
@@ -57,6 +69,10 @@ export function DataTable<T extends Record<string, any> = any>({
   searchPlaceholder = "Search...",
   statusKey = "status",
   actionConfig,
+  isLoading = false,
+  isError = false,
+  onRetry,
+  emptyState,
 }: DataTableProps<T>) {
 
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string>>(new Set());
@@ -335,10 +351,57 @@ export function DataTable<T extends Record<string, any> = any>({
             </thead>
 
             <tbody className="divide-y divide-border">
-              {paged.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, rowIndex) => (
+                  <tr key={`skeleton-row-${rowIndex}`} className="animate-pulse">
+                    {draggable && (
+                      <td className="px-4 py-4 text-center text-slate-350" style={{ borderRight: "1px solid var(--color-table-header-border)" }}>
+                        ⋮⋮
+                      </td>
+                    )}
+                    <td className="px-4 py-4 text-center" style={{ borderRight: "1px solid var(--color-table-header-border)" }}>
+                      <div className="w-4 h-4 bg-slate-200 dark:bg-dark-800 rounded mx-auto" />
+                    </td>
+                    {columns.map(col => {
+                      const align = col.align || "center";
+                      return (
+                        <td
+                          key={`skeleton-cell-${col.key}`}
+                          className={`px-4 py-4 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"}`}
+                          style={{ borderRight: "1px solid var(--color-table-header-border)" }}
+                        >
+                          <Skeleton className={cn("h-4 rounded", align === "center" ? "mx-auto w-24" : align === "right" ? "ml-auto w-20" : "w-28")} />
+                        </td>
+                      );
+                    })}
+                    {actionConfig && (
+                      <td className="px-4 py-4 text-center w-40">
+                        <div className="w-8 h-8 bg-slate-200 dark:bg-dark-800 rounded-full mx-auto" />
+                      </td>
+                    )}
+                  </tr>
+                ))
+              ) : isError ? (
                 <tr>
-                  <td colSpan={colSpan} className="px-6 py-14 text-center text-muted-foreground">
-                    No records found
+                  <td colSpan={colSpan} className="px-6 py-10">
+                    <NetworkErrorScreen
+                      onRetry={onRetry}
+                      className="border-none bg-transparent min-h-[260px] p-0"
+                      imageHeight={130}
+                    />
+                  </td>
+                </tr>
+              ) : paged.length === 0 ? (
+                <tr>
+                  <td colSpan={colSpan} className="px-6 py-10">
+                    <NoDataScreen
+                      title={emptyState?.title ?? "No Records Found"}
+                      description={emptyState?.description ?? "There are no matches for your criteria."}
+                      actionLabel={emptyState?.actionLabel}
+                      onAction={emptyState?.onAction}
+                      className="border-none bg-transparent min-h-[260px] p-0"
+                      imageHeight={130}
+                    />
                   </td>
                 </tr>
               ) : (

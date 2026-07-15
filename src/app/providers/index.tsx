@@ -3,9 +3,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { AppRouter } from '../router'
 import { useThemeStore } from '@/store/theme.store'
+import { ToastProvider, ToastContainer } from '@/shared/context/toast'
 
 /**
- * Root App Providers Registry configuring React Query and React Router
+ * Root App Providers Registry configuring React Query, React Router,
+ * and the global Toast notification system.
  */
 export const AppProviders: React.FC = () => {
   const { theme } = useThemeStore()
@@ -33,10 +35,15 @@ export const AppProviders: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AppRouter />
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <AppRouter />
+        </BrowserRouter>
+        {/* Portal-rendered toast stack — always present at root level */}
+        <ToastContainer />
+      </ToastProvider>
     </QueryClientProvider>
   )
 }
+
 export default AppProviders

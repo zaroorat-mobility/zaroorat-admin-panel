@@ -21,6 +21,7 @@ export interface InfoCardProps {
   subtitle?: ReactNode;
   variant?: InfoCardVariant;
   className?: string;
+  loading?: boolean;
 }
 
 const COLOR_MAP = {
@@ -46,6 +47,7 @@ export function InfoCard({
   subtitle,
   variant = "slate",
   className = "",
+  loading = false,
 }: InfoCardProps) {
   // Normalize variants for backwards compatibility
   const normalizedVariant = variant === "default" ? "slate" : variant === "amber" ? "orange" : variant;
@@ -68,20 +70,30 @@ export function InfoCard({
 
       {/* Middle Row: Value */}
       <div className="mt-1.5 text-[24px] font-bold leading-none text-slate-900 dark:text-white tracking-tight">
-        {value}
+        {loading ? (
+          <div className="h-6 w-16 bg-slate-200 dark:bg-dark-800 rounded animate-pulse" />
+        ) : (
+          value
+        )}
       </div>
 
       {/* Bottom Row: Subtitle/Trend */}
       <div className="mt-auto text-[11px] leading-none text-slate-400 dark:text-slate-500 flex items-center gap-1.5 font-medium">
-        {trend && (
-          <span className={cn(
-            "font-semibold flex items-center gap-0.5",
-            trendDirection === 'up' ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
-          )}>
-            {trendDirection === 'up' ? '↗' : '↘'} {trend}
-          </span>
+        {loading ? (
+          <div className="h-3 w-24 bg-slate-200 dark:bg-dark-800 rounded animate-pulse" />
+        ) : (
+          <>
+            {trend && (
+              <span className={cn(
+                "font-semibold flex items-center gap-0.5",
+                trendDirection === 'up' ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
+              )}>
+                {trendDirection === 'up' ? '↗' : '↘'} {trend}
+              </span>
+            )}
+            <span>{subtitle || 'vs last week'}</span>
+          </>
         )}
-        <span>{subtitle || 'vs last week'}</span>
       </div>
     </div>
   );

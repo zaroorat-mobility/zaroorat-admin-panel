@@ -1,6 +1,8 @@
+export * from './routes/routes'
 export * from './pages/RidersListPage'
 export * from './pages/RiderDetailPage'
 export * from './hooks'
 export * from './services'
 export * from './types'
 export { default as RiderService } from './services'
+export { default as RiderRoutes } from './routes/routes'
