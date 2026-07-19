@@ -8,6 +8,15 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
+  DollarSign,
+  FileText,
+  Activity,
+  Navigation,
+  Bell,
+  LifeBuoy,
+  Landmark,
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react";
 import { useAppStore } from "@/store/app.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -31,18 +40,64 @@ const navItems: NavItem[] = [
     icon: Users,
     children: [
       { href: "/users", label: "Administrators", icon: Users },
-      { href: "/riders", label: "Riders", icon: Users },
-      { href: "/drivers", label: "Drivers", icon: Car, badge: 3, badgeVariant: "warning" },
+    ],
+  },
+  {
+    label: "Rider Management",
+    href: "rider-management",
+    icon: Users,
+    children: [
+      { href: "/riders", label: "Riders Directory", icon: Users },
+    ],
+  },
+  {
+    label: "Driver Management",
+    href: "driver-management",
+    icon: Car,
+    children: [
+      { href: "/driver-management/applications", label: "Driver Applications", icon: ShieldCheck, badge: 12, badgeVariant: "info" },
+      { href: "/driver-management/drivers", label: "Drivers", icon: Users, badge: 3, badgeVariant: "warning" },
+      { href: "/driver-management/vehicles", label: "Vehicles", icon: Car },
+    ],
+  },
+  {
+    label: "Pricing Management",
+    href: "pricing-management",
+    icon: DollarSign,
+    children: [
+      { href: "/pricing-management", label: "Pricing Control Center", icon: LayoutDashboard },
+      { href: "/pricing-management/fare-rules", label: "Fare Rules", icon: DollarSign },
+      { href: "/pricing-management/surge-rules", label: "Surge Rules", icon: Activity },
+      { href: "/pricing-management/cancellation-rules", label: "Cancellation Rules", icon: ShieldCheck },
+      { href: "/pricing-management/pricing-history", label: "Pricing History", icon: FileText },
     ],
   },
   {
     label: "Operations",
     href: "operations",
-    icon: ShieldCheck,
+    icon: Activity,
     children: [
-      { href: "/verification", label: "Verification", icon: ShieldCheck, badge: 12, badgeVariant: "info" },
+      { href: "/operations/ride-monitor", label: "Ride Monitor", icon: Navigation },
+      { href: "/operations/sos-monitor", label: "SOS Monitor", icon: Bell },
+      { href: "/operations/complaints", label: "Complaints", icon: LifeBuoy },
     ],
   },
+  {
+    label: "Financial Operations",
+    href: "financial-operations",
+    icon: DollarSign,
+    children: [
+      { href: "/financial-operations/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/financial-operations/transactions", label: "Transactions", icon: FileText },
+      { href: "/financial-operations/failed-transactions", label: "Failed Transactions", icon: AlertTriangle },
+      { href: "/financial-operations/reconciliation", label: "Reconciliation", icon: Activity },
+      { href: "/financial-operations/disputes", label: "Disputes", icon: ShieldCheck },
+      { href: "/financial-operations/refunds", label: "Refunds", icon: RefreshCw },
+      { href: "/financial-operations/settlements", label: "Settlements", icon: Landmark },
+      { href: "/financial-operations/audit-logs", label: "Finance Audit Logs", icon: FileText },
+    ],
+  },
+  { href: "/audit-log", label: "Audit Log", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -52,7 +107,8 @@ export const Sidebar: React.FC = () => {
   const { isSidebarOpen } = useAppStore();
   const { user } = useAuthStore();
   const [expandedSections, setExpandedSections] = useState<string[]>([
-    "user-management", "operations"
+    "user-management", "rider-management", "driver-management", "pricing-management",
+    "operations", "financial-operations"
   ]);
 
   const toggleSection = (href: string) => {

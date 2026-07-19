@@ -8,8 +8,11 @@ import { AuthRoutes } from '@/modules/auth'
 import { DashboardPage } from '@/modules/dashboard'
 import { UserRoutes } from '@/modules/users'
 import { RiderRoutes } from '@/modules/riders'
-import { DriverRoutes } from '@/modules/drivers'
-import { VerificationRoutes } from '@/modules/verification'
+import { DriverManagementRoutes } from '@/modules/driver-management'
+import { AuditLogRoutes } from '@/modules/audit-log'
+import { PricingManagementRoutes } from '@/modules/pricing-management'
+import { OperationsRoutes } from '@/modules/operations'
+import { FinancialOperationsRoutes } from '@/modules/financial-operations'
 
 /**
  * Main Application Routing Declarations for Zaroorat Mobility
@@ -48,10 +51,23 @@ export const AppRouter: React.FC = () => {
         <Route path="riders/*" element={<RiderRoutes />} />
 
         {/* Driver Management */}
-        <Route path="drivers/*" element={<DriverRoutes />} />
+        <Route path="driver-management/*" element={<DriverManagementRoutes />} />
 
-        {/* Verification Reviews */}
-        <Route path="verification/*" element={<VerificationRoutes />} />
+        {/* Pricing Management */}
+        <Route path="pricing-management/*" element={<PricingManagementRoutes />} />
+
+        {/* Audit Log */}
+        <Route path="audit-log/*" element={<AuditLogRoutes />} />
+
+        {/* Operations Domain */}
+        <Route path="operations/*" element={<OperationsRoutes />} />
+
+        {/* Financial Operations Domain */}
+        <Route path="financial-operations/*" element={<FinancialOperationsRoutes />} />
+
+        {/* Legacy redirect routes */}
+        <Route path="drivers/*" element={<Navigate to="/driver-management/drivers" replace />} />
+        <Route path="verification/*" element={<Navigate to="/driver-management/applications" replace />} />
       </Route>
 
       {/* Catch-all Redirect */}

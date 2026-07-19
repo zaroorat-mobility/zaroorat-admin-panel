@@ -1,0 +1,5 @@
+export { ComplaintsListPage } from './pages/ComplaintsListPage'
+export { ComplaintDetailsPage } from './pages/ComplaintDetailsPage'
+export { CreateComplaintPage } from './pages/CreateComplaintPage'
+export * from './types'
+export * from './components'

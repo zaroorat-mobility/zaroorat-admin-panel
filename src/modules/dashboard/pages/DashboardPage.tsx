@@ -1,9 +1,9 @@
 import React from 'react'
-import { Users, Car, ShieldAlert, ShieldCheck, ArrowUpRight, ArrowDownRight, MoreHorizontal, FileText, CheckCircle2, XCircle, UserPlus } from 'lucide-react'
+import { Users, Car, ShieldAlert, ShieldCheck, ArrowUpRight, ArrowDownRight, MoreHorizontal, CheckCircle2, XCircle, UserPlus } from 'lucide-react'
 import { useDashboardData } from '../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card'
+import { Card, CardContent } from '@/shared/components/ui/Card'
 import { ChartPlaceholder } from '@/shared/components/charts'
 import { StatusBadge } from '@/shared/components/StatusBadge'
 import { Button } from '@/shared/components/ui/Button'
@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom'
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate()
-  const { data, isLoading } = useDashboardData()
+  const { isLoading } = useDashboardData()
 
   // Top KPI section mapping to UI requirements
   const kpiItems = [

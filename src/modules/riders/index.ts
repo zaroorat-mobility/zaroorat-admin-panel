@@ -1,6 +1,6 @@
 export * from './routes/routes'
-export * from './pages/RidersListPage'
-export * from './pages/RiderDetailPage'
+export { RidersListPage } from './pages/RidersListPage'
+export { RiderDetailsPage } from './pages/RiderDetailsPage'
 export * from './hooks'
 export * from './services'
 export * from './types'
