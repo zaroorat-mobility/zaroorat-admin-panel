@@ -37,7 +37,7 @@ export function buttonVariants({
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode;
   variant?: ButtonVariant;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "icon";
   disabled?: boolean;
   loading?: boolean;
   icon?: ReactNode;
@@ -67,6 +67,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
     sm: "h-8 px-3 text-xs",
     md: "h-9 px-4 text-sm",
     lg: "h-10 px-5 text-sm",
+    icon: "h-9 w-9 p-0",
   };
 
   const disabledStyles =
