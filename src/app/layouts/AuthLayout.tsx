@@ -24,8 +24,8 @@ export const AuthLayout: React.FC = () => {
       <div className="relative z-30 w-full max-w-[400px] md:absolute md:right-[6vw] lg:right-[8vw] md:top-[50%] md:-translate-y-1/2 md:left-auto md:translate-x-0 p-8 rounded-3xl backdrop-blur-xl bg-white/75 dark:bg-slate-950/60 border border-white/30 dark:border-slate-800/40 shadow-[0_24px_65px_rgba(43,49,122,0.15)] transition-all duration-300">
         
         {/* Logo header for small screens only */}
-        <div className="flex md:hidden flex-col items-center mb-6">
-          <img src={navbarLogo} alt="Zaroorat Mobility" className="h-10 object-contain mb-2" />
+        <div className="flex md:hidden flex-col items-center justify-center mb-6 w-full text-center">
+          <img src={navbarLogo} alt="Zaroorat Mobility" className="h-10 object-contain mb-2 translate-x-3" />
           <p className="text-xs text-slate-550 dark:text-dark-400">
             Administration Portal
           </p>
