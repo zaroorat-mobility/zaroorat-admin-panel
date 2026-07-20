@@ -20,8 +20,9 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/app.store";
 import { useAuthStore } from "@/store/auth.store";
+import navbarLogo from "@/assets/images/navbar_logo.jpg";
+import heroLogo from "@/assets/images/hero-logo.jpg";
 import { cn } from "@/shared/utils";
-import logoImg from "@/assets/images/logo.png";
 
 interface NavItem {
   icon: React.ElementType;
@@ -135,14 +136,12 @@ export const Sidebar: React.FC = () => {
       )}
     >
       {/* Logo Header */}
-      <div className="h-16 flex items-center px-6 border-b border-border">
-        <Link to="/dashboard" className="flex items-center gap-2.5">
-          <img src={logoImg} alt="Zaroorat Mobility" className="w-8 h-8 rounded-lg object-contain" />
-          {isSidebarOpen && (
-            <div>
-              <div className="font-semibold text-sm text-foreground tracking-tight">Zaroorat Mobility</div>
-              <div className="text-[10px] text-muted-foreground font-medium -mt-0.5">Admin Operations</div>
-            </div>
+      <div className={cn("h-16 flex items-center border-b border-border justify-center", isSidebarOpen ? "px-6" : "px-4")}>
+        <Link to="/dashboard" className="flex items-center w-full justify-center">
+          {isSidebarOpen ? (
+            <img src={navbarLogo} alt="Zaroorat Mobility" className="h-8 max-w-[210px] object-contain block" />
+          ) : (
+            <img src={heroLogo} alt="Zaroorat" className="w-8 h-8 rounded-lg object-contain block" />
           )}
         </Link>
       </div>

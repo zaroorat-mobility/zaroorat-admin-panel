@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
 import { useToast } from '@/shared/context/toast'
+import { safetyShield } from '@/assets/images/auth'
 
 interface ForgotPasswordFormProps {
   onBackToLogin: () => void
@@ -40,7 +41,15 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 animate-fadeIn">
-      <div className="space-y-1">
+      <div className="flex justify-center mb-1">
+        <img 
+          src={safetyShield} 
+          alt="Safety Shield" 
+          className="w-20 h-20 object-contain animate-rotate-shield" 
+        />
+      </div>
+
+      <div className="space-y-1 text-center">
         <h3 className="text-xl font-bold text-slate-900 dark:text-dark-50">Forgot Password</h3>
         <p className="text-sm text-slate-500 dark:text-dark-400">
           Enter your administrative email address to receive an OTP
