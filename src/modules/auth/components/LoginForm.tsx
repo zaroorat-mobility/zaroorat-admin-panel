@@ -166,12 +166,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             Log in
           </Button>
 
-          {/* Quick Mock Login for Local Development */}
-          {import.meta.env.DEV && (
-            <Button type="button" variant="outline" className="w-full h-11 text-xs rounded-xl" onClick={setMockSession}>
-              Demo Quick Login (Superadmin Bypass)
-            </Button>
-          )}
+          {/* Quick Mock Login for Local Development / Netlify Demo */}
+          <Button type="button" variant="outline" className="w-full h-11 text-xs rounded-xl" onClick={setMockSession}>
+            Demo Quick Login (Superadmin Bypass)
+          </Button>
         </div>
       </form>
     </div>
