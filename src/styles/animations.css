@@ -1,0 +1,183 @@
+/* Premium 3D Animation Keyframes & Utility Classes for Zaroorat Mobility Auth Page */
+
+@keyframes float-car {
+  0%, 100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1deg);
+  }
+}
+
+@keyframes float-cloud-1 {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(15px, -5px);
+  }
+}
+
+@keyframes float-cloud-2 {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-20px, 8px);
+  }
+}
+
+@keyframes float-cloud-3 {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(10px, 4px);
+  }
+}
+
+@keyframes bounce-pin {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 10px 8px rgba(0, 0, 0, 0.15));
+  }
+  50% {
+    transform: translateY(-6px) scale(1.05);
+    filter: drop-shadow(0 18px 12px rgba(0, 0, 0, 0.25));
+  }
+}
+
+@keyframes road-slide {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-40px);
+  }
+}
+
+@keyframes parallax-skyline {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes pulse-route {
+  0%, 100% {
+    stroke-dashoffset: 0;
+    opacity: 0.8;
+  }
+  50% {
+    stroke-dashoffset: -20;
+    opacity: 1;
+  }
+}
+
+@keyframes float-card-1 {
+  0%, 100% {
+    transform: translateY(0) rotate(1deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(-1deg);
+  }
+}
+
+@keyframes float-card-2 {
+  0%, 100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(1.5deg);
+  }
+}
+
+@keyframes rotate-shield {
+  0%, 100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.1);
+  }
+}
+
+/* Animation Utility Classes */
+.animate-float-car {
+  animation: float-car 4s ease-in-out infinite;
+}
+
+.animate-float-cloud-1 {
+  animation: float-cloud-1 6s ease-in-out infinite;
+}
+
+.animate-float-cloud-2 {
+  animation: float-cloud-2 8s ease-in-out infinite;
+}
+
+.animate-float-cloud-3 {
+  animation: float-cloud-3 7s ease-in-out infinite;
+}
+
+.animate-bounce-pin {
+  animation: bounce-pin 3.5s ease-in-out infinite;
+}
+
+.animate-road-slide {
+  animation: road-slide 12s linear infinite;
+}
+
+.animate-parallax {
+  animation: parallax-skyline 20s ease-in-out infinite;
+}
+
+.animate-pulse-route {
+  animation: pulse-route 3s linear infinite;
+}
+
+.animate-float-card-1 {
+  animation: float-card-1 5s ease-in-out infinite;
+}
+
+.animate-float-card-2 {
+  animation: float-card-2 6s ease-in-out infinite;
+}
+
+.animate-rotate-shield {
+  animation: rotate-shield 4s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 8s ease-in-out infinite;
+}
+
+/* Reduced Motion Mode Support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-car,
+  .animate-float-cloud-1,
+  .animate-float-cloud-2,
+  .animate-float-cloud-3,
+  .animate-bounce-pin,
+  .animate-road-slide,
+  .animate-parallax,
+  .animate-pulse-route,
+  .animate-float-card-1,
+  .animate-float-card-2,
+  .animate-rotate-shield,
+  .animate-pulse-glow {
+    animation: none !important;
+    transform: none !important;
+  }
+}

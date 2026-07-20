@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/context/toast'
+import { otpPhone } from '@/assets/images/auth'
 
 interface VerifyOtpFormProps {
   email: string
@@ -75,7 +76,15 @@ export const VerifyOtpForm: React.FC<VerifyOtpFormProps> = ({
 
   return (
     <form onSubmit={handleVerify} className="space-y-5 animate-fadeIn">
-      <div className="space-y-1">
+      <div className="flex justify-center mb-1">
+        <img 
+          src={otpPhone} 
+          alt="OTP verification phone" 
+          className="w-20 h-20 object-contain animate-float-car" 
+        />
+      </div>
+
+      <div className="space-y-1 text-center">
         <h3 className="text-xl font-bold text-slate-900 dark:text-dark-50">Verify OTP</h3>
         <p className="text-sm text-slate-500 dark:text-dark-400">
           Enter the 4-digit code sent to <strong className="text-slate-800 dark:text-dark-200">{email}</strong>

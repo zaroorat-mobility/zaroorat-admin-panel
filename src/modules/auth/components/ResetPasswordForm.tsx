@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
 import { useToast } from '@/shared/context/toast'
+import { resetPassword } from '@/assets/images/auth'
 
 interface ResetPasswordFormProps {
   onBackToLogin: () => void
@@ -43,7 +44,15 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
 
   return (
     <form onSubmit={handleReset} className="space-y-5 animate-fadeIn">
-      <div className="space-y-1">
+      <div className="flex justify-center mb-1">
+        <img 
+          src={resetPassword} 
+          alt="Reset Password Lock" 
+          className="w-20 h-20 object-contain animate-rotate-shield" 
+        />
+      </div>
+
+      <div className="space-y-1 text-center">
         <h3 className="text-xl font-bold text-slate-900 dark:text-dark-50">Reset Password</h3>
         <p className="text-sm text-slate-500 dark:text-dark-400">
           Enter a secure password for your administrative profile
