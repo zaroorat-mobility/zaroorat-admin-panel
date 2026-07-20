@@ -12,7 +12,7 @@ import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import type { UserEntity } from '../types'
 
 export const UsersListPage: React.FC = () => {
-  const navigate = navigateFn ? navigateFn() : useNavigate()
+  const navigate = useNavigate()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -143,6 +143,4 @@ export const UsersListPage: React.FC = () => {
   )
 }
 
-// Check for testing navigation hook inject wrapper
-const navigateFn: any = null
 export default UsersListPage
