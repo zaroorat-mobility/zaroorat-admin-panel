@@ -23,7 +23,13 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
 
   // Form states
   const [ruleName, setRuleName] = useState(initialValues?.ruleName || '')
-  const [vehicleType, setVehicleType] = useState<VehicleType>(initialValues?.vehicleType || 'cab')
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(
+    Array.isArray(initialValues?.vehicleType) 
+      ? initialValues.vehicleType 
+      : initialValues?.vehicleType 
+        ? [initialValues.vehicleType as VehicleType] 
+        : ['cab']
+  )
   const [multiplier, setMultiplier] = useState<number>(initialValues?.multiplier || 1.2)
   const [startTime, setStartTime] = useState(initialValues?.startTime || '')
   const [endTime, setEndTime] = useState(initialValues?.endTime || '')
@@ -42,8 +48,8 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
     }
 
     if (step === 'multiplier') {
-      if (multiplier < 1.0) errs.multiplier = 'Multiplier must be at least 1.0x.'
-      if (multiplier > 5.0) errs.multiplier = 'Multiplier cannot exceed 5.0x.'
+      if (multiplier < 0.5) errs.multiplier = 'Multiplier must be at least 0.5x.'
+      if (multiplier > 2.0) errs.multiplier = 'Multiplier cannot exceed 2.0x.'
     }
 
     if (step === 'validity') {
@@ -100,7 +106,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
     }
     onSubmit({
       ruleName,
-      vehicleType,
+      vehicleType: vehicleTypes,
       multiplier,
       startTime: startTime || undefined,
       endTime: endTime || undefined,
@@ -140,17 +146,26 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                 {errors.ruleName && <p className="text-[10px] text-rose-500 font-bold">{errors.ruleName}</p>}
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Vehicle Type</label>
-                <select
-                  value={vehicleType}
-                  onChange={(e) => setVehicleType(e.target.value as VehicleType)}
-                  className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                >
-                  <option value="cab">Cab</option>
-                  <option value="auto">Auto</option>
-                  <option value="bike">Bike</option>
-                </select>
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Target Vehicle Types</label>
+                <div className="flex gap-4 items-center bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-border">
+                  {(['cab', 'auto', 'bike'] as const).map(type => (
+                    <label key={type} className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={vehicleTypes.includes(type)}
+                        onChange={(e) => {
+                          const next = e.target.checked 
+                            ? [...vehicleTypes, type]
+                            : vehicleTypes.filter(t => t !== type)
+                          if (next.length > 0) setVehicleTypes(next)
+                        }}
+                        className="rounded border-border text-primary focus:ring-primary h-4 w-4"
+                      />
+                      <span className="capitalize">{type}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -168,7 +183,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                 
                 {/* Multiplier Presets */}
                 <div className="grid grid-cols-4 gap-2 mb-3">
-                  {[1.1, 1.2, 1.5, 2.0].map((val) => (
+                  {[0.5, 1.0, 1.5, 2.0].map((val) => (
                     <button
                       key={val}
                       type="button"
@@ -188,8 +203,8 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                   <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Or Custom Multiplier (x)</label>
                   <input
                     type="number"
-                    min="1.0"
-                    max="5.0"
+                    min="0.5"
+                    max="2.0"
                     step="0.1"
                     value={multiplier}
                     onChange={(e) => setMultiplier(parseFloat(e.target.value) || 1.0)}
@@ -281,7 +296,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
                 <div className="space-y-2">
                   <p><strong>Rule Name:</strong> {ruleName}</p>
-                  <p><strong>Vehicle Category:</strong> <span className="uppercase font-bold text-primary">{vehicleType}</span></p>
+                  <p><strong>Vehicle Category:</strong> <span className="uppercase font-bold text-primary">{vehicleTypes.join(', ')}</span></p>
                   <p><strong>Multiplier Rate:</strong> <span className="px-2 py-0.5 rounded font-black text-rose-700 bg-rose-50 border border-rose-100">{multiplier}x</span></p>
                 </div>
                 <div className="space-y-2 border-l pl-4">
@@ -297,7 +312,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                   <div>
                     <p className="font-bold">Auto-Deactivation Notification</p>
                     <p className="text-[10px] text-amber-700 mt-0.5">
-                      Publishing this rule as Active will automatically turn off other active surge rules for <strong>{vehicleType.toUpperCase()}</strong> categories.
+                      Publishing this rule as Active will automatically turn off other active surge rules for <strong>{vehicleTypes.join(', ').toUpperCase()}</strong> categories.
                     </p>
                   </div>
                 </div>

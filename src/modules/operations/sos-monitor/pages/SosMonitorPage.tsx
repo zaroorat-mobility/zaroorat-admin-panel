@@ -83,7 +83,10 @@ export const SosMonitorPage: React.FC = () => {
       align: 'left',
       render: (val: string, row) => (
         <div className="text-left text-xs">
-          <div className="font-bold text-slate-850 dark:text-white">{val}</div>
+          <div className="font-bold text-slate-850 dark:text-white flex items-center gap-1.5">
+            <span>{val}</span>
+            <span className="px-1 py-0.25 text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-100 rounded uppercase font-black">Active</span>
+          </div>
           <div className="text-[10px] text-muted-foreground font-mono uppercase">{row.vehiclePlate}</div>
         </div>
       )

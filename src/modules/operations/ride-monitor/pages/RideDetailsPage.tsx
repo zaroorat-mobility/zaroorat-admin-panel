@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useRide, useCreateComplaint } from '../../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -23,7 +23,13 @@ import {
 export const RideDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'fare' | 'payment' | 'sos' | 'complaints' | 'refunds' | 'audit'>('overview')
+  const [searchParams] = useSearchParams()
+  const urlTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'fare' | 'payment' | 'sos' | 'complaints' | 'refunds' | 'audit' | 'reviews'>(
+    urlTab && ['overview', 'timeline', 'fare', 'payment', 'sos', 'complaints', 'refunds', 'audit', 'reviews'].includes(urlTab)
+      ? (urlTab as any)
+      : 'overview'
+  )
 
   // Create Complaint Modal State
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false)
@@ -126,7 +132,8 @@ export const RideDetailsPage: React.FC = () => {
     { id: 'sos', label: `SOS (${linkedSos.length})` },
     { id: 'complaints', label: `Complaints (${linkedComplaints.length})` },
     { id: 'refunds', label: `Refunds (${linkedRefunds.length})` },
-    { id: 'audit', label: 'Audit Trail' }
+    { id: 'audit', label: 'Audit Trail' },
+    { id: 'reviews', label: 'Reviews' }
   ]
 
   return (
@@ -537,6 +544,36 @@ export const RideDetailsPage: React.FC = () => {
                       </table>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Tab 8: Reviews */}
+              {activeTab === 'reviews' && (
+                <div className="space-y-6 text-left text-xs">
+                  <div className="border-b pb-2">
+                    <h3 className="font-bold text-slate-850 text-sm">Ride Reviews & Star Ratings</h3>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Feedback logs submitted by both rider and driver partner for this specific booking.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Card className="premium-card p-4 space-y-2">
+                      <span className="text-[8px] uppercase font-bold text-slate-400 tracking-wider">Passenger's Review of Partner</span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-xs font-black text-amber-500 flex items-center gap-0.5">5.0 ★</span>
+                        <span className="text-[10px] text-slate-500">Submitted by Rider</span>
+                      </div>
+                      <p className="italic text-slate-600 dark:text-slate-350">"Excellent riding style, reached safely and on time."</p>
+                    </Card>
+
+                    <Card className="premium-card p-4 space-y-2">
+                      <span className="text-[8px] uppercase font-bold text-slate-400 tracking-wider">Partner's Review of Passenger</span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-xs font-black text-amber-500 flex items-center gap-0.5">4.0 ★</span>
+                        <span className="text-[10px] text-slate-500">Submitted by Driver</span>
+                      </div>
+                      <p className="italic text-slate-600 dark:text-slate-350">"Good passenger, slightly delayed boarding."</p>
+                    </Card>
+                  </div>
                 </div>
               )}
 

@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/shared/utils'
 
-type RiderTab = 'profile' | 'history' | 'wallet' | 'refunds' | 'timeline'
+type RiderTab = 'profile' | 'history' | 'wallet' | 'refunds' | 'timeline' | 'reviews'
 
 export const RiderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -233,9 +233,10 @@ export const RiderDetailsPage: React.FC = () => {
         {[
           { id: 'profile', label: 'Overview Profile', icon: User },
           { id: 'history', label: 'Ride History log', icon: Briefcase },
-          { id: 'wallet', label: 'Wallet balance & transactions', icon: CreditCard },
+          { id: 'wallet', label: 'Transactions Ledger', icon: CreditCard },
           { id: 'refunds', label: `Refund History (${linkedRefunds.length})`, icon: ShieldCheck },
-          { id: 'timeline', label: 'Compliance timeline logs', icon: Clock }
+          { id: 'timeline', label: 'Compliance timeline logs', icon: Clock },
+          { id: 'reviews', label: 'Reviews & Feedback', icon: Star }
         ].map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -370,21 +371,15 @@ export const RiderDetailsPage: React.FC = () => {
         {/* TAB 3: WALLET BALANCES */}
         {activeTab === 'wallet' && (
           <div className="space-y-6 text-left">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <Card className="premium-card p-5">
-                <span className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Wallet Balance</span>
-                <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">₹{Number(rider.walletBalance || 0).toFixed(2)}</p>
-                <p className="text-[10px] text-emerald-600 font-semibold mt-1">Auto-refund cycle: Live</p>
-              </Card>
-
-              <Card className="premium-card p-5">
-                <span className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Total refunds issued</span>
+                <span className="text-[10px] uppercase font-bold text-slate-455 tracking-wider">Total refunds issued</span>
                 <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">₹0.00</p>
                 <p className="text-[10px] text-muted-foreground mt-1">Status: No active disputes</p>
               </Card>
 
               <Card className="premium-card p-5">
-                <span className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Accumulated cashbacks</span>
+                <span className="text-[10px] uppercase font-bold text-slate-455 tracking-wider">Accumulated cashbacks</span>
                 <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">₹70.00</p>
                 <p className="text-[10px] text-primary mt-1">Promotional coupon applied</p>
               </Card>
@@ -493,6 +488,47 @@ export const RiderDetailsPage: React.FC = () => {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* TAB 5: PASSENGER REVIEWS */}
+        {activeTab === 'reviews' && (
+          <Card className="premium-card text-left">
+            <CardHeader>
+              <CardTitle>Passenger Feedback & Reviews</CardTitle>
+              <CardDescription>Chronological feedback and star ratings submitted by drivers regarding this passenger.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <DataTable
+                columns={[
+                  {
+                    key: 'date',
+                    label: 'Date',
+                    render: (date: string) => new Date(date).toLocaleDateString('en-IN')
+                  },
+                  {
+                    key: 'driverName',
+                    label: 'Driver Name',
+                    render: (name: string) => <span className="font-bold text-slate-850 dark:text-slate-200">{name}</span>
+                  },
+                  {
+                     key: 'rating',
+                     label: 'Rating Given',
+                     render: (rating: number) => <span className="font-bold text-amber-500">{rating} ★</span>
+                  },
+                  {
+                     key: 'comment',
+                     label: 'Feedback Comment',
+                     render: (comment: string) => <span className="italic text-slate-500">"{comment}"</span>
+                  }
+                ]}
+                data={[
+                  { id: '1', date: '2026-07-22', driverName: 'Rajesh Kumar', rating: 5, comment: 'Very polite rider, reached pickup point on time.' },
+                  { id: '2', date: '2026-07-20', driverName: 'Sunil Verma', rating: 4, comment: 'Good trip, slight delay in boarding.' }
+                ]}
+                selectable={false}
+              />
             </CardContent>
           </Card>
         )}

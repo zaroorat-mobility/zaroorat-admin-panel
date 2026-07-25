@@ -20,6 +20,9 @@ import {
   CancellationRuleDetailsPage
 } from '../cancellation-rules'
 import { PricingHistoryPage } from '../pricing-history'
+import { GstTaxationPage } from '../gst-taxation/pages/GstTaxationPage'
+import { RazorpayCommissionPage } from '../razorpay-commission/pages/RazorpayCommissionPage'
+import { InvoiceGenerationPage } from '../invoices/pages/InvoiceGenerationPage'
 
 export const PricingManagementRoutes: React.FC = () => {
   return (
@@ -47,6 +50,15 @@ export const PricingManagementRoutes: React.FC = () => {
 
       {/* Pricing History */}
       <Route path="pricing-history" element={<PricingHistoryPage />} />
+
+      {/* GST Settings */}
+      <Route path="gst" element={<GstTaxationPage />} />
+
+      {/* Razorpay Commission Settings */}
+      <Route path="razorpay" element={<RazorpayCommissionPage />} />
+
+      {/* Invoices Console */}
+      <Route path="invoices" element={<InvoiceGenerationPage />} />
     </Routes>
   )
 }

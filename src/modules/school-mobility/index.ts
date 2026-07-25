@@ -1,0 +1,5 @@
+export * from './routes/routes'
+export { StudentRegistryPage } from './pages/StudentRegistryPage'
+export { RouteOptimizationPage } from './pages/RouteOptimizationPage'
+export { ParentPortalSettingsPage } from './pages/ParentPortalSettingsPage'
+export { default as SchoolMobilityRoutes } from './routes/routes'

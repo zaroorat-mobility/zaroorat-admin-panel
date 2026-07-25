@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
 import {
   Search, X, ChevronsUpDown, ChevronUp, ChevronDown,
-  ChevronLeft, ChevronRight, Settings2, Check, Filter
+  ChevronLeft, ChevronRight, Settings2, Check, Filter, Download
 } from "lucide-react";
 import { ActionMenu } from "./ActionMenu";
 import { cn } from "@/shared/utils";
@@ -96,6 +96,9 @@ export function DataTable<T extends Record<string, any> = any>({
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showColumnMenu, setShowColumnMenu] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [globalStatusFilter, setGlobalStatusFilter] = useState("all");
 
   const statusRef = useRef<HTMLDivElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
@@ -134,8 +137,53 @@ export function DataTable<T extends Record<string, any> = any>({
     const q = search.trim().toLowerCase();
     if (q) result = result.filter(row => columns.some(col => String(row[col.key] ?? "").toLowerCase().includes(q)));
     if (selectedStatuses.length > 0) result = result.filter(row => selectedStatuses.includes(String(row[statusKey])));
+
+    // 1. Date Range picker filter
+    if (fromDate || toDate) {
+      const from = fromDate ? new Date(fromDate) : null;
+      const to = toDate ? new Date(toDate) : null;
+      if (to) to.setHours(23, 59, 59, 999);
+
+      result = result.filter(row => {
+        const dateVal = row.createdAt || row.joinedAt || row.submittedAt || row.date || row.timestamp || row.effectiveFrom;
+        if (!dateVal) return true;
+        const rowDate = new Date(dateVal);
+        if (isNaN(rowDate.getTime())) return true;
+        if (from && rowDate < from) return false;
+        if (to && rowDate > to) return false;
+        return true;
+      });
+    }
+
+    // 2. Global Status Filter
+    if (globalStatusFilter !== "all") {
+      result = result.filter(row => {
+        const rawStatus = row.riderStatus || row.driverStatus || row.status || row.applicationStatus || (row.isActive !== undefined ? (row.isActive ? "active" : "inactive") : "");
+        const statusStr = String(rawStatus ?? "").toLowerCase();
+
+        if (globalStatusFilter === "active") {
+          return ["active", "true", "approved", "completed", "online"].includes(statusStr);
+        }
+        if (globalStatusFilter === "suspended") {
+          return ["suspended", "under_review", "pending_review", "pending"].includes(statusStr);
+        }
+        if (globalStatusFilter === "blocked") {
+          return ["blocked", "false", "rejected", "cancelled", "inactive", "offline"].includes(statusStr);
+        }
+        if (globalStatusFilter === "recent") {
+          const dateVal = row.createdAt || row.joinedAt || row.submittedAt || row.date || row.timestamp;
+          if (!dateVal) return false;
+          const rowDate = new Date(dateVal);
+          if (isNaN(rowDate.getTime())) return false;
+          const diffDays = (new Date().getTime() - rowDate.getTime()) / (1000 * 3600 * 24);
+          return diffDays <= 7 && diffDays >= 0;
+        }
+        return true;
+      });
+    }
+
     return result;
-  }, [data, search, columns, selectedStatuses, statusKey]);
+  }, [data, search, columns, selectedStatuses, statusKey, fromDate, toDate, globalStatusFilter]);
 
   const sorted = useMemo(() => {
     if (!sortCol) return filteredData;
@@ -287,6 +335,78 @@ export function DataTable<T extends Record<string, any> = any>({
               </div>
             )}
           </div>
+
+          {/* Global Date Range Filter */}
+          <div className="flex items-center gap-2 border border-border rounded-lg px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 text-xs">
+            <span className="text-muted-foreground font-semibold">From:</span>
+            <input 
+              type="date" 
+              value={fromDate} 
+              onChange={e => { setFromDate(e.target.value); resetPage(); }} 
+              className="bg-transparent text-foreground outline-none cursor-pointer border-none p-0 w-24 [color-scheme:light]"
+            />
+            <span className="text-muted-foreground font-semibold">To:</span>
+            <input 
+              type="date" 
+              value={toDate} 
+              onChange={e => { setToDate(e.target.value); resetPage(); }} 
+              className="bg-transparent text-foreground outline-none cursor-pointer border-none p-0 w-24 [color-scheme:light]"
+            />
+            {(fromDate || toDate) && (
+              <button 
+                onClick={() => { setFromDate(""); setToDate(""); resetPage(); }}
+                className="text-muted-foreground hover:text-foreground ml-1"
+                title="Clear date filter"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Global Status State Filter */}
+          <div className="relative">
+            <select
+              value={globalStatusFilter}
+              onChange={e => { setGlobalStatusFilter(e.target.value); resetPage(); }}
+              className="px-3 py-1.5 text-xs border border-border rounded-lg bg-surface text-foreground hover:bg-slate-50 dark:hover:bg-slate-800 outline-none cursor-pointer transition-colors h-[34px] font-semibold text-slate-650"
+            >
+              <option value="all">All States</option>
+              <option value="active">Active State</option>
+              <option value="suspended">Suspended State</option>
+              <option value="recent">Recent State</option>
+              <option value="blocked">Blocked State</option>
+            </select>
+          </div>
+
+          {/* CSV Download Trigger */}
+          <button
+            onClick={() => {
+              if (filteredData.length === 0) return;
+              const headers = columns.map(c => c.label);
+              const csvRows = [
+                headers.join(','),
+                ...filteredData.map(row => 
+                  columns.map(col => {
+                    const val = row[col.key];
+                    const cleanVal = typeof val === 'object' ? '' : String(val ?? '').replace(/"/g, '""');
+                    return `"${cleanVal}"`;
+                  }).join(',')
+                )
+              ];
+              const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.setAttribute("href", url);
+              link.setAttribute("download", `${resultLabel || 'export'}_${new Date().toISOString().split('T')[0]}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs border border-border text-foreground rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors h-[34px] font-semibold cursor-pointer"
+            title="Download CSV"
+          >
+            <Download className="w-4 h-4 text-primary" /> Export CSV
+          </button>
         </div>
       </div>
 

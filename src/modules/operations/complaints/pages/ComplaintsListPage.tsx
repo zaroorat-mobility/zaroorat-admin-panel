@@ -98,6 +98,30 @@ export const ComplaintsListPage: React.FC = () => {
       )
     },
     {
+      key: 'driverInfo',
+      label: 'Driver Partner Info',
+      align: 'left',
+      render: (_, row) => {
+        const driverName = row.raisedBy === 'driver' ? row.raisedByName : 'Rajesh Kumar'
+        const driverStatus = row.raisedBy === 'driver' ? 'Suspended' : 'Active'
+        return (
+          <div className="text-left text-xs font-medium">
+            <div className="font-bold text-slate-855 dark:text-white flex items-center gap-1">
+              <User className="h-3.5 w-3.5 text-slate-400" />
+              {driverName}
+            </div>
+            <span className={`text-[8px] px-1 py-0.25 rounded font-black border uppercase mt-0.5 inline-block ${
+              driverStatus === 'Active' 
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                : 'bg-rose-50 text-rose-700 border-rose-100'
+            }`}>
+              {driverStatus}
+            </span>
+          </div>
+        )
+      }
+    },
+    {
       key: 'category',
       label: 'Category',
       align: 'left',

@@ -409,10 +409,10 @@ const getSurgeRules = async (params?: QueryParams): Promise<PaginatedResponse<Su
   let filtered = [...db]
 
   if (search) {
-    filtered = filtered.filter(r => 
-      r.ruleName.toLowerCase().includes(search) || 
-      r.vehicleType.toLowerCase().includes(search)
-    )
+    filtered = filtered.filter(r => {
+      const vt = Array.isArray(r.vehicleType) ? r.vehicleType.join(', ') : r.vehicleType
+      return r.ruleName.toLowerCase().includes(search) || vt.toLowerCase().includes(search)
+    })
   }
 
   filtered.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -442,7 +442,10 @@ const createSurgeRule = async (data: Omit<SurgeRule, 'id' | 'createdAt' | 'updat
   // Exclusivity Check
   if (data.status === 'active') {
     db.forEach(r => {
-      if (r.vehicleType === data.vehicleType && r.status === 'active') {
+      const match = Array.isArray(r.vehicleType) && Array.isArray(data.vehicleType)
+        ? r.vehicleType.some(type => data.vehicleType.includes(type))
+        : r.vehicleType === data.vehicleType
+      if (match && r.status === 'active') {
         r.status = 'inactive'
         r.updatedAt = now
       }
@@ -462,7 +465,7 @@ const createSurgeRule = async (data: Omit<SurgeRule, 'id' | 'createdAt' | 'updat
 
   logAuditAction(
     `Created Surge Rule: ${rule.ruleName} (V1)`,
-    `Vehicle: ${rule.vehicleType.toUpperCase()}, Multiplier: ${rule.multiplier}x, Status: ${rule.status}`,
+    `Vehicle: ${(Array.isArray(rule.vehicleType) ? rule.vehicleType.join(', ') : rule.vehicleType).toUpperCase()}, Multiplier: ${rule.multiplier}x, Status: ${rule.status}`,
     rule.id,
     'fare_config'
   )
@@ -487,7 +490,10 @@ const updateSurgeRule = async (id: string, updates: Partial<SurgeRule>): Promise
 
   if (targetStatus === 'active') {
     db.forEach(r => {
-      if (r.vehicleType === targetVehicleType && r.status === 'active' && r.id !== id) {
+      const match = Array.isArray(r.vehicleType) && Array.isArray(targetVehicleType)
+        ? r.vehicleType.some(type => targetVehicleType.includes(type))
+        : r.vehicleType === targetVehicleType
+      if (match && r.status === 'active' && r.id !== id) {
         r.status = 'inactive'
         r.updatedAt = now
       }
@@ -533,7 +539,7 @@ const deleteSurgeRule = async (id: string): Promise<void> => {
 
   logAuditAction(
     `Deleted Surge Rule: ${old.ruleName} (V${old.version})`,
-    `Vehicle: ${old.vehicleType.toUpperCase()}, Multiplier: ${old.multiplier}x`,
+    `Vehicle: ${(Array.isArray(old.vehicleType) ? old.vehicleType.join(', ') : old.vehicleType).toUpperCase()}, Multiplier: ${old.multiplier}x`,
     id,
     'fare_config'
   )
@@ -549,7 +555,10 @@ const activateSurgeRule = async (id: string): Promise<SurgeRule> => {
 
   // Deactivate other active surge rules for same vehicle type
   db.forEach(r => {
-    if (r.vehicleType === rule.vehicleType && r.status === 'active' && r.id !== id) {
+    const match = Array.isArray(r.vehicleType) && Array.isArray(rule.vehicleType)
+      ? r.vehicleType.some(type => rule.vehicleType.includes(type))
+      : r.vehicleType === rule.vehicleType
+    if (match && r.status === 'active' && r.id !== id) {
       r.status = 'inactive'
       r.updatedAt = now
     }
@@ -562,7 +571,7 @@ const activateSurgeRule = async (id: string): Promise<SurgeRule> => {
 
   logAuditAction(
     `Activated Surge Rule: ${rule.ruleName} (V${rule.version})`,
-    `Vehicle: ${rule.vehicleType.toUpperCase()} surge multiplier ${rule.multiplier}x is now active.`,
+    `Vehicle: ${(Array.isArray(rule.vehicleType) ? rule.vehicleType.join(', ') : rule.vehicleType).toUpperCase()} surge multiplier ${rule.multiplier}x is now active.`,
     rule.id,
     'fare_config'
   )
@@ -585,7 +594,7 @@ const deactivateSurgeRule = async (id: string): Promise<SurgeRule> => {
 
   logAuditAction(
     `Deactivated Surge Rule: ${rule.ruleName} (V${rule.version})`,
-    `Vehicle: ${rule.vehicleType.toUpperCase()} surge rule deactivated.`,
+    `Vehicle: ${(Array.isArray(rule.vehicleType) ? rule.vehicleType.join(', ') : rule.vehicleType).toUpperCase()} surge rule deactivated.`,
     rule.id,
     'fare_config'
   )

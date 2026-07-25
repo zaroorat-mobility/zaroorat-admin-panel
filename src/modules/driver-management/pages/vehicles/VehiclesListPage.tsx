@@ -4,7 +4,7 @@ import { useVehicles } from '../../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
-import { ExpiryIndicator, ActionDropdown } from '../../components'
+import { ActionDropdown } from '../../components'
 import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { Car, Eye, BadgeAlert } from 'lucide-react'
 import type { VehicleEntity } from '../../types'
@@ -54,16 +54,47 @@ export const VehiclesListPage: React.FC = () => {
       ),
     },
     {
-      key: 'insuranceExpiry',
-      label: 'Insurance Expiry',
-      sortable: true,
-      render: (value) => <ExpiryIndicator expiryDate={value} />,
-    },
-    {
-      key: 'permitExpiry',
-      label: 'Permit Expiry',
-      sortable: true,
-      render: (value) => <ExpiryIndicator expiryDate={value} />,
+      key: 'compliance',
+      label: 'Compliance',
+      sortable: false,
+      render: (_, row) => {
+        const today = new Date()
+        const ins = row.insuranceExpiry ? new Date(row.insuranceExpiry) : null
+        const pmt = row.permitExpiry ? new Date(row.permitExpiry) : null
+        
+        let status: 'OK' | 'Medium' | 'Critical' = 'OK'
+        let details = 'Documents valid'
+        
+        const insDiff = ins ? (ins.getTime() - today.getTime()) / (1000 * 3600 * 24) : 999
+        const pmtDiff = pmt ? (pmt.getTime() - today.getTime()) / (1000 * 3600 * 24) : 999
+        
+        if (insDiff < 7 || pmtDiff < 7) {
+          status = 'Critical'
+          details = insDiff < 7 && pmtDiff < 7 
+            ? 'Ins & Permit expired/expiring'
+            : insDiff < 7 ? 'Insurance expired/expiring' : 'Permit expired/expiring'
+        } else if (insDiff < 30 || pmtDiff < 30) {
+          status = 'Medium'
+          details = insDiff < 30 && pmtDiff < 30
+            ? 'Ins & Permit renew soon'
+            : insDiff < 30 ? 'Insurance renew soon' : 'Permit renew soon'
+        }
+        
+        const badgeColors = {
+          OK: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900',
+          Medium: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-450 dark:border-amber-900',
+          Critical: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-450 dark:border-rose-900 font-bold'
+        }
+        
+        return (
+          <div className="flex flex-col items-center gap-1">
+            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${badgeColors[status]}`}>
+              {status === 'Critical' ? 'Action Required' : status}
+            </span>
+            <span className="text-[8px] text-slate-400 font-medium text-center">{details}</span>
+          </div>
+        )
+      }
     },
     {
       key: 'isActive',
