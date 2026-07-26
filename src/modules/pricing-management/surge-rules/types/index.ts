@@ -4,7 +4,7 @@ import type { VehicleType } from '@/modules/driver-management/types'
 export interface SurgeRule extends BaseEntity {
   ruleName: string
   version: number
-  vehicleType: VehicleType
+  vehicleType: VehicleType | VehicleType[]
   multiplier: number
   startTime?: string
   endTime?: string

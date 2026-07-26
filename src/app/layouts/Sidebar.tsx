@@ -16,7 +16,11 @@ import {
   LifeBuoy,
   Landmark,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  CreditCard,
+  ExternalLink,
+  School,
+  GraduationCap
 } from "lucide-react";
 import { useAppStore } from "@/store/app.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -49,6 +53,7 @@ const navItems: NavItem[] = [
     icon: Users,
     children: [
       { href: "/riders", label: "Riders Directory", icon: Users },
+      { href: "/riders/services", label: "Cross-link to Services", icon: ExternalLink }
     ],
   },
   {
@@ -71,6 +76,9 @@ const navItems: NavItem[] = [
       { href: "/pricing-management/surge-rules", label: "Surge Rules", icon: Activity },
       { href: "/pricing-management/cancellation-rules", label: "Cancellation Rules", icon: ShieldCheck },
       { href: "/pricing-management/pricing-history", label: "Pricing History", icon: FileText },
+      { href: "/pricing-management/gst", label: "GST & Taxation", icon: Landmark },
+      { href: "/pricing-management/razorpay", label: "Razorpay Commission", icon: CreditCard },
+      { href: "/pricing-management/invoices", label: "Invoices Console", icon: FileText }
     ],
   },
   {
@@ -81,6 +89,7 @@ const navItems: NavItem[] = [
       { href: "/operations/ride-monitor", label: "Ride Monitor", icon: Navigation },
       { href: "/operations/sos-monitor", label: "SOS Monitor", icon: Bell },
       { href: "/operations/complaints", label: "Complaints", icon: LifeBuoy },
+      { href: "/operations/mishaps", label: "Mishap Reporting", icon: AlertTriangle }
     ],
   },
   {
@@ -98,6 +107,16 @@ const navItems: NavItem[] = [
       { href: "/financial-operations/audit-logs", label: "Finance Audit Logs", icon: FileText },
     ],
   },
+  {
+    label: "School Mobility",
+    href: "school-mobility",
+    icon: School,
+    children: [
+      { href: "/school-mobility/student-registry", label: "Student Registry", icon: GraduationCap },
+      { href: "/school-mobility/route-optimization", label: "Route Optimization", icon: Navigation },
+      { href: "/school-mobility/parent-portal", label: "Parent Portal Settings", icon: Settings }
+    ]
+  },
   { href: "/audit-log", label: "Audit Log", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -109,7 +128,7 @@ export const Sidebar: React.FC = () => {
   const { user } = useAuthStore();
   const [expandedSections, setExpandedSections] = useState<string[]>([
     "user-management", "rider-management", "driver-management", "pricing-management",
-    "operations", "financial-operations"
+    "operations", "financial-operations", "school-mobility"
   ]);
 
   const toggleSection = (href: string) => {

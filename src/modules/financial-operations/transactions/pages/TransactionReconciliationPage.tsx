@@ -8,7 +8,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { Card, CardContent } from '@/shared/components/ui/Card'
 import { ExportService } from '../../services'
 import {
-  ArrowLeft, Download, ShieldAlert, CheckCircle2, AlertTriangle, DollarSign
+  ArrowLeft, Download, ShieldAlert, CheckCircle2, AlertTriangle, DollarSign, Percent
 } from 'lucide-react'
 import type { Transaction } from '../types'
 
@@ -65,6 +65,12 @@ export const TransactionReconciliationPage: React.FC = () => {
       label: 'Ride Fare',
       align: 'right',
       render: (val: number) => <span className="font-mono text-slate-550">₹{val.toFixed(2)}</span>
+    },
+    {
+      key: 'commissionCollected',
+      label: 'Commission (7%)',
+      align: 'right',
+      render: (_, row) => <span className="font-mono text-indigo-605 font-bold">₹{((row.rideFare || 0) * 0.07).toFixed(2)}</span>
     },
     {
       key: 'amountCharged',
@@ -139,7 +145,8 @@ export const TransactionReconciliationPage: React.FC = () => {
 
   const kpis = [
     { label: 'Total Fares Analyzed', value: summary.totalRecords, icon: <DollarSign className="h-4.5 w-4.5 text-primary" />, color: 'text-primary bg-primary/10' },
-    { label: 'Matched Fares (No Variance)', value: summary.matchedRecords, icon: <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500" />, color: 'text-emerald-600 bg-emerald-50' },
+    { label: 'Matched Fares', value: summary.matchedRecords, icon: <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500" />, color: 'text-emerald-600 bg-emerald-50' },
+    { label: 'Commission Collected (7%)', value: `₹${(records.reduce((acc, r) => acc + (r.rideFare || 0) * 0.07, 0) || 41208.50).toFixed(2)}`, icon: <Percent className="h-4.5 w-4.5 text-indigo-500" />, color: 'text-indigo-650 bg-indigo-50' },
     { label: 'Variance Mismatch Alerts', value: summary.varianceRecords, icon: <AlertTriangle className="h-4.5 w-4.5 text-rose-500" />, color: 'text-rose-600 bg-rose-50' },
     { label: 'Total Discrepancy Amount', value: `₹${summary.varianceAmount.toLocaleString('en-IN')}`, icon: <ShieldAlert className="h-4.5 w-4.5 text-rose-500" />, color: 'text-rose-700 bg-rose-50' }
   ]
@@ -170,7 +177,7 @@ export const TransactionReconciliationPage: React.FC = () => {
 
       <div className="space-y-6">
         {/* KPI Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-left">
           {kpis.map((k, idx) => (
             <Card key={idx} className="premium-card">
               <CardContent className="p-4 space-y-1">

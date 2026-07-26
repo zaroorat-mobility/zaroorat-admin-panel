@@ -70,6 +70,7 @@ export const RideMonitorPage: React.FC = () => {
               <div className="font-bold text-slate-800 dark:text-white flex items-center gap-1">
                 <User className="h-3.5 w-3.5 text-slate-400" />
                 {val}
+                <span className="ml-1.5 px-1 py-0.25 text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-100 rounded uppercase font-black">Active</span>
               </div>
               <div className="text-[10px] text-muted-foreground font-mono uppercase">
                 {row.vehiclePlate} — {row.vehicleType}

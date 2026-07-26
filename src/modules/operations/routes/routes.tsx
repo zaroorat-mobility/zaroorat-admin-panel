@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { RideMonitorPage, RideDetailsPage } from '../ride-monitor'
 import { SosMonitorPage } from '../sos-monitor'
 import { ComplaintsListPage, CreateComplaintPage, ComplaintDetailsPage } from '../complaints'
+import { MishapReportingPage } from '../mishaps/pages/MishapReportingPage'
 
 export const OperationsRoutes: React.FC = () => {
   return (
@@ -20,6 +21,9 @@ export const OperationsRoutes: React.FC = () => {
       <Route path="complaints" element={<ComplaintsListPage />} />
       <Route path="complaints/new" element={<CreateComplaintPage />} />
       <Route path="complaints/:id" element={<ComplaintDetailsPage />} />
+
+      {/* Mishaps Console */}
+      <Route path="mishaps" element={<MishapReportingPage />} />
     </Routes>
   )
 }

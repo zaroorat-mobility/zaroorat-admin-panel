@@ -13,6 +13,7 @@ import { AuditLogRoutes } from '@/modules/audit-log'
 import { PricingManagementRoutes } from '@/modules/pricing-management'
 import { OperationsRoutes } from '@/modules/operations'
 import { FinancialOperationsRoutes } from '@/modules/financial-operations'
+import { SchoolMobilityRoutes } from '@/modules/school-mobility'
 
 /**
  * Main Application Routing Declarations for Zaroorat Mobility
@@ -64,6 +65,9 @@ export const AppRouter: React.FC = () => {
 
         {/* Financial Operations Domain */}
         <Route path="financial-operations/*" element={<FinancialOperationsRoutes />} />
+
+        {/* School Mobility */}
+        <Route path="school-mobility/*" element={<SchoolMobilityRoutes />} />
 
         {/* Legacy redirect routes */}
         <Route path="drivers/*" element={<Navigate to="/driver-management/drivers" replace />} />

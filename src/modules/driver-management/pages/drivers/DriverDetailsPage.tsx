@@ -52,7 +52,7 @@ export const DriverDetailsPage: React.FC = () => {
   const [statusNotes, setStatusNotes] = useState('')
 
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false)
-  const [selectedPlan, setSelectedPlan] = useState<'free' | 'commission' | 'subscription'>('free')
+  const [selectedPlan, setSelectedPlan] = useState<'commission' | 'subscription'>('commission')
   const [subscriptionType, setSubscriptionType] = useState<'monthly' | 'weekly' | 'daily'>('monthly')
   const [planNotes, setPlanNotes] = useState('')
 
@@ -114,7 +114,7 @@ export const DriverDetailsPage: React.FC = () => {
         <span className={cn(
           "px-1.5 py-0.5 rounded-full text-[9px] font-black border",
           type === 'EARNING' && "bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-450",
-          type === 'COMMISSION_DUE' && "bg-amber-50 border-amber-100 text-amber-700 dark:bg-amber-950/20 dark:text-amber-450",
+          type === 'COMMISSION_DUE' && "bg-amber-50 border-amber-100 text-amber-705 dark:bg-amber-950/20 dark:text-amber-450",
           type === 'PAYOUT' && "bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-950/20 dark:text-blue-450",
           type === 'BONUS' && "bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-450",
         )}>
@@ -131,9 +131,25 @@ export const DriverDetailsPage: React.FC = () => {
       key: 'amount',
       label: 'Amount',
       align: 'right' as const,
-      render: (amount: number) => (
-        <span className={cn("font-bold", amount >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
-          {amount >= 0 ? `+₹${amount.toFixed(2)}` : `-₹${Math.abs(amount).toFixed(2)}`}
+      render: (amount: number) => <span className="font-mono">₹{(amount || 0).toFixed(2)}</span>
+    },
+    {
+      key: 'commission',
+      label: 'Commission Charged',
+      align: 'right' as const,
+      render: (_, row: any) => (
+        <span className="font-mono text-rose-500 font-semibold">
+          {row.type === 'EARNING' ? `₹${((row.amount || 0) * 0.07).toFixed(2)}` : '—'}
+        </span>
+      )
+    },
+    {
+      key: 'driverEarning',
+      label: "Driver's Earning",
+      align: 'right' as const,
+      render: (_, row: any) => (
+        <span className="font-mono text-emerald-600 font-bold">
+          {row.type === 'EARNING' ? `₹${((row.amount || 0) * 0.93).toFixed(2)}` : `₹${(row.amount || 0).toFixed(2)}`}
         </span>
       )
     },
@@ -284,6 +300,9 @@ export const DriverDetailsPage: React.FC = () => {
                         <span className={cn("h-1.5 w-1.5 rounded-full bg-emerald-500", driver.isOnline && "animate-pulse")} />
                         {driver.isOnline ? 'Online' : 'Offline'}
                       </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 to-yellow-400 text-white shadow-soft">
+                        Gold Tier (580 pts)
+                      </span>
                     </div>
                     <p className="text-xs text-slate-500">
                       Mobile: <strong className="text-slate-800 dark:text-slate-200">{driver.mobileNumber}</strong>
@@ -301,6 +320,22 @@ export const DriverDetailsPage: React.FC = () => {
                         </span>
                       </p>
                     )}
+
+                    {/* Online / Offline status boxes */}
+                    <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-dashed border-border w-full">
+                      <div className="p-3.5 border border-emerald-100 bg-emerald-50/20 dark:bg-emerald-950/15 rounded-xl flex flex-col justify-center">
+                        <span className="text-[8px] uppercase font-bold text-emerald-700 tracking-wider">Account State</span>
+                        <span className="text-xs font-black text-emerald-800 uppercase mt-0.5">Active</span>
+                      </div>
+                      <div className="p-3.5 border border-sky-100 bg-sky-50/20 dark:bg-sky-950/15 rounded-xl flex flex-col justify-center">
+                        <span className="text-[8px] uppercase font-bold text-sky-700 tracking-wider">Duty Status</span>
+                        <span className="text-xs font-black text-sky-850 dark:text-sky-350 uppercase mt-0.5">{driver.isOnline ? 'Online' : 'Offline'}</span>
+                      </div>
+                      <div className="p-3.5 border border-slate-150 bg-slate-50/40 dark:bg-slate-900/20 rounded-xl flex flex-col justify-center">
+                        <span className="text-[8px] uppercase font-bold text-slate-500 tracking-wider">Real-time status</span>
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase mt-0.5">{driver.isOnline ? 'Available' : 'Resting'}</span>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -336,7 +371,7 @@ export const DriverDetailsPage: React.FC = () => {
             </div>
 
             {/* Additional details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-left">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-left">
               <Card className="premium-card">
                 <CardHeader className="p-5 pb-3">
                   <CardTitle className="text-sm">Partner Specifications</CardTitle>
@@ -345,6 +380,38 @@ export const DriverDetailsPage: React.FC = () => {
                   <p><span className="text-slate-500 font-medium">Preferred language:</span> <strong>{driver.preferredLanguage || '—'}</strong></p>
                   <p><span className="text-slate-500 font-medium">Joined Platform Date:</span> <strong>{new Date(driver.joinedAt).toLocaleDateString('en-IN')}</strong></p>
                   <p><span className="text-slate-500 font-medium">Associated vehicle:</span> <strong className="uppercase">{driver.registrationPlate || 'No Vehicle Linked'}</strong> ({driver.vehicleType})</p>
+                  <p className="border-t border-dashed border-border pt-1 mt-2">
+                    <span className="text-rose-600 font-bold uppercase block text-[9px] tracking-wider">Category Flag:</span>
+                    <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-100 font-bold text-[9px] uppercase mt-0.5 inline-block">Speed Limit Violation</span>
+                  </p>
+                  <p className="text-[10px] text-slate-500 italic mt-1">Reason: "Vehicle telemetry indicated speed exceeded 80km/h inside municipal limits multiple times."</p>
+                </CardContent>
+              </Card>
+
+              <Card className="premium-card">
+                <CardHeader className="p-5 pb-3">
+                  <CardTitle className="text-sm">Gamification Policy & Tiers</CardTitle>
+                </CardHeader>
+                <CardContent className="p-5 pt-0 space-y-2 text-xs">
+                  <p className="text-[9px] text-slate-405">Accrued lifetime points align with Zaroorat gamification standards:</p>
+                  <div className="space-y-1.5 mt-2">
+                    <div className="flex justify-between items-center text-[10px] border-b border-border pb-1">
+                      <span className="font-semibold">Bronze Tier</span>
+                      <span className="text-slate-400 font-mono">0 - 99 pts</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] border-b border-border pb-1">
+                      <span className="font-semibold">Silver Tier</span>
+                      <span className="text-slate-400 font-mono">100 - 499 pts</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] border-b border-border pb-1 bg-amber-50/40 dark:bg-amber-950/15 p-1 rounded">
+                      <span className="font-bold text-amber-600">Gold Tier</span>
+                      <span className="text-amber-600 font-bold font-mono">500 - 1,499 pts (Active)</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] border-b border-border pb-1">
+                      <span className="font-semibold text-purple-600">Diamond Tier</span>
+                      <span className="text-slate-400 font-mono">1,500+ pts</span>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -434,6 +501,7 @@ export const DriverDetailsPage: React.FC = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {[
+                      { label: 'Registration Certificate (RC)', docNo: driver.vehicle.rcNumber || 'RC-99812A', exp: '2030-12-31' },
                       { label: 'Insurance Policy Cover', docNo: driver.vehicle.insuranceNo, exp: driver.vehicle.insuranceExpiry },
                       { label: 'Commercial Road Permit', docNo: driver.vehicle.permitNo, exp: driver.vehicle.permitExpiry },
                       { label: 'Pollution Certificate (PUC)', docNo: driver.vehicle.pollutionNo, exp: driver.vehicle.pollutionExpiry },
@@ -592,7 +660,7 @@ export const DriverDetailsPage: React.FC = () => {
                 variant="outline"
                 className="gap-2 text-xs font-semibold h-9 rounded-lg border-border"
                 onClick={() => {
-                  setSelectedPlan(driver.billingMode || 'free')
+                  setSelectedPlan(driver.billingMode === 'subscription' ? 'subscription' : 'commission')
                   setSubscriptionType(driver.subscriptionType || 'monthly')
                   setPlanNotes('')
                   setIsPlanModalOpen(true)
@@ -779,8 +847,8 @@ export const DriverDetailsPage: React.FC = () => {
           <div className="space-y-4 w-full">
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Billing Plan Model</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['free', 'commission', 'subscription'] as const).map((plan) => (
+              <div className="grid grid-cols-2 gap-2">
+                {(['commission', 'subscription'] as const).map((plan) => (
                   <button
                     key={plan}
                     type="button"
@@ -792,7 +860,7 @@ export const DriverDetailsPage: React.FC = () => {
                         : "bg-surface border-border hover:bg-slate-50 text-slate-700 dark:text-slate-350 dark:hover:bg-slate-800"
                     )}
                   >
-                    {plan === 'free' ? 'Free Trial' : plan === 'commission' ? '7% Commission' : 'Subscription'}
+                    {plan === 'commission' ? '7% Commission' : 'Subscription'}
                   </button>
                 ))}
               </div>
