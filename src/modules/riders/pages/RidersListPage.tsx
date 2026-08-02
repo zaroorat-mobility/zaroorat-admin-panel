@@ -222,6 +222,8 @@ export const RidersListPage: React.FC = () => {
           onSelectionChange={setSelectedIds}
           searchPlaceholder="Search by Rider name or mobile number..."
           onRowClick={(row) => navigate(`/riders/${row.id}`)}
+          enableDraggableExport
+          draggablePersistenceKey="riders-csv-export-pos"
         />
       </div>
 

@@ -4,6 +4,7 @@ import {
   ChevronLeft, ChevronRight, Settings2, Check, Filter, Download
 } from "lucide-react";
 import { ActionMenu } from "./ActionMenu";
+import { DraggableExportButton } from "./DraggableExportButton";
 import { cn } from "@/shared/utils";
 import { Skeleton } from "../loaders";
 import { NoDataScreen } from "../NoDataScreen";
@@ -50,6 +51,8 @@ export interface DataTableProps<T = any> {
     actionLabel?: string;
     onAction?: () => void;
   };
+  enableDraggableExport?: boolean;
+  draggablePersistenceKey?: string;
 }
 
 export function DataTable<T extends Record<string, any> = any>({
@@ -73,6 +76,8 @@ export function DataTable<T extends Record<string, any> = any>({
   isError = false,
   onRetry,
   emptyState,
+  enableDraggableExport = false,
+  draggablePersistenceKey,
 }: DataTableProps<T>) {
 
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string>>(new Set());
@@ -235,6 +240,29 @@ export function DataTable<T extends Record<string, any> = any>({
     handleSelectionChange(next);
   };
 
+  const handleExportCSV = () => {
+    if (filteredData.length === 0) return;
+    const headers = columns.map(c => c.label);
+    const csvRows = [
+      headers.join(','),
+      ...filteredData.map(row => 
+        columns.map(col => {
+          const val = row[col.key];
+          const cleanVal = typeof val === 'object' ? '' : String(val ?? '').replace(/"/g, '""');
+          return `"${cleanVal}"`;
+        }).join(',')
+      )
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${resultLabel || 'export'}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="bg-surface rounded-lg border border-border shadow-sm overflow-hidden text-left">
 
@@ -379,34 +407,15 @@ export function DataTable<T extends Record<string, any> = any>({
           </div>
 
           {/* CSV Download Trigger */}
-          <button
-            onClick={() => {
-              if (filteredData.length === 0) return;
-              const headers = columns.map(c => c.label);
-              const csvRows = [
-                headers.join(','),
-                ...filteredData.map(row => 
-                  columns.map(col => {
-                    const val = row[col.key];
-                    const cleanVal = typeof val === 'object' ? '' : String(val ?? '').replace(/"/g, '""');
-                    return `"${cleanVal}"`;
-                  }).join(',')
-                )
-              ];
-              const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.setAttribute("href", url);
-              link.setAttribute("download", `${resultLabel || 'export'}_${new Date().toISOString().split('T')[0]}.csv`);
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs border border-border text-foreground rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors h-[34px] font-semibold cursor-pointer"
-            title="Download CSV"
-          >
-            <Download className="w-4 h-4 text-primary" /> Export CSV
-          </button>
+          {!enableDraggableExport && (
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs border border-border text-foreground rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors h-[34px] font-semibold cursor-pointer"
+              title="Download CSV"
+            >
+              <Download className="w-4 h-4 text-primary" /> Export CSV
+            </button>
+          )}
         </div>
       </div>
 
@@ -620,6 +629,12 @@ export function DataTable<T extends Record<string, any> = any>({
           </button>
         </div>
       </div>
+      {enableDraggableExport && filteredData.length > 0 && (
+        <DraggableExportButton
+          onClick={handleExportCSV}
+          persistenceKey={draggablePersistenceKey}
+        />
+      )}
     </div>
   );
 }

@@ -14,6 +14,9 @@ import { PricingManagementRoutes } from '@/modules/pricing-management'
 import { OperationsRoutes } from '@/modules/operations'
 import { FinancialOperationsRoutes } from '@/modules/financial-operations'
 import { SchoolMobilityRoutes } from '@/modules/school-mobility'
+import { NotificationsRoutes } from '@/modules/notifications'
+import { CarpoolingRoutes } from '@/modules/carpooling'
+import { DocumentControllerRoutes } from '@/modules/document-controller'
 
 /**
  * Main Application Routing Declarations for Zaroorat Mobility
@@ -56,6 +59,15 @@ export const AppRouter: React.FC = () => {
 
         {/* Pricing Management */}
         <Route path="pricing-management/*" element={<PricingManagementRoutes />} />
+
+        {/* Campaigns & Notifications */}
+        <Route path="notifications/*" element={<NotificationsRoutes />} />
+
+        {/* Document Controller Expiry and Compliance Verification */}
+        <Route path="document-controller/*" element={<DocumentControllerRoutes />} />
+
+        {/* Carpooling Settings & Monitoring */}
+        <Route path="carpooling/*" element={<CarpoolingRoutes />} />
 
         {/* Audit Log */}
         <Route path="audit-log/*" element={<AuditLogRoutes />} />

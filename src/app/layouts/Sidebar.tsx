@@ -117,6 +117,9 @@ const navItems: NavItem[] = [
       { href: "/school-mobility/parent-portal", label: "Parent Portal Settings", icon: Settings }
     ]
   },
+  { href: "/notifications", label: "Campaigns & Coupons", icon: Bell },
+  { href: "/document-controller", label: "Document Controller", icon: FileText },
+  { href: "/carpooling", label: "Carpooling Rules", icon: Car },
   { href: "/audit-log", label: "Audit Log", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
