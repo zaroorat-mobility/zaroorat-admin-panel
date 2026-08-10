@@ -96,13 +96,15 @@ export const FinancialDashboardPage: React.FC = () => {
         description="Monitor revenue velocity, liability pipelines, gateway health performance, and critical variance exception queues."
         actions={
           <Button
+            variant="primary"
             onClick={() => navigate('/financial-operations/audit-logs')}
-            className="gap-2 text-xs font-semibold h-9 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700"
+            className="gap-2 text-xs font-semibold h-9 rounded-lg bg-[#1F2B6D] hover:bg-[#1F2B6D]/90 text-white shadow-sm"
           >
             <FileText className="h-4 w-4" />
             <span>View Finance Audit Trail</span>
           </Button>
         }
+
       />
 
       <div className="space-y-6">

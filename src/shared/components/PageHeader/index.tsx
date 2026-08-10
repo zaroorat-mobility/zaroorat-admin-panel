@@ -28,7 +28,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   }
 
   return (
-    <div className="flex items-center justify-between mb-6 gap-4">
+    <div className="flex items-start justify-between flex-wrap mb-6 gap-4 gap-y-2">
       {/* Title & subtitle descriptor with brand colored left accent border */}
       <div className="flex items-center gap-3 text-left pl-3.5 border-l-4 border-[#2B317A] flex-1 min-w-0">
         {(backTo !== undefined || onBack !== undefined) && (

@@ -245,7 +245,7 @@ export const DriversListPage: React.FC = () => {
           isError={isError}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
-          searchPlaceholder="Search by Partner name, phone number, vehicle plate..."
+          searchPlaceholder="Search by name, driver ID or phone number..."
           onRowClick={(row) => navigate(`/driver-management/drivers/${row.id}`)}
           enableDraggableExport
           draggablePersistenceKey="drivers-csv-export-pos"

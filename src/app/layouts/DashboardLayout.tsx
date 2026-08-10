@@ -29,7 +29,7 @@ export const DashboardLayout: React.FC = () => {
       <Sidebar />
 
       {/* Main Panel content wrapper */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         {/* Global sticky Header bar */}
         <Header />
 
