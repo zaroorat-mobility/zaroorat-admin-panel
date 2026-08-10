@@ -255,15 +255,17 @@ export const TransactionsListPage: React.FC = () => {
         actions={
           <div className="flex gap-2">
             <Button
+              variant="primary"
               onClick={() => handleExport('csv')}
-              className="gap-1.5 text-xs font-semibold h-9 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700"
+              className="gap-1.5 text-xs font-semibold h-9 rounded-lg bg-[#1F2B6D] hover:bg-[#1F2B6D]/90 text-white shadow-sm"
             >
               <Download className="h-4 w-4" />
               <span>Export CSV</span>
             </Button>
             <Button
+              variant="primary"
               onClick={() => handleExport('xlsx')}
-              className="gap-1.5 text-xs font-semibold h-9 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700"
+              className="gap-1.5 text-xs font-semibold h-9 rounded-lg bg-[#1F2B6D] hover:bg-[#1F2B6D]/90 text-white shadow-sm"
             >
               <Download className="h-4 w-4" />
               <span>Export Excel</span>

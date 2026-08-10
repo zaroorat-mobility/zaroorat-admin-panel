@@ -287,11 +287,18 @@ const getApplications = async (params?: QueryParams): Promise<PaginatedResponse<
   }))
 
   if (search) {
-    filtered = filtered.filter(i =>
-      i.driverName.toLowerCase().includes(search) ||
-      i.mobileNumber.includes(search) ||
-      i.applicationId.toLowerCase().includes(search)
-    )
+    const normSearch = normalisePhone(search)
+    const lowerSearch = search.toLowerCase()
+    filtered = filtered.filter(i => {
+      const normMobile = normalisePhone(i.mobileNumber || '')
+      const matchPhone = normSearch.length > 0 && normMobile.includes(normSearch)
+      return (
+        i.driverName.toLowerCase().includes(lowerSearch) ||
+        i.applicationId.toLowerCase().includes(lowerSearch) ||
+        matchPhone ||
+        i.mobileNumber.includes(search)
+      )
+    })
   }
   if (statusFilter && statusFilter !== 'all') {
     filtered = filtered.filter(i => i.applicationStatus === statusFilter)
@@ -612,9 +619,23 @@ const verifyApplicationDocument = async (applicationId: string, docType: string,
 
 // ─── Drivers Service ───────────────────────────────────────────────────────
 
+/**
+ * Normalise a phone number input for comparison:
+ *  - extracts all digits (\D replacement)
+ *  - strips country code 91 if 12 digits, or leading 0 if 11 digits
+ * Matches +91 98765 43210, 09876543210, 9876543210 and partials like 43210 to the same record.
+ */
+const normalisePhone = (raw: string): string => {
+  if (!raw) return ''
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2)
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1)
+  return digits
+}
+
 const getDrivers = async (params?: QueryParams): Promise<PaginatedResponse<DriverEntity>> => {
   const db = getDriversDb()
-  const search = ((params?.search as string) || '').toLowerCase()
+  const search = ((params?.search as string) || '').trim()
   const statusFilter = params?.status as string
 
   let filtered = db.map(d => ({
@@ -627,10 +648,21 @@ const getDrivers = async (params?: QueryParams): Promise<PaginatedResponse<Drive
   }))
 
   if (search) {
-    filtered = filtered.filter(d =>
-      d.driverName.toLowerCase().includes(search) ||
-      d.mobileNumber.includes(search)
-    )
+    const normSearch = normalisePhone(search)
+    const lowerSearch = search.toLowerCase()
+    filtered = filtered.filter(d => {
+      const normMobile = normalisePhone(d.mobileNumber || '')
+      const normAlt    = normalisePhone((d as any).alternateNumber || '')
+      const matchPhone = normSearch.length > 0 && (normMobile.includes(normSearch) || normAlt.includes(normSearch))
+      const matchRawPhone = (d.mobileNumber || '').includes(search)
+      return (
+        d.driverName.toLowerCase().includes(lowerSearch) ||
+        (d.id || '').toLowerCase().includes(lowerSearch) ||
+        (d.applicationId || '').toLowerCase().includes(lowerSearch) ||
+        matchPhone ||
+        matchRawPhone
+      )
+    })
   }
   if (statusFilter && statusFilter !== 'all') {
     filtered = filtered.filter(d => d.driverStatus === statusFilter)
