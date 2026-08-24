@@ -4,9 +4,10 @@ import type { AdminLoginResponse, AdminUserPayload, LoginResponse } from '../typ
 import type { AdminRole, User } from '@/store/auth.store'
 
 function mapRole(roles: string[]): AdminRole {
+  if (roles.includes('system_admin')) return 'system_admin'
   if (roles.includes('admin')) return 'admin'
   if (roles.includes('support')) return 'support'
-  if (roles.includes('finance')) return 'admin'
+  if (roles.includes('finance')) return 'finance'
   return 'admin'
 }
 
@@ -16,7 +17,8 @@ export function toSessionUser(payload: AdminUserPayload): User {
     name: payload.name?.trim() || payload.email || payload.phoneNumber || 'Staff',
     email: payload.email || payload.phoneNumber || '',
     role: mapRole(payload.roles),
-    permissions: payload.roles,
+    roles: payload.roles,
+    permissions: payload.permissions ?? [],
   }
 }
 

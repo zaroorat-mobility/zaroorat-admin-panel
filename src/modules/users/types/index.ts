@@ -1,14 +1,16 @@
 import type { BaseEntity } from '@/shared/types'
 
+export type StaffRole = string
+
 export interface UserEntity extends BaseEntity {
   name: string
   email: string
   phone: string
-  role: 'superadmin' | 'admin' | 'support' | 'dispatcher'
+  role: StaffRole
   status: 'active' | 'inactive'
 }
 
 export interface UserDetails extends UserEntity {
-  lastLogin: string
+  lastLogin: string | null
   permissions: string[]
 }

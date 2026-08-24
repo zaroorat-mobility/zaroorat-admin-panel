@@ -1,6 +1,7 @@
 export * from './routes/routes'
 export * from './pages/UsersListPage'
 export * from './pages/UserDetailPage'
+export * from './pages/CreateUserPage'
 export * from './hooks'
 export * from './services'
 export * from './schemas'

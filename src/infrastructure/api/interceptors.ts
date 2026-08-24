@@ -14,8 +14,9 @@ export const responseSuccessInterceptor = (response: AxiosResponse): AxiosRespon
 }
 
 function apiErrorMessage(error: AxiosError): string {
-  const data = error.response?.data as { error?: { message?: string; code?: string } } | undefined
-  return data?.error?.message || error.message || 'Request failed'
+  const data = error.response?.data as Record<string, unknown> | undefined
+  const envelope = (data?.error ?? data?.error) as { message?: string } | undefined
+  return envelope?.message || error.message || 'Request failed'
 }
 
 export const responseErrorInterceptor = async (error: AxiosError): Promise<never> => {

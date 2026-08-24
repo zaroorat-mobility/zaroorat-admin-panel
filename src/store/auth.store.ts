@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 import { storage } from '@/infrastructure/storage'
 
-export type AdminRole = 'superadmin' | 'admin' | 'support' | 'dispatcher'
+export type AdminRole = 'system_admin' | 'admin' | 'support' | 'finance' | 'dispatcher'
 
 export interface User {
   id: string
   name: string
   email: string
   role: AdminRole
+  roles: string[]
   permissions: string[]
 }
 

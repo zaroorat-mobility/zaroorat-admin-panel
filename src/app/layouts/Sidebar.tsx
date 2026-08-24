@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/app.store";
 import { useAuthStore } from "@/store/auth.store";
+import { hasPermission } from "@/infrastructure/permissions";
 import navbarLogo from "@/assets/images/navbar_logo.jpg";
 import heroLogo from "@/assets/images/hero-logo.jpg";
 import { cn } from "@/shared/utils";
@@ -32,6 +33,7 @@ interface NavItem {
   icon: React.ElementType;
   label: string;
   href: string;
+  permission?: string;
   badge?: string | number;
   badgeVariant?: "danger" | "warning" | "info";
   children?: NavItem[];
@@ -44,7 +46,8 @@ const navItems: NavItem[] = [
     href: "user-management",
     icon: Users,
     children: [
-      { href: "/users", label: "Administrators", icon: Users },
+      { href: "/users", label: "Administrators", icon: Users, permission: "staff:write" },
+      { href: "/users/roles", label: "Role access", icon: ShieldCheck, permission: "rbac:manage" },
     ],
   },
   {
@@ -52,7 +55,7 @@ const navItems: NavItem[] = [
     href: "rider-management",
     icon: Users,
     children: [
-      { href: "/riders", label: "Riders Directory", icon: Users },
+      { href: "/riders", label: "Riders Directory", icon: Users, permission: "riders:read" },
       { href: "/riders/services", label: "Cross-link to Services", icon: ExternalLink }
     ],
   },
@@ -61,9 +64,9 @@ const navItems: NavItem[] = [
     href: "driver-management",
     icon: Car,
     children: [
-      { href: "/driver-management/applications", label: "Driver Applications", icon: ShieldCheck, badge: 12, badgeVariant: "info" },
-      { href: "/driver-management/drivers", label: "Drivers", icon: Users, badge: 3, badgeVariant: "warning" },
-      { href: "/driver-management/vehicles", label: "Vehicles", icon: Car },
+      { href: "/driver-management/applications", label: "Driver Applications", icon: ShieldCheck, badge: 12, badgeVariant: "info", permission: "drivers:read" },
+      { href: "/driver-management/drivers", label: "Drivers", icon: Users, badge: 3, badgeVariant: "warning", permission: "drivers:read" },
+      { href: "/driver-management/vehicles", label: "Vehicles", icon: Car, permission: "vehicles:read" },
     ],
   },
   {
@@ -71,7 +74,7 @@ const navItems: NavItem[] = [
     href: "pricing-management",
     icon: DollarSign,
     children: [
-      { href: "/pricing-management", label: "Pricing Control Center", icon: LayoutDashboard },
+      { href: "/pricing-management", label: "Pricing Control Center", icon: LayoutDashboard, permission: "pricing:read" },
       { href: "/pricing-management/fare-rules", label: "Fare Rules", icon: DollarSign },
       { href: "/pricing-management/surge-rules", label: "Surge Rules", icon: Activity },
       { href: "/pricing-management/cancellation-rules", label: "Cancellation Rules", icon: ShieldCheck },
@@ -86,7 +89,7 @@ const navItems: NavItem[] = [
     href: "operations",
     icon: Activity,
     children: [
-      { href: "/operations/ride-monitor", label: "Ride Monitor", icon: Navigation },
+      { href: "/operations/ride-monitor", label: "Ride Monitor", icon: Navigation, permission: "operations:read" },
       { href: "/operations/sos-monitor", label: "SOS Monitor", icon: Bell },
       { href: "/operations/complaints", label: "Complaints", icon: LifeBuoy },
       { href: "/operations/mishaps", label: "Mishap Reporting", icon: AlertTriangle }
@@ -97,7 +100,7 @@ const navItems: NavItem[] = [
     href: "financial-operations",
     icon: DollarSign,
     children: [
-      { href: "/financial-operations/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/financial-operations/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "finance:read" },
       { href: "/financial-operations/transactions", label: "Transactions", icon: FileText },
       { href: "/financial-operations/failed-transactions", label: "Failed Transactions", icon: AlertTriangle },
       { href: "/financial-operations/reconciliation", label: "Reconciliation", icon: Activity },
@@ -112,15 +115,15 @@ const navItems: NavItem[] = [
     href: "school-mobility",
     icon: School,
     children: [
-      { href: "/school-mobility/student-registry", label: "Student Registry", icon: GraduationCap },
+      { href: "/school-mobility/student-registry", label: "Student Registry", icon: GraduationCap, permission: "school:read" },
       { href: "/school-mobility/route-optimization", label: "Route Optimization", icon: Navigation },
       { href: "/school-mobility/parent-portal", label: "Parent Portal Settings", icon: Settings }
     ]
   },
-  { href: "/notifications", label: "Campaigns & Coupons", icon: Bell },
-  { href: "/document-controller", label: "Document Controller", icon: FileText },
-  { href: "/carpooling", label: "Carpooling Rules", icon: Car },
-  { href: "/audit-log", label: "Audit Log", icon: FileText },
+  { href: "/notifications", label: "Campaigns & Coupons", icon: Bell, permission: "campaigns:read" },
+  { href: "/document-controller", label: "Document Controller", icon: FileText, permission: "documents:read" },
+  { href: "/carpooling", label: "Carpooling Rules", icon: Car, permission: "carpooling:read" },
+  { href: "/audit-log", label: "Audit Log", icon: FileText, permission: "audit:read" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -129,6 +132,24 @@ export const Sidebar: React.FC = () => {
   const location = useLocation();
   const { isSidebarOpen } = useAppStore();
   const { user } = useAuthStore();
+  const itemVisible = (item: NavItem, inherited?: string): boolean => {
+    const required = item.permission ?? inherited;
+    if (item.children?.length) {
+      const next = item.children.find((child) => child.permission)?.permission ?? required;
+      return item.children.some((child) => itemVisible(child, next));
+    }
+    if (!required) return true;
+    return hasPermission(user, required);
+  };
+  const visibleNav = navItems
+    .map((item) => {
+      if (!item.children) return itemVisible(item) ? item : null;
+      const inherited = item.children.find((child) => child.permission)?.permission;
+      const children = item.children.filter((child) => itemVisible(child, inherited));
+      if (children.length === 0) return null;
+      return { ...item, children };
+    })
+    .filter((item): item is NavItem => item != null);
   const [expandedSections, setExpandedSections] = useState<string[]>([
     "user-management", "rider-management", "driver-management", "pricing-management",
     "operations", "financial-operations", "school-mobility"
@@ -171,7 +192,7 @@ export const Sidebar: React.FC = () => {
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-4 px-3">
         <nav className="space-y-1">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
             const hasChildren = !!item.children?.length;
             const isExpanded = expandedSections.includes(item.href);

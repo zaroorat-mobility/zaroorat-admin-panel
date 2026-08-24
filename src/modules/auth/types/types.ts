@@ -11,6 +11,7 @@ export interface AdminUserPayload {
   id: string
   status: string
   roles: string[]
+  permissions?: string[]
   isNew: boolean
   email?: string | null
   phoneNumber?: string
