@@ -3,10 +3,12 @@
  */
 export const API_ENDPOINTS = {
   auth: {
-    login: '/auth/login',
+    login: '/auth/admin/login',
     logout: '/auth/logout',
     me: '/auth/me',
-    refreshToken: '/auth/refresh-token',
+    refreshToken: '/auth/token/refresh',
+    otpSend: '/auth/admin/otp/send',
+    otpVerify: '/auth/admin/otp/verify',
   },
   dashboard: {
     stats: '/dashboard/stats',
