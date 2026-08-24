@@ -1,9 +1,14 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Mail, Lock } from 'lucide-react'
-import { loginSchema, type LoginFormData } from '../schemas'
-import { useLogin } from '../hooks'
+import { Mail, Lock, Phone } from 'lucide-react'
+import {
+  loginSchema,
+  adminOtpSendSchema,
+  type LoginFormData,
+  type AdminOtpSendData,
+} from '../schemas'
+import { useLogin, useSendAdminOtp, useVerifyAdminOtp } from '../hooks'
 import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/context/toast'
 import heroLogo from "@/assets/images/hero-logo.jpg"
@@ -14,27 +19,33 @@ interface LoginFormProps {
   onLoginSuccess: () => void
 }
 
+type LoginMethod = 'password' | 'otp'
+
 export const LoginForm: React.FC<LoginFormProps> = ({
   onForgotPasswordClick,
   onLoginSuccess,
 }) => {
   const { success: showSuccessToast } = useToast()
-  const { mutate: login, isPending, error } = useLogin()
+  const [method, setMethod] = useState<LoginMethod>('password')
+  const [otpCode, setOtpCode] = useState('')
+  const [challengeId, setChallengeId] = useState<string | null>(null)
+  const [otpPhone, setOtpPhone] = useState('')
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormData>({
+  const { mutate: login, isPending, error } = useLogin()
+  const sendOtp = useSendAdminOtp()
+  const verifyOtp = useVerifyAdminOtp()
+
+  const passwordForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-      rememberMe: false,
-    },
+    defaultValues: { email: '', password: '', rememberMe: false },
   })
 
-  const onSubmit = (data: LoginFormData) => {
+  const otpForm = useForm<AdminOtpSendData>({
+    resolver: zodResolver(adminOtpSendSchema),
+    defaultValues: { phoneNumber: '+91' },
+  })
+
+  const onPasswordSubmit = (data: LoginFormData) => {
     login(data, {
       onSuccess: () => {
         showSuccessToast('Login Successful', 'Welcome back to Zaroorat Mobility Dashboard!')
@@ -43,25 +54,35 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     })
   }
 
-  // Temporary mock sign-in handler for preview testing
-  const setMockSession = () => {
-    const mockAuthStore = {
-      token: 'mock-token',
-      user: {
-        id: '1',
-        name: 'Mohammed Fardeen',
-        email: 'admin@zaroorat.com',
-        role: 'superadmin',
-        permissions: ['*'],
+  const onSendOtp = (data: AdminOtpSendData) => {
+    sendOtp.mutate(data.phoneNumber, {
+      onSuccess: (result) => {
+        setOtpPhone(data.phoneNumber)
+        setChallengeId(result.challengeId)
+        setOtpCode('')
+        showSuccessToast('OTP sent', 'Enter the 6-digit code sent to your phone.')
       },
-    }
-
-    import('@/store/auth.store').then(({ useAuthStore }) => {
-      useAuthStore.getState().setCredentials(mockAuthStore.token, mockAuthStore.user as any)
-      showSuccessToast('Login Successful', 'Bypassed authentication for local preview.')
-      onLoginSuccess()
     })
   }
+
+  const onVerifyOtp = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!challengeId) return
+    verifyOtp.mutate(
+      { phoneNumber: otpPhone, code: otpCode, challengeId },
+      {
+        onSuccess: () => {
+          showSuccessToast('Login Successful', 'Welcome back to Zaroorat Mobility Dashboard!')
+          onLoginSuccess()
+        },
+      },
+    )
+  }
+
+  const formError =
+    error?.message ||
+    sendOtp.error?.message ||
+    verifyOtp.error?.message
 
   return (
     <div className="pb-2 pt-2 select-none">
@@ -82,96 +103,172 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         </p>
       </div>
 
-      {error && (
-        <div className="rounded-lg bg-red-50 p-3 text-xs text-red-600 dark:bg-red-950/20 dark:text-red-400 mb-4 animate-shake">
-          Authentication failed: {error.message}
+      <div className="grid grid-cols-2 rounded-xl bg-slate-100 dark:bg-slate-900 p-1 mb-5">
+        <button
+          type="button"
+          onClick={() => setMethod('password')}
+          className={cn(
+            'h-9 rounded-lg text-xs font-bold',
+            method === 'password' ? 'bg-white dark:bg-slate-800 text-[#2B317A] shadow-sm' : 'text-slate-500',
+          )}
+        >
+          Email
+        </button>
+        <button
+          type="button"
+          onClick={() => setMethod('otp')}
+          className={cn(
+            'h-9 rounded-lg text-xs font-bold',
+            method === 'otp' ? 'bg-white dark:bg-slate-800 text-[#2B317A] shadow-sm' : 'text-slate-500',
+          )}
+        >
+          Mobile OTP
+        </button>
+      </div>
+
+      {formError && (
+        <div className="rounded-lg bg-red-50 p-3 text-xs text-red-600 dark:bg-red-950/20 dark:text-red-400 mb-4">
+          {formError}
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Email Address Input */}
-        <div className="space-y-1.5 text-left">
-          <label className="block text-xs font-semibold text-slate-500 dark:text-dark-400 uppercase tracking-wider">Email Address</label>
-          <div className="relative">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-450 dark:text-slate-500">
-              <Mail className="w-4 h-4" />
-            </span>
-            <input
-              type="email"
-              placeholder="Email / Phone"
-              className={cn(
-                "flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 text-sm text-foreground transition-all placeholder:text-slate-400/80 focus:border-[#2B317A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2B317A]/10 dark:border-slate-800 dark:bg-slate-900/60",
-                errors.email ? 'border-destructive focus:border-destructive focus:ring-destructive/10' : ''
-              )}
-              {...register('email')}
-            />
+      {method === 'password' && (
+        <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+          <div className="space-y-1.5 text-left">
+            <label className="block text-xs font-semibold text-slate-500 dark:text-dark-400 uppercase tracking-wider">Email Address</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-450 dark:text-slate-500">
+                <Mail className="w-4 h-4" />
+              </span>
+              <input
+                type="email"
+                placeholder="admin@zaroorat.com"
+                className={cn(
+                  "flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 text-sm text-foreground transition-all placeholder:text-slate-400/80 focus:border-[#2B317A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2B317A]/10 dark:border-slate-800 dark:bg-slate-900/60",
+                  passwordForm.formState.errors.email ? 'border-destructive focus:border-destructive focus:ring-destructive/10' : ''
+                )}
+                {...passwordForm.register('email')}
+              />
+            </div>
+            {passwordForm.formState.errors.email?.message && (
+              <p className="text-xs font-medium text-destructive mt-1">{passwordForm.formState.errors.email.message}</p>
+            )}
           </div>
-          {errors.email?.message && (
-            <p className="text-xs font-medium text-destructive mt-1">{errors.email.message}</p>
-          )}
-        </div>
 
-        {/* Password Input */}
-        <div className="space-y-1.5 text-left">
-          <label className="block text-xs font-semibold text-slate-500 dark:text-dark-400 uppercase tracking-wider">Password</label>
-          <div className="relative">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-455 dark:text-slate-500">
-              <Lock className="w-4 h-4" />
-            </span>
-            <input
-              type="password"
-              placeholder="Password"
-              className={cn(
-                "flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-10 text-sm text-foreground transition-all placeholder:text-slate-400/80 focus:border-[#2B317A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2B317A]/10 dark:border-slate-800 dark:bg-slate-900/60",
-                errors.password ? 'border-destructive focus:border-destructive focus:ring-destructive/10' : ''
-              )}
-              {...register('password')}
-            />
-            <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 dark:text-slate-500">
-              <Lock className="w-3.5 h-3.5" />
-            </span>
+          <div className="space-y-1.5 text-left">
+            <label className="block text-xs font-semibold text-slate-500 dark:text-dark-400 uppercase tracking-wider">Password</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-455 dark:text-slate-500">
+                <Lock className="w-4 h-4" />
+              </span>
+              <input
+                type="password"
+                placeholder="Password"
+                className={cn(
+                  "flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 text-sm text-foreground transition-all placeholder:text-slate-400/80 focus:border-[#2B317A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2B317A]/10 dark:border-slate-800 dark:bg-slate-900/60",
+                  passwordForm.formState.errors.password ? 'border-destructive focus:border-destructive focus:ring-destructive/10' : ''
+                )}
+                {...passwordForm.register('password')}
+              />
+            </div>
+            {passwordForm.formState.errors.password?.message && (
+              <p className="text-xs font-medium text-destructive mt-1">{passwordForm.formState.errors.password.message}</p>
+            )}
           </div>
-          {errors.password?.message && (
-            <p className="text-xs font-medium text-destructive mt-1">{errors.password.message}</p>
-          )}
-        </div>
 
-        {/* Remember & Forget Row */}
-        <div className="flex items-center justify-between pt-1">
-          <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-dark-400 cursor-pointer">
-            <input
-              type="checkbox"
-              className="rounded border-slate-350 text-[#2B317A] focus:ring-[#2B317A] dark:border-dark-700 dark:bg-dark-900"
-              {...register('rememberMe')}
-            />
-            Remember me
-          </label>
+          <div className="flex items-center justify-between pt-1">
+            <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-dark-400 cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded border-slate-350 text-[#2B317A] focus:ring-[#2B317A] dark:border-dark-700 dark:bg-dark-900"
+                {...passwordForm.register('rememberMe')}
+              />
+              Remember me
+            </label>
+            <button
+              type="button"
+              onClick={onForgotPasswordClick}
+              className="text-xs text-[#2B317A] hover:underline font-bold dark:text-brand-400 cursor-pointer"
+            >
+              Forget Password?
+            </button>
+          </div>
 
+          <div className="pt-2">
+            <Button
+              type="submit"
+              className="w-full h-11 bg-gradient-to-r from-[#2B317A] to-[#1E2258] hover:opacity-95 transition-all text-white font-bold rounded-xl shadow-md cursor-pointer"
+              loading={isPending}
+            >
+              Log in
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {method === 'otp' && !challengeId && (
+        <form onSubmit={otpForm.handleSubmit(onSendOtp)} className="space-y-4">
+          <div className="space-y-1.5 text-left">
+            <label className="block text-xs font-semibold text-slate-500 dark:text-dark-400 uppercase tracking-wider">Mobile number</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-450 dark:text-slate-500">
+                <Phone className="w-4 h-4" />
+              </span>
+              <input
+                type="tel"
+                placeholder="+9198XXXXXXXX"
+                className={cn(
+                  "flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 text-sm text-foreground transition-all placeholder:text-slate-400/80 focus:border-[#2B317A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2B317A]/10 dark:border-slate-800 dark:bg-slate-900/60",
+                  otpForm.formState.errors.phoneNumber ? 'border-destructive' : ''
+                )}
+                {...otpForm.register('phoneNumber')}
+              />
+            </div>
+            {otpForm.formState.errors.phoneNumber?.message && (
+              <p className="text-xs font-medium text-destructive mt-1">{otpForm.formState.errors.phoneNumber.message}</p>
+            )}
+          </div>
+          <Button
+            type="submit"
+            className="w-full h-11 bg-gradient-to-r from-[#2B317A] to-[#1E2258] text-white font-bold rounded-xl"
+            loading={sendOtp.isPending}
+          >
+            Send OTP
+          </Button>
+        </form>
+      )}
+
+      {method === 'otp' && challengeId && (
+        <form onSubmit={onVerifyOtp} className="space-y-4">
+          <p className="text-xs text-slate-500 text-center">Code sent to {otpPhone}</p>
+          <input
+            inputMode="numeric"
+            maxLength={6}
+            value={otpCode}
+            onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="6-digit code"
+            className="flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-center text-lg tracking-[0.4em] font-semibold focus:border-[#2B317A] focus:outline-none focus:ring-2 focus:ring-[#2B317A]/10 dark:border-slate-800 dark:bg-slate-900/60"
+          />
+          <Button
+            type="submit"
+            className="w-full h-11 bg-gradient-to-r from-[#2B317A] to-[#1E2258] text-white font-bold rounded-xl"
+            loading={verifyOtp.isPending}
+            disabled={otpCode.length !== 6}
+          >
+            Verify & log in
+          </Button>
           <button
             type="button"
-            onClick={onForgotPasswordClick}
-            className="text-xs text-[#2B317A] hover:underline font-bold dark:text-brand-400 cursor-pointer"
+            className="w-full text-xs text-[#2B317A] font-bold"
+            onClick={() => {
+              setChallengeId(null)
+              setOtpCode('')
+            }}
           >
-            Forget Password?
+            Use a different number
           </button>
-        </div>
-
-        {/* Log In Button */}
-        <div className="space-y-3.5 pt-2">
-          <Button 
-            type="submit" 
-            className="w-full h-11 bg-gradient-to-r from-[#2B317A] to-[#1E2258] hover:opacity-95 transition-all text-white font-bold rounded-xl shadow-md cursor-pointer" 
-            loading={isPending}
-          >
-            Log in
-          </Button>
-
-          {/* Quick Mock Login for Local Development / Netlify Demo */}
-          <Button type="button" variant="outline" className="w-full h-11 text-xs rounded-xl" onClick={setMockSession}>
-            Demo Quick Login (Superadmin Bypass)
-          </Button>
-        </div>
-      </form>
+        </form>
+      )}
     </div>
   )
 }

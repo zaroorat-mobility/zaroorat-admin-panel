@@ -3,10 +3,12 @@
  */
 export const API_ENDPOINTS = {
   auth: {
-    login: '/auth/login',
+    login: '/auth/admin/login',
     logout: '/auth/logout',
     me: '/auth/me',
-    refreshToken: '/auth/refresh-token',
+    refreshToken: '/auth/token/refresh',
+    otpSend: '/auth/admin/otp/send',
+    otpVerify: '/auth/admin/otp/verify',
   },
   dashboard: {
     stats: '/dashboard/stats',
@@ -14,11 +16,16 @@ export const API_ENDPOINTS = {
     liveRides: '/dashboard/live-rides',
   },
   users: {
-    list: '/users',
-    detail: (id: string) => `/users/${id}`,
-    create: '/users',
-    update: (id: string) => `/users/${id}`,
-    delete: (id: string) => `/users/${id}`,
+    list: '/admin/users',
+    detail: (id: string) => `/admin/users/${id}`,
+    create: '/admin/users',
+    update: (id: string) => `/admin/users/${id}`,
+    delete: (id: string) => `/admin/users/${id}`,
+  },
+  rbac: {
+    permissions: '/admin/rbac/permissions',
+    roles: '/admin/rbac/roles',
+    rolePermissions: (slug: string) => `/admin/rbac/roles/${slug}/permissions`,
   },
   riders: {
     list: '/riders',

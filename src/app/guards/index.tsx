@@ -1,6 +1,6 @@
 import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { useAuthStore } from '@/store/auth.store'
+import { useAuthStore, type User } from '@/store/auth.store'
 import { checkRole, checkPermission } from '@/infrastructure/permissions'
 
 interface GuardProps {
@@ -36,29 +36,24 @@ export const GuestGuard: React.FC<GuardProps> = ({ children }) => {
 }
 
 interface RoleGuardProps extends GuardProps {
-  allowedRoles?: ('superadmin' | 'admin' | 'support' | 'dispatcher')[]
+  allowedRoles?: User['role'][]
   requiredPermission?: string
   fallbackPath?: string
 }
 
 /**
- * Role-Based Access Guard protecting specific path components
+ * Permission/role guard. Missing permission is treated as forbidden, not a crash.
  */
 export const RoleGuard: React.FC<RoleGuardProps> = ({
   children,
   allowedRoles,
   requiredPermission,
-  fallbackPath = '/dashboard',
+  fallbackPath = '/forbidden',
 }) => {
   const { user } = useAuthStore()
 
   if (!user) {
     return <Navigate to="/login" replace />
-  }
-
-  // Bypass for superadmin
-  if (user.role === 'superadmin') {
-    return <>{children}</>
   }
 
   if (allowedRoles && !checkRole(user, allowedRoles)) {
@@ -71,3 +66,5 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({
 
   return <>{children}</>
 }
+
+export const RequirePermission = RoleGuard

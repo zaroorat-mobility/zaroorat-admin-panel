@@ -10,32 +10,20 @@ import { StatusBadge } from '@/shared/components/StatusBadge'
 export const UserDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: user, isLoading } = useUser(id || '')
-
-  // Fallback demo user
-  const demoDetails = {
-    id: id || '1',
-    name: 'Alok Sharma',
-    email: 'alok.sharma@zaroorat.in',
-    phone: '9876543210',
-    role: 'admin' as const,
-    status: 'active' as const,
-    lastLogin: '2026-07-14T21:40:00Z',
-    permissions: ['users.read', 'users.write', 'drivers.read', 'riders.read'],
-  }
-
-  const activeUser = user ?? demoDetails
+  const { data: user, isLoading, isError } = useUser(id || '')
 
   return (
     <PageWrapper>
       <PageHeader
-        title={`User: ${activeUser.name}`}
+        title={user ? `User: ${user.name}` : 'User'}
         description="View access records and administrative details."
         onBack={() => navigate('/users')}
       />
 
-      {isLoading && !user ? (
+      {isLoading ? (
         <p className="text-slate-500">Loading user metadata...</p>
+      ) : isError || !user ? (
+        <p className="text-slate-500">This administrative user could not be found.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
@@ -47,20 +35,20 @@ export const UserDetailPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-xs font-semibold uppercase text-slate-400">Full Name</span>
-                    <p className="font-semibold text-slate-800 dark:text-dark-100 mt-1">{activeUser.name}</p>
+                    <p className="font-semibold text-slate-800 dark:text-dark-100 mt-1">{user.name}</p>
                   </div>
                   <div>
                     <span className="text-xs font-semibold uppercase text-slate-400">Email Address</span>
-                    <p className="font-semibold text-slate-800 dark:text-dark-100 mt-1">{activeUser.email}</p>
+                    <p className="font-semibold text-slate-800 dark:text-dark-100 mt-1">{user.email}</p>
                   </div>
                   <div>
                     <span className="text-xs font-semibold uppercase text-slate-400">Contact Number</span>
-                    <p className="font-semibold text-slate-800 dark:text-dark-100 mt-1">{activeUser.phone}</p>
+                    <p className="font-semibold text-slate-800 dark:text-dark-100 mt-1">{user.phone}</p>
                   </div>
                   <div>
                     <span className="text-xs font-semibold uppercase text-slate-400">Last System Access</span>
                     <p className="font-semibold text-slate-800 dark:text-dark-100 mt-1">
-                      {new Date(activeUser.lastLogin).toLocaleString()}
+                      {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}
                     </p>
                   </div>
                 </div>
@@ -77,17 +65,25 @@ export const UserDetailPage: React.FC = () => {
                 <div>
                   <span className="text-xs font-semibold uppercase text-slate-400">Account Status</span>
                   <div className="mt-2">
-                    <StatusBadge status={activeUser.status} />
+                    <StatusBadge status={user.status} />
                   </div>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold uppercase text-slate-400">System Role</span>
+                  <p className="font-semibold capitalize mt-2">{user.role}</p>
                 </div>
                 <div>
                   <span className="text-xs font-semibold uppercase text-slate-400">Assigned Privilege Permissions</span>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    {activeUser.permissions.map((perm) => (
-                      <Badge key={perm} variant="secondary">
-                        {perm}
-                      </Badge>
-                    ))}
+                    {user.permissions.length === 0 ? (
+                      <span className="text-sm text-slate-500">No extra permissions mapped</span>
+                    ) : (
+                      user.permissions.map((perm) => (
+                        <Badge key={perm} variant="secondary">
+                          {perm}
+                        </Badge>
+                      ))
+                    )}
                   </div>
                 </div>
               </CardContent>

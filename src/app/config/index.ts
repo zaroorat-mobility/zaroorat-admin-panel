@@ -4,7 +4,7 @@
 export const APP_CONFIG = {
   appName: 'Zaroorat Mobility',
   api: {
-    baseUrl: import.meta.env.VITE_API_BASE_URL || 'https://api.zaroorat-myride.local/v1',
+    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1',
     timeout: 15000,
   },
   storage: {
