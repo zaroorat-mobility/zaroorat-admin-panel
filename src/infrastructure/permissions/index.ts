@@ -31,7 +31,8 @@ export const hasAccess = ({
 export const PERMISSION_CATEGORIES = [
   { id: 'users', label: 'User Management', prefixes: ['staff', 'rbac', 'users', 'admin'] },
   { id: 'riders', label: 'Rider Management', prefixes: ['riders'] },
-  { id: 'drivers', label: 'Driver Management', prefixes: ['drivers', 'vehicles'] },
+  { id: 'drivers', label: 'Driver Management', prefixes: ['drivers'] },
+  { id: 'vehicles', label: 'Vehicle Management', prefixes: ['vehicles'] },
   { id: 'pricing', label: 'Pricing Management', prefixes: ['pricing'] },
   { id: 'operations', label: 'Operations', prefixes: ['operations', 'dashboard'] },
   { id: 'finance', label: 'Financial Operations', prefixes: ['finance'] },

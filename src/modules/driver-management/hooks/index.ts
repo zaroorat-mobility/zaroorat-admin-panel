@@ -64,8 +64,15 @@ export const useDeleteApplication = () => {
 export const useApproveApplication = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, notes, billingMode }: { id: string; notes?: string; billingMode?: 'free' | 'commission' | 'subscription' }) =>
-      DriverManagementService.approveApplication(id, notes, billingMode),
+    mutationFn: ({
+      id,
+      notes,
+      billingMode,
+    }: {
+      id: string
+      notes?: string
+      billingMode?: 'free' | 'commission' | 'subscription'
+    }) => DriverManagementService.approveApplication(id, notes, billingMode),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
       qc.invalidateQueries({ queryKey: QK.application(id) })
@@ -103,15 +110,21 @@ export const useVerifyApplicationDocument = () => {
   return useMutation({
     mutationFn: ({
       applicationId,
-      docType,
+      documentId,
       status,
       comment,
     }: {
       applicationId: string
-      docType: string
+      documentId: string
       status: 'approved' | 'rejected' | 'pending' | 'reupload_requested'
       comment?: string
-    }) => DriverManagementService.verifyApplicationDocument(applicationId, docType, status, comment),
+    }) =>
+      DriverManagementService.verifyApplicationDocument(
+        applicationId,
+        documentId,
+        status,
+        comment,
+      ),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: QK.application(data.id) })
     },
@@ -217,5 +230,20 @@ export const useVehicle = (id: string) => {
     queryKey: QK.vehicle(id),
     queryFn: () => DriverManagementService.getVehicleById(id),
     enabled: !!id,
+  })
+}
+
+export const useFlagVehicleForRenewal = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, notes }: { id: string; notes?: string }) =>
+      DriverManagementService.flagVehicleForRenewal(id, notes),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['driver-management', 'vehicles'] })
+      qc.invalidateQueries({ queryKey: QK.vehicle(data.id) })
+      if (data.driverId) {
+        qc.invalidateQueries({ queryKey: QK.driver(data.driverId) })
+      }
+    },
   })
 }

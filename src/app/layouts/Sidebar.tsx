@@ -56,7 +56,7 @@ const navItems: NavItem[] = [
     icon: Users,
     children: [
       { href: "/riders", label: "Riders Directory", icon: Users, permission: "riders:read" },
-      { href: "/riders/services", label: "Cross-link to Services", icon: ExternalLink }
+      { href: "/riders/services", label: "Cross-link to Services", icon: ExternalLink, permission: "riders:read" }
     ],
   },
   {
@@ -64,9 +64,16 @@ const navItems: NavItem[] = [
     href: "driver-management",
     icon: Car,
     children: [
-      { href: "/driver-management/applications", label: "Driver Applications", icon: ShieldCheck, badge: 12, badgeVariant: "info", permission: "drivers:read" },
-      { href: "/driver-management/drivers", label: "Drivers", icon: Users, badge: 3, badgeVariant: "warning", permission: "drivers:read" },
-      { href: "/driver-management/vehicles", label: "Vehicles", icon: Car, permission: "vehicles:read" },
+      { href: "/driver-management/applications", label: "Driver Applications", icon: ShieldCheck, permission: "drivers:read" },
+      { href: "/driver-management/drivers", label: "Drivers", icon: Users, permission: "drivers:read" },
+    ],
+  },
+  {
+    label: "Vehicle Management",
+    href: "vehicle-management",
+    icon: Car,
+    children: [
+      { href: "/vehicle-management/vehicles", label: "Vehicles Directory", icon: Car, permission: "vehicles:read" },
     ],
   },
   {
@@ -151,7 +158,7 @@ export const Sidebar: React.FC = () => {
     })
     .filter((item): item is NavItem => item != null);
   const [expandedSections, setExpandedSections] = useState<string[]>([
-    "user-management", "rider-management", "driver-management", "pricing-management",
+    "user-management", "rider-management", "driver-management", "vehicle-management", "pricing-management",
     "operations", "financial-operations", "school-mobility"
   ]);
 

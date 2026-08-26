@@ -122,7 +122,7 @@ export const VehiclesListPage: React.FC = () => {
               {
                 label: 'View Details',
                 icon: <Eye className="h-3.5 w-3.5" />,
-                onClick: () => navigate(`/driver-management/vehicles/${row.id}`)
+                onClick: () => navigate(`/vehicle-management/vehicles/${row.id}`)
               }
             ]}
           />
@@ -195,7 +195,7 @@ export const VehiclesListPage: React.FC = () => {
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           searchPlaceholder="Search by Registration Plate, Driver name..."
-          onRowClick={(row) => navigate(`/driver-management/vehicles/${row.id}`)}
+          onRowClick={(row) => navigate(`/vehicle-management/vehicles/${row.id}`)}
         />
       </div>
     </PageWrapper>

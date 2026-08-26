@@ -191,10 +191,11 @@ export const PersonalDetailsStep: React.FC<PersonalDetailsStepProps> = ({
                   items={countryDropdownItems}
                   selectedId={field.value}
                   onSelect={(val) => {
-                    field.onChange(val)
+                    const country = String(val)
+                    field.onChange(country)
                     setValue('state', '')
                     setValue('city', '')
-                    fetchStates(val as string)
+                    fetchStates(country)
                   }}
                   placeholder={countriesLoading ? "Loading countries..." : "Search and select country"}
                   error={errors.country?.message}
@@ -219,12 +220,14 @@ export const PersonalDetailsStep: React.FC<PersonalDetailsStepProps> = ({
                   items={stateDropdownItems}
                   selectedId={field.value}
                   onSelect={(val) => {
-                    field.onChange(val)
+                    const state = String(val)
+                    field.onChange(state)
                     setValue('city', '')
-                    fetchCities(getValues('country'), val as string)
+                    const country = getValues('country')
+                    if (country) fetchCities(country, state)
                   }}
                   placeholder={statesLoading ? "Loading states..." : "Search and select state"}
-                  disabled={!watch('country') || statesLoading}
+                  disabled={!watch('country') || (statesLoading && stateDropdownItems.length === 0)}
                   error={errors.state?.message}
                 />
               )}
@@ -238,9 +241,9 @@ export const PersonalDetailsStep: React.FC<PersonalDetailsStepProps> = ({
                   label="City *"
                   items={cityDropdownItems}
                   selectedId={field.value}
-                  onSelect={field.onChange}
+                  onSelect={(val) => field.onChange(String(val))}
                   placeholder={citiesLoading ? "Loading cities..." : "Search and select city"}
-                  disabled={!watch('state') || citiesLoading}
+                  disabled={!watch('state') || (citiesLoading && cityDropdownItems.length === 0)}
                   error={errors.city?.message}
                 />
               )}

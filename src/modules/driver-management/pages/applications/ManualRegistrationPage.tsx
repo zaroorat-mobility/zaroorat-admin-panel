@@ -129,9 +129,15 @@ export const ManualRegistrationPage: React.FC = () => {
   const vehicleType = watch('vehicleType')
   const registrationAction = watch('registrationAction')
 
-  // Fetch initial countries on mount
+  // Fetch initial countries on mount, then hydrate states for the default/selected country
   useEffect(() => {
-    fetchCountries()
+    void (async () => {
+      await fetchCountries()
+      const country = getValues('country')
+      if (country) {
+        await fetchStates(country)
+      }
+    })()
   }, [])
 
   // Auto lookup postal codes
@@ -144,10 +150,20 @@ export const ManualRegistrationPage: React.FC = () => {
         const details = await lookupPostalCode(postcode, countryCode)
         if (details) {
           if (details.state) {
-            setValue('state', details.state, { shouldValidate: true })
-            fetchCities(getValues('country') || 'India', details.state)
-          }
-          if (details.city) {
+            const matchedState =
+              states.find((s) => s.toLowerCase() === details.state.toLowerCase()) ||
+              states.find((s) => s.toLowerCase().includes(details.state.toLowerCase()) || details.state.toLowerCase().includes(s.toLowerCase())) ||
+              details.state
+            setValue('state', matchedState, { shouldValidate: true })
+            const cityList = await fetchCities(country, matchedState)
+            if (details.city) {
+              const matchedCity =
+                cityList.find((c) => c.toLowerCase() === details.city.toLowerCase()) ||
+                cityList.find((c) => c.toLowerCase().includes(details.city.toLowerCase()) || details.city.toLowerCase().includes(c.toLowerCase())) ||
+                details.city
+              setValue('city', matchedCity, { shouldValidate: true })
+            }
+          } else if (details.city) {
             setValue('city', details.city, { shouldValidate: true })
           }
         }
@@ -245,24 +261,11 @@ export const ManualRegistrationPage: React.FC = () => {
     cities.map(c => ({ id: c, name: c })), [cities]
   )
 
-  // Map API countries to standard dropdown format
-  const countryDropdownItems = useMemo(() =>
-    countries.map(c => ({ id: c.name, name: c.name })), [countries]
+  // Map API countries to standard dropdown format (hook already normalizes `country` → `name`)
+  const countryDropdownItems = useMemo(
+    () => countries.map((c) => ({ id: c.name, name: c.name })),
+    [countries],
   )
-
-  // Dynamic state change triggers city refetch
-  const handleCountryChange = (name: string) => {
-    setValue('country', name, { shouldValidate: true })
-    setValue('state', '')
-    setValue('city', '')
-    fetchStates(name)
-  }
-
-  const handleStateChange = (name: string) => {
-    setValue('state', name, { shouldValidate: true })
-    setValue('city', '')
-    fetchCities(getValues('country') || 'India', name)
-  }
 
   // Calculate proportional progress weights based on wizard steps
   const registrationCompleteness = useMemo(() => {
@@ -455,8 +458,12 @@ export const ManualRegistrationPage: React.FC = () => {
                   statesLoading={statesLoading}
                   citiesLoading={citiesLoading}
                   isPostalLoading={isPostalLoading}
-                  fetchStates={handleCountryChange}
-                  fetchCities={handleStateChange}
+                  fetchStates={(country) => {
+                    void fetchStates(country)
+                  }}
+                  fetchCities={(country, state) => {
+                    void fetchCities(country, state)
+                  }}
                   handlePostcodeBlur={handlePostcodeBlur}
                 />
               )}

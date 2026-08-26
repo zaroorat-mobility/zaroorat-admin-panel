@@ -35,11 +35,32 @@ export const API_ENDPOINTS = {
     activate: (id: string) => `/admin/riders/${id}/activate`,
   },
   drivers: {
-    list: '/drivers',
-    detail: (id: string) => `/drivers/${id}`,
-    update: (id: string) => `/drivers/${id}`,
-    verify: (id: string) => `/drivers/${id}/verify`,
-    documents: (id: string) => `/drivers/${id}/documents`,
+    list: '/admin/drivers',
+    detail: (id: string) => `/admin/drivers/${id}`,
+    suspend: (id: string) => `/admin/drivers/${id}/suspend`,
+    block: (id: string) => `/admin/drivers/${id}/block`,
+    activate: (id: string) => `/admin/drivers/${id}/activate`,
+    verify: (id: string) => `/admin/drivers/${id}/verify`,
+    documentReview: (driverId: string, documentId: string) =>
+      `/admin/drivers/${driverId}/documents/${documentId}/review`,
+  },
+  applications: {
+    list: '/admin/applications',
+    detail: (id: string) => `/admin/applications/${id}`,
+    approve: (id: string) => `/admin/applications/${id}/approve`,
+    reject: (id: string) => `/admin/applications/${id}/reject`,
+    requestResubmission: (id: string) => `/admin/applications/${id}/request-resubmission`,
+    documentReview: (id: string, documentId: string) =>
+      `/admin/applications/${id}/documents/${documentId}/review`,
+  },
+  vehicles: {
+    list: '/admin/vehicles',
+    detail: (id: string) => `/admin/vehicles/${id}`,
+    flagRenewal: (id: string) => `/admin/vehicles/${id}/flag-renewal`,
+    review: (id: string) => `/admin/vehicles/${id}/review`,
+    verify: (id: string) => `/admin/vehicles/${id}/verify`,
+    documentReview: (vehicleId: string, documentId: string) =>
+      `/admin/vehicles/${vehicleId}/documents/${documentId}/review`,
   },
   verification: {
     list: '/verifications',

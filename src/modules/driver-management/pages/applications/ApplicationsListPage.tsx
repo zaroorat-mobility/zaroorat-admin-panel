@@ -8,6 +8,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge'
 import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { Button } from '@/shared/components/ui/Button'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
+import { useToast } from '@/shared/context/toast'
 import { ClipboardList, ShieldCheck, ShieldAlert, Plus, Trash2, Eye, Edit } from 'lucide-react'
 import { ApplicationSourceBadge, ActionDropdown } from '../../components'
 import type { DriverApplicationEntity } from '../../types'
@@ -16,6 +17,7 @@ export const ApplicationsListPage: React.FC = () => {
   const navigate = useNavigate()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const { error: showError } = useToast()
 
   const { data, isLoading, isError, refetch } = useApplications()
   const { mutate: deleteApp, isPending: isDeleting } = useDeleteApplication()
@@ -129,7 +131,14 @@ export const ApplicationsListPage: React.FC = () => {
         onSuccess: () => {
           setDeleteId(null)
           refetch()
-        }
+        },
+        onError: (err: unknown) => {
+          setDeleteId(null)
+          showError(
+            'Delete unavailable',
+            err instanceof Error ? err.message : 'Could not delete this application',
+          )
+        },
       })
     }
   }

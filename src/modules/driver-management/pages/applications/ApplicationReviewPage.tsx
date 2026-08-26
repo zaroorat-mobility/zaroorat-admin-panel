@@ -33,6 +33,9 @@ import {
   Clock
 } from 'lucide-react'
 import { cn } from '@/shared/utils'
+import { useToast } from '@/shared/context/toast'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 
 type DetailTab = 'overview' | 'documents' | 'vehicle' | 'bank' | 'timeline' | 'audit'
 
@@ -45,8 +48,11 @@ export const ApplicationReviewPage: React.FC = () => {
   const [previewTitle, setPreviewTitle] = useState('')
   const [docComment, setDocComment] = useState('')
   const [notes, setNotes] = useState('')
-  const [selectedAuditDocType, setSelectedAuditDocType] = useState<string | null>(null)
+  const [selectedAuditDocId, setSelectedAuditDocId] = useState<string | null>(null)
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'commission' | 'subscription'>('free')
+  const { success: showSuccess, error: showError } = useToast()
+  const user = useAuthStore((state) => state.user)
+  const canVerify = hasPermission(user, 'drivers:verify')
 
   const { data: application, isLoading, refetch } = useApplication(id || '')
   const { mutate: approve, isPending: isApproving } = useApproveApplication()
@@ -56,18 +62,18 @@ export const ApplicationReviewPage: React.FC = () => {
 
   // Initialize selected document for documents tab feedback
   useEffect(() => {
-    if (application && application.documents.length > 0 && !selectedAuditDocType) {
-      setSelectedAuditDocType(application.documents[0].docType)
+    if (application && application.documents.length > 0 && !selectedAuditDocId) {
+      setSelectedAuditDocId(application.documents[0].id)
     }
-  }, [application, selectedAuditDocType])
+  }, [application, selectedAuditDocId])
 
   // Sync document comment feedback when selected document changes
   useEffect(() => {
-    if (application && selectedAuditDocType) {
-      const doc = application.documents.find(d => d.docType === selectedAuditDocType)
+    if (application && selectedAuditDocId) {
+      const doc = application.documents.find(d => d.id === selectedAuditDocId)
       setDocComment(doc?.comment || '')
     }
-  }, [selectedAuditDocType, application])
+  }, [selectedAuditDocId, application])
 
   if (isLoading) {
     return (
@@ -91,34 +97,72 @@ export const ApplicationReviewPage: React.FC = () => {
     )
   }
 
-  const handleUpdateDocStatus = (status: 'approved' | 'rejected' | 'pending' | 'reupload_requested', type: string) => {
+  const handleUpdateDocStatus = (status: 'approved' | 'rejected' | 'pending' | 'reupload_requested', documentId: string) => {
+    if (!canVerify) {
+      showError('Permission required', 'drivers:verify is needed to review documents')
+      return
+    }
     verifyDoc({
       applicationId: application.id,
-      docType: type,
+      documentId,
       status,
       comment: status !== 'approved' ? docComment : undefined
     }, {
       onSuccess: () => {
-        refetch()
-      }
+        showSuccess('Document updated', `Document marked as ${status.replace('_', ' ')}.`)
+        void refetch()
+      },
+      onError: (err: unknown) => {
+        showError('Document review failed', err instanceof Error ? err.message : 'Request failed')
+      },
     })
   }
 
   const handleApproveOverall = () => {
+    if (!canVerify) {
+      showError('Permission required', 'drivers:verify is needed to approve applications')
+      return
+    }
     approve({ id: application.id, notes, billingMode: selectedPlan }, {
-      onSuccess: () => navigate('/driver-management/applications'),
+      onSuccess: () => {
+        showSuccess('Driver approved', 'Application verified and driver activated.')
+        navigate('/driver-management/applications')
+      },
+      onError: (err: unknown) => {
+        showError('Approval failed', err instanceof Error ? err.message : 'Request failed')
+      },
     })
   }
 
   const handleRejectOverall = () => {
+    if (!canVerify) {
+      showError('Permission required', 'drivers:verify is needed to reject applications')
+      return
+    }
     reject({ id: application.id, notes }, {
-      onSuccess: () => navigate('/driver-management/applications'),
+      onSuccess: () => {
+        showSuccess('Application rejected', 'Driver verification was rejected.')
+        navigate('/driver-management/applications')
+      },
+      onError: (err: unknown) => {
+        showError('Rejection failed', err instanceof Error ? err.message : 'Request failed')
+      },
     })
   }
 
   const handleResubmitOverall = () => {
+    if (!canVerify) {
+      showError('Permission required', 'drivers:verify is needed to request resubmission')
+      return
+    }
     requestResubmit({ id: application.id, notes }, {
-      onSuccess: () => navigate('/driver-management/applications'),
+      onSuccess: () => {
+        showSuccess('Resubmission requested', 'Driver must re-submit verification materials.')
+        navigate('/driver-management/applications')
+      },
+      onError: (err: unknown) => {
+        showError('Request failed', err instanceof Error ? err.message : 'Request failed')
+      },
     })
   }
 
@@ -269,7 +313,7 @@ export const ApplicationReviewPage: React.FC = () => {
                   if (doc.verifyStatus === 'reupload_requested') statusColor = 'text-amber-700 bg-amber-50 dark:bg-amber-950/20 border-amber-200'
 
                   return (
-                    <Card key={doc.id} className={cn("premium-card text-left p-4 space-y-3.5 relative border", selectedAuditDocType === doc.docType ? "border-primary ring-1 ring-primary/20" : "")}>
+                    <Card key={doc.id} className={cn("premium-card text-left p-4 space-y-3.5 relative border", selectedAuditDocId === doc.id ? "border-primary ring-1 ring-primary/20" : "")}>
                       <div className="flex items-start justify-between">
                         <div>
                           <span className="text-[10px] uppercase font-bold text-muted-foreground">Document Category</span>
@@ -308,7 +352,7 @@ export const ApplicationReviewPage: React.FC = () => {
                       <div className="flex items-center justify-between pt-2 border-t border-border">
                         <button
                           type="button"
-                          onClick={() => setSelectedAuditDocType(doc.docType)}
+                          onClick={() => setSelectedAuditDocId(doc.id)}
                           className="text-[10px] font-bold text-primary hover:underline"
                         >
                           Feedback Panel
@@ -316,7 +360,7 @@ export const ApplicationReviewPage: React.FC = () => {
                         <div className="flex gap-1.5">
                           <button
                             type="button"
-                            onClick={() => handleUpdateDocStatus('approved', doc.docType)}
+                            onClick={() => handleUpdateDocStatus('approved', doc.id)}
                             className="p-1 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-100"
                             title="Approve"
                           >
@@ -324,7 +368,7 @@ export const ApplicationReviewPage: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleUpdateDocStatus('rejected', doc.docType)}
+                            onClick={() => handleUpdateDocStatus('rejected', doc.id)}
                             className="p-1 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/20 dark:text-rose-400 border border-rose-100"
                             title="Reject"
                           >
@@ -492,16 +536,18 @@ export const ApplicationReviewPage: React.FC = () => {
         <div className="space-y-6">
           
           {/* Document feedback audit panel */}
-          {activeTab === 'documents' && selectedAuditDocType && (
+          {activeTab === 'documents' && selectedAuditDocId && (
             <Card className="premium-card text-left">
               <CardHeader>
-                <CardTitle className="capitalize text-xs font-bold uppercase tracking-wider">{selectedAuditDocType.replace('_', ' ')} Review Panel</CardTitle>
+                <CardTitle className="capitalize text-xs font-bold uppercase tracking-wider">
+                  {(application.documents.find((d) => d.id === selectedAuditDocId)?.docType || 'document').replace('_', ' ')} Review Panel
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase">Document Review State</label>
                   <div>
-                    <StatusBadge status={application.documents.find(d => d.docType === selectedAuditDocType)?.verifyStatus || 'pending'} />
+                    <StatusBadge status={application.documents.find(d => d.id === selectedAuditDocId)?.verifyStatus || 'pending'} />
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -517,8 +563,9 @@ export const ApplicationReviewPage: React.FC = () => {
                   <Button
                     className="w-full gap-2 rounded-xl justify-center h-9 text-xs"
                     variant="primary"
-                    onClick={() => handleUpdateDocStatus('approved', selectedAuditDocType)}
+                    onClick={() => handleUpdateDocStatus('approved', selectedAuditDocId)}
                     loading={isDocVerifying}
+                    disabled={!canVerify}
                   >
                     <Check className="h-4 w-4" />
                     <span>Approve Document</span>
@@ -527,8 +574,9 @@ export const ApplicationReviewPage: React.FC = () => {
                     <Button
                       variant="danger"
                       className="gap-2 rounded-xl justify-center h-9 text-xs"
-                      onClick={() => handleUpdateDocStatus('rejected', selectedAuditDocType)}
+                      onClick={() => handleUpdateDocStatus('rejected', selectedAuditDocId)}
                       loading={isDocVerifying}
+                      disabled={!canVerify}
                     >
                       <X className="h-4 w-4" />
                       <span>Reject</span>
@@ -537,9 +585,10 @@ export const ApplicationReviewPage: React.FC = () => {
                       variant="outline"
                       className="gap-2 rounded-xl justify-center h-9 text-[10px] text-primary"
                       onClick={() => {
-                        handleUpdateDocStatus('reupload_requested', selectedAuditDocType)
+                        handleUpdateDocStatus('reupload_requested', selectedAuditDocId)
                       }}
                       loading={isDocVerifying}
+                      disabled={!canVerify}
                     >
                       <RefreshCcw className="h-3.5 w-3.5" />
                       <span>Request Reupload</span>
@@ -619,7 +668,7 @@ export const ApplicationReviewPage: React.FC = () => {
                   variant="primary"
                   onClick={handleApproveOverall}
                   loading={isApproving}
-                  disabled={rejectedDocs.length > 0 || pendingDocs.length > 0}
+                  disabled={!canVerify || rejectedDocs.length > 0 || pendingDocs.length > 0}
                 >
                   <Check className="h-4 w-4" />
                   <span>Approve & Activate Driver</span>
@@ -630,6 +679,7 @@ export const ApplicationReviewPage: React.FC = () => {
                     className="gap-2 rounded-xl justify-center h-10 text-xs font-semibold"
                     onClick={handleRejectOverall}
                     loading={isRejecting}
+                    disabled={!canVerify}
                   >
                     <X className="h-4 w-4" />
                     <span>Reject</span>
@@ -639,6 +689,7 @@ export const ApplicationReviewPage: React.FC = () => {
                     className="gap-2 rounded-xl justify-center h-10 text-[10px] font-semibold text-primary"
                     onClick={handleResubmitOverall}
                     loading={isResubmitting}
+                    disabled={!canVerify}
                   >
                     <RefreshCcw className="h-3.5 w-3.5" />
                     <span>Request Resubmit</span>

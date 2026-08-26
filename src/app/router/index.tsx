@@ -9,7 +9,7 @@ import { AuthRoutes } from '@/modules/auth'
 import { DashboardPage } from '@/modules/dashboard'
 import { UserRoutes } from '@/modules/users'
 import { RiderRoutes } from '@/modules/riders'
-import { DriverManagementRoutes } from '@/modules/driver-management'
+import { DriverManagementRoutes, VehicleManagementRoutes } from '@/modules/driver-management'
 import { AuditLogRoutes } from '@/modules/audit-log'
 import { PricingManagementRoutes } from '@/modules/pricing-management'
 import { OperationsRoutes } from '@/modules/operations'
@@ -69,6 +69,16 @@ export const AppRouter: React.FC = () => {
           element={
             <RequirePermission requiredPermission="drivers:read">
               <DriverManagementRoutes />
+            </RequirePermission>
+          }
+        />
+
+        {/* Vehicle Management */}
+        <Route
+          path="vehicle-management/*"
+          element={
+            <RequirePermission requiredPermission="vehicles:read">
+              <VehicleManagementRoutes />
             </RequirePermission>
           }
         />
