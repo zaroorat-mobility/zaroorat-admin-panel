@@ -46,6 +46,7 @@ export const API_ENDPOINTS = {
   },
   applications: {
     list: '/admin/applications',
+    create: '/admin/applications',
     detail: (id: string) => `/admin/applications/${id}`,
     approve: (id: string) => `/admin/applications/${id}/approve`,
     reject: (id: string) => `/admin/applications/${id}/reject`,

@@ -35,6 +35,7 @@ export const useCreateApplication = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
       qc.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+      qc.invalidateQueries({ queryKey: ['driver-management', 'vehicles'] })
     },
   })
 }
@@ -77,6 +78,7 @@ export const useApproveApplication = () => {
       qc.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
       qc.invalidateQueries({ queryKey: QK.application(id) })
       qc.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+      qc.invalidateQueries({ queryKey: ['driver-management', 'vehicles'] })
     },
   })
 }

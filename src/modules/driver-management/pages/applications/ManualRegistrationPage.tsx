@@ -7,9 +7,10 @@ import { PageHeader } from '@/shared/components/PageHeader'
 import { Button } from '@/shared/components/ui/Button'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { Save, FileCheck } from 'lucide-react'
-import { driverKycFormSchema, type DriverKycFormData } from '../../schemas'
+import { driverKycFormSchema, type DriverKycFormData, type DriverKycFormInput } from '../../schemas'
 import { useCreateApplication, useUpdateApplication, useApplication } from '../../hooks'
 import { useCountriesNow, usePostalCodeLookup } from '@/shared/hooks'
+import { useToast } from '@/shared/context/toast'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/shared/components/ui/Card'
 import {
   PersonalDetailsStep,
@@ -32,6 +33,7 @@ export const ManualRegistrationPage: React.FC = () => {
   const { data: application, isLoading: isFetching } = useApplication(id || '')
   const { mutate: createKyc, isPending: isCreating } = useCreateApplication()
   const { mutate: updateKyc, isPending: isUpdating } = useUpdateApplication()
+  const { success: showSuccess, error: showError } = useToast()
 
   const [activeFormTab, setActiveFormTab] = useState<TabType>('bio')
 
@@ -60,7 +62,7 @@ export const ManualRegistrationPage: React.FC = () => {
     reset,
     trigger,
     formState: { errors, isValid }
-  } = useForm<DriverKycFormData>({
+  } = useForm<DriverKycFormInput, unknown, DriverKycFormData>({
     resolver: zodResolver(driverKycFormSchema),
     mode: 'all',
     defaultValues: {
@@ -363,11 +365,32 @@ export const ManualRegistrationPage: React.FC = () => {
   const onCompleteRegistration = (data: DriverKycFormData) => {
     if (isEdit) {
       updateKyc({ id: id || '', data }, {
-        onSuccess: () => navigate('/driver-management/applications')
+        onSuccess: () => navigate('/driver-management/applications'),
+        onError: (err: unknown) => {
+          showError('Update failed', err instanceof Error ? err.message : 'Request failed')
+        },
       })
     } else {
       createKyc(data, {
-        onSuccess: () => navigate('/driver-management/applications')
+        onSuccess: (created) => {
+          showSuccess(
+            'Application created',
+            data.registrationAction === 'approve_immediately'
+              ? 'Driver and vehicle activated.'
+              : 'Submitted for review.',
+          )
+          if (data.registrationAction === 'approve_immediately') {
+            navigate('/driver-management/drivers')
+          } else {
+            navigate(`/driver-management/applications/${created.id}`)
+          }
+        },
+        onError: (err: unknown) => {
+          showError(
+            'Registration failed',
+            err instanceof Error ? err.message : 'Could not create application',
+          )
+        },
       })
     }
   }

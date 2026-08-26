@@ -305,6 +305,17 @@ export const ApplicationReviewPage: React.FC = () => {
           {/* TAB 2: DOCUMENTS CHECKLIST */}
           {activeTab === 'documents' && (
             <div className="space-y-6">
+              {!canVerify && (
+                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex gap-2.5 items-start dark:bg-amber-950/20 dark:border-amber-900 dark:text-amber-400">
+                  <ShieldAlert className="h-5 w-5 text-amber-500 flex-shrink-0" />
+                  <div className="space-y-0.5">
+                    <span className="font-bold">View only</span>
+                    <p className="opacity-90">
+                      Document approve/reject requires <code className="font-mono">drivers:verify</code>.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {application.documents.map((doc) => {
                   let statusColor = 'text-slate-500 bg-slate-100 dark:bg-slate-850 border-slate-200'
@@ -361,16 +372,18 @@ export const ApplicationReviewPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleUpdateDocStatus('approved', doc.id)}
-                            className="p-1 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-100"
-                            title="Approve"
+                            disabled={!canVerify || isDocVerifying}
+                            className="p-1 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-50"
+                            title={canVerify ? 'Approve' : 'Requires drivers:verify'}
                           >
                             <Check className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleUpdateDocStatus('rejected', doc.id)}
-                            className="p-1 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/20 dark:text-rose-400 border border-rose-100"
-                            title="Reject"
+                            disabled={!canVerify || isDocVerifying}
+                            className="p-1 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/20 dark:text-rose-400 border border-rose-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50"
+                            title={canVerify ? 'Reject' : 'Requires drivers:verify'}
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -544,6 +557,15 @@ export const ApplicationReviewPage: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {!canVerify && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex gap-2.5 items-start dark:bg-amber-950/20 dark:border-amber-900 dark:text-amber-400">
+                    <ShieldAlert className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <p>
+                      <span className="font-bold">Read-only.</span> Document verification requires{' '}
+                      <code className="font-mono">drivers:verify</code>.
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase">Document Review State</label>
                   <div>
@@ -556,7 +578,8 @@ export const ApplicationReviewPage: React.FC = () => {
                     value={docComment}
                     onChange={(e) => setDocComment(e.target.value)}
                     placeholder="Enter reason if rejecting or requesting reupload..."
-                    className="w-full h-20 rounded-lg border border-input bg-surface px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:bg-slate-900"
+                    disabled={!canVerify}
+                    className="w-full h-20 rounded-lg border border-input bg-surface px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 dark:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div className="flex flex-col gap-2 pt-2">

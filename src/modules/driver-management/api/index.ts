@@ -60,6 +60,16 @@ export const getApplicationById = async (id: string): Promise<DriverApplicationD
   return response.data.data
 }
 
+export const createApplication = async (
+  data: Record<string, unknown>,
+): Promise<DriverApplicationDetails> => {
+  const response = await api.post<{ data: DriverApplicationDetails }>(
+    API_ENDPOINTS.applications.create,
+    data,
+  )
+  return response.data.data
+}
+
 export const approveApplication = async (
   id: string,
   notes?: string,
