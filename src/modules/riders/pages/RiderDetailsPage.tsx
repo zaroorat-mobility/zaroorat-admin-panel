@@ -4,7 +4,7 @@ import {
   useRider,
   useSuspendRider,
   useBlockRider,
-  useActivateRider
+  useActivateRider,
 } from '../hooks'
 import { useQuery } from '@tanstack/react-query'
 import { RefundService } from '@/modules/financial-operations/refunds'
@@ -15,6 +15,9 @@ import { StatusBadge } from '@/shared/components/StatusBadge'
 import { Button } from '@/shared/components/ui/Button'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
 import { DataTable } from '@/shared/components/DataTable'
+import { useToast } from '@/shared/context/toast'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 import {
   User,
   MapPin,
@@ -25,7 +28,7 @@ import {
   Clock,
   Ban,
   ShieldCheck,
-  Briefcase
+  Briefcase,
 } from 'lucide-react'
 import { cn } from '@/shared/utils'
 
@@ -34,14 +37,15 @@ type RiderTab = 'profile' | 'history' | 'wallet' | 'refunds' | 'timeline' | 'rev
 export const RiderDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { success: showSuccess, error: showError } = useToast()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'riders:write')
   const [activeTab, setActiveTab] = useState<RiderTab>('profile')
 
-  // Modals operational state
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
   const [statusAction, setStatusAction] = useState<'suspend' | 'block' | 'activate' | null>(null)
   const [statusNotes, setStatusNotes] = useState('')
 
-  // Hooks queries & mutations
   const { data: rider, isLoading, isError, refetch } = useRider(id || '')
 
   const { data: refundsRes } = useQuery({
@@ -78,6 +82,16 @@ export const RiderDetailsPage: React.FC = () => {
   }
 
   const isSuspendedOrBlocked = rider.riderStatus === 'suspended' || rider.riderStatus === 'blocked'
+  const emergencyContacts = rider.emergencyContacts ?? []
+  const ledger = rider.ledger ?? []
+  const rideHistory = rider.rideHistory ?? []
+  const timeline = rider.timeline ?? []
+  const totalRefunds = ledger
+    .filter((txn) => txn.type === 'REFUND')
+    .reduce((sum, txn) => sum + Math.abs(Number(txn.amount)), 0)
+  const totalCashbacks = ledger
+    .filter((txn) => txn.type === 'CASHBACK')
+    .reduce((sum, txn) => sum + Number(txn.amount), 0)
 
   // Columns definitions for ride history table
   const rideHistoryColumns = [
@@ -185,6 +199,7 @@ export const RiderDetailsPage: React.FC = () => {
         description="Review customer profile metrics and wallet ledger history."
         onBack={() => navigate('/riders')}
         actions={
+          canWrite ? (
           <div className="flex items-center gap-2 flex-wrap">
             {isSuspendedOrBlocked ? (
               <Button
@@ -225,6 +240,7 @@ export const RiderDetailsPage: React.FC = () => {
               </>
             )}
           </div>
+          ) : undefined
         }
       />
 
@@ -336,10 +352,11 @@ export const RiderDetailsPage: React.FC = () => {
                   <CardTitle className="text-sm">Rider Emergency Contacts</CardTitle>
                 </CardHeader>
                 <CardContent className="p-5 pt-0 space-y-2 text-xs">
-                  {rider.emergencyContacts.length > 0 ? (
-                    rider.emergencyContacts.map((contact, idx) => (
+                  {emergencyContacts.length > 0 ? (
+                    emergencyContacts.map((contact, idx) => (
                       <p key={idx}>
-                        <span className="text-slate-500 font-medium">{contact.name}:</span> <strong>{contact.phone}</strong>
+                        <span className="text-slate-500 font-medium">{contact.name}:</span>{' '}
+                        <strong>{contact.phone}</strong>
                       </p>
                     ))
                   ) : (
@@ -361,7 +378,7 @@ export const RiderDetailsPage: React.FC = () => {
             <CardContent className="p-0">
               <DataTable
                 columns={rideHistoryColumns}
-                data={rider.rideHistory}
+                data={rideHistory}
                 selectable={false}
               />
             </CardContent>
@@ -374,14 +391,20 @@ export const RiderDetailsPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <Card className="premium-card p-5">
                 <span className="text-[10px] uppercase font-bold text-slate-455 tracking-wider">Total refunds issued</span>
-                <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">₹0.00</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Status: No active disputes</p>
+                <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">
+                  ₹{totalRefunds.toFixed(2)}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {totalRefunds > 0 ? 'From wallet ledger refunds' : 'No refunds recorded'}
+                </p>
               </Card>
 
               <Card className="premium-card p-5">
                 <span className="text-[10px] uppercase font-bold text-slate-455 tracking-wider">Accumulated cashbacks</span>
-                <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">₹70.00</p>
-                <p className="text-[10px] text-primary mt-1">Promotional coupon applied</p>
+                <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">
+                  ₹{totalCashbacks.toFixed(2)}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">From wallet ledger cashbacks</p>
               </Card>
             </div>
 
@@ -393,7 +416,7 @@ export const RiderDetailsPage: React.FC = () => {
               <CardContent className="p-0">
                 <DataTable
                   columns={walletLedgerColumns}
-                  data={rider.ledger}
+                  data={ledger}
                   selectable={false}
                 />
               </CardContent>
@@ -460,7 +483,10 @@ export const RiderDetailsPage: React.FC = () => {
             </CardHeader>
             <CardContent className="px-6 pb-6">
               <div className="relative border-l border-slate-200 pl-4 space-y-4 dark:border-slate-800 ml-2">
-                {rider.timeline.map((evt) => (
+                {timeline.length === 0 ? (
+                  <p className="text-xs text-slate-400">No compliance events logged yet.</p>
+                ) : (
+                  timeline.map((evt) => (
                   <div key={evt.id} className="space-y-1 relative">
                     <span className={cn(
                       "absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-slate-900",
@@ -486,7 +512,8 @@ export const RiderDetailsPage: React.FC = () => {
                       </p>
                     )}
                   </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -500,35 +527,9 @@ export const RiderDetailsPage: React.FC = () => {
               <CardDescription>Chronological feedback and star ratings submitted by drivers regarding this passenger.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <DataTable
-                columns={[
-                  {
-                    key: 'date',
-                    label: 'Date',
-                    render: (date: string) => new Date(date).toLocaleDateString('en-IN')
-                  },
-                  {
-                    key: 'driverName',
-                    label: 'Driver Name',
-                    render: (name: string) => <span className="font-bold text-slate-850 dark:text-slate-200">{name}</span>
-                  },
-                  {
-                     key: 'rating',
-                     label: 'Rating Given',
-                     render: (rating: number) => <span className="font-bold text-amber-500">{rating} ★</span>
-                  },
-                  {
-                     key: 'comment',
-                     label: 'Feedback Comment',
-                     render: (comment: string) => <span className="italic text-slate-500">"{comment}"</span>
-                  }
-                ]}
-                data={[
-                  { id: '1', date: '2026-07-22', driverName: 'Rajesh Kumar', rating: 5, comment: 'Very polite rider, reached pickup point on time.' },
-                  { id: '2', date: '2026-07-20', driverName: 'Sunil Verma', rating: 4, comment: 'Good trip, slight delay in boarding.' }
-                ]}
-                selectable={false}
-              />
+              <div className="p-8 text-center text-xs text-slate-400 font-medium">
+                Driver feedback for this rider is not available from the API yet.
+              </div>
             </CardContent>
           </Card>
         )}
@@ -545,21 +546,34 @@ export const RiderDetailsPage: React.FC = () => {
         }}
         onConfirm={() => {
           if (!statusAction) return
-          
+
           const actionMap = {
             suspend: suspendRider,
             block: blockRider,
-            activate: activateRider
+            activate: activateRider,
           }
-          
-          actionMap[statusAction]({ id: rider.id, notes: statusNotes }, {
-            onSuccess: () => {
-              setIsStatusModalOpen(false)
-              setStatusNotes('')
-              setStatusAction(null)
-              refetch()
-            }
-          })
+
+          actionMap[statusAction](
+            { id: rider.id, notes: statusNotes || undefined },
+            {
+              onSuccess: () => {
+                showSuccess(
+                  'Rider updated',
+                  `Account marked as ${statusAction === 'activate' ? 'active' : statusAction}.`,
+                )
+                setIsStatusModalOpen(false)
+                setStatusNotes('')
+                setStatusAction(null)
+                void refetch()
+              },
+              onError: (err) => {
+                showError(
+                  'Could not update rider',
+                  err instanceof Error ? err.message : 'Request failed',
+                )
+              },
+            },
+          )
         }}
         title={`${statusAction === 'suspend' ? 'Suspend' : statusAction === 'block' ? 'Block' : 'Activate'} Rider`}
         description={

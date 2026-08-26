@@ -28,10 +28,11 @@ export const API_ENDPOINTS = {
     rolePermissions: (slug: string) => `/admin/rbac/roles/${slug}/permissions`,
   },
   riders: {
-    list: '/riders',
-    detail: (id: string) => `/riders/${id}`,
-    update: (id: string) => `/riders/${id}`,
-    history: (id: string) => `/riders/${id}/history`,
+    list: '/admin/riders',
+    detail: (id: string) => `/admin/riders/${id}`,
+    suspend: (id: string) => `/admin/riders/${id}/suspend`,
+    block: (id: string) => `/admin/riders/${id}/block`,
+    activate: (id: string) => `/admin/riders/${id}/activate`,
   },
   drivers: {
     list: '/drivers',
