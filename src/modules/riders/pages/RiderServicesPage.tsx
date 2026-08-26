@@ -98,7 +98,7 @@ export const RiderServicesPage: React.FC = () => {
       key: 'actions',
       label: 'SSO Link',
       align: 'center' as const,
-      render: (_, row) => (
+      render: (_: any, row: any) => (
         <Button
           variant="outline"
           size="sm"

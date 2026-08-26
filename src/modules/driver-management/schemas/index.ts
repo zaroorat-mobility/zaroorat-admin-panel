@@ -99,11 +99,12 @@ export const driverKycFormSchema = z.object({
   upiId: z.string().optional().or(z.string().length(0)),
 
   // Step 6: Registration Action
-  registrationAction: registrationActionSchema.default('submit_for_review'),
+  registrationAction: registrationActionSchema,
 }).refine((data) => data.bankAccountNumber === data.confirmBankAccountNumber, {
   message: 'Bank account numbers do not match',
   path: ['confirmBankAccountNumber'],
 })
 
 export type DriverKycFormData = z.infer<typeof driverKycFormSchema>
+export type DriverKycFormInput = z.input<typeof driverKycFormSchema>
 export type RegistrationAction = z.infer<typeof registrationActionSchema>

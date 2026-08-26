@@ -25,6 +25,8 @@ export type DriverStatus =
   | 'on_trip'
   | 'suspended'
   | 'blocked'
+  | 'pending'
+  | 'rejected'
 
 // ─── Document Domain ───────────────────────────────────────────────────────
 
@@ -177,12 +179,14 @@ export interface DriverApplicationDetails extends DriverApplicationEntity {
 
 export interface DriverEntity extends BaseEntity {
   applicationId: string
+  driverCode?: string
   driverName: string
   mobileNumber: string
   email?: string
   vehicleType: VehicleType
   registrationPlate?: string
   driverStatus: DriverStatus
+  verificationStatus?: string
   ratingAvg: number
   totalTrips: number
   walletBalance: number
@@ -190,6 +194,8 @@ export interface DriverEntity extends BaseEntity {
   joinedAt: string
   lastActiveAt?: string
   isOnline: boolean
+  isSuspended?: boolean
+  isBlocked?: boolean
 }
 
 export interface DriverDetails extends DriverEntity {
@@ -198,7 +204,7 @@ export interface DriverDetails extends DriverEntity {
   emergencyContactName?: string
   emergencyContactNumber?: string
   preferredLanguage?: string
-  bgCheckStatus: 'not_started' | 'in_progress' | 'clear' | 'flagged'
+  bgCheckStatus?: 'not_started' | 'in_progress' | 'clear' | 'flagged'
   country?: string
   state?: string
   city?: string
