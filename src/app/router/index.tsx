@@ -12,10 +12,11 @@ import { RiderRoutes } from '@/modules/riders'
 import { DriverManagementRoutes, VehicleManagementRoutes } from '@/modules/driver-management'
 import { AuditLogRoutes } from '@/modules/audit-log'
 import { PricingManagementRoutes } from '@/modules/pricing-management'
+import { PromotionsManagementRoutes } from '@/modules/promotions-management'
+import { ReferralManagementRoutes } from '@/modules/referral-management'
 import { OperationsRoutes } from '@/modules/operations'
 import { FinancialOperationsRoutes } from '@/modules/financial-operations'
 import { SchoolMobilityRoutes } from '@/modules/school-mobility'
-import { NotificationsRoutes } from '@/modules/notifications'
 import { CarpoolingRoutes } from '@/modules/carpooling'
 import { DocumentControllerRoutes } from '@/modules/document-controller'
 
@@ -93,12 +94,22 @@ export const AppRouter: React.FC = () => {
           }
         />
 
-        {/* Campaigns & Notifications */}
+        {/* Promotions & Campaigns */}
         <Route
-          path="notifications/*"
+          path="promotions-management/*"
           element={
             <RequirePermission requiredPermission="campaigns:read">
-              <NotificationsRoutes />
+              <PromotionsManagementRoutes />
+            </RequirePermission>
+          }
+        />
+
+        {/* Referral & Rewards */}
+        <Route
+          path="referral-management/*"
+          element={
+            <RequirePermission requiredPermission="referrals:read">
+              <ReferralManagementRoutes />
             </RequirePermission>
           }
         />

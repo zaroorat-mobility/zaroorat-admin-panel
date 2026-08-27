@@ -17,6 +17,10 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 }) => {
   const [scale, setScale] = React.useState(1)
 
+  React.useEffect(() => {
+    if (isOpen) setScale(1)
+  }, [isOpen, imageUrl])
+
   if (!isOpen) return null
 
   return (
@@ -26,41 +30,43 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <span className="font-bold text-slate-800 dark:text-slate-100 text-sm tracking-wide uppercase">{title}</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setScale(prev => Math.max(0.5, prev - 0.2))}
-              className="h-8 w-8 p-0 rounded-lg"
+              onClick={() => setScale((prev) => Math.max(0.5, prev - 0.2))}
+              className="h-10 w-10 p-0 rounded-xl"
               title="Zoom Out"
             >
-              <ZoomOut className="h-4 w-4" />
+              <ZoomOut className="h-5 w-5" strokeWidth={2.25} />
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setScale(prev => Math.min(3, prev + 0.2))}
-              className="h-8 w-8 p-0 rounded-lg"
+              onClick={() => setScale((prev) => Math.min(3, prev + 0.2))}
+              className="h-10 w-10 p-0 rounded-xl"
               title="Zoom In"
             >
-              <ZoomIn className="h-4 w-4" />
+              <ZoomIn className="h-5 w-5" strokeWidth={2.25} />
             </Button>
             <a
               href={imageUrl}
               target="_blank"
               rel="noreferrer"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-slate-50 dark:hover:bg-slate-850"
+              download
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border hover:bg-slate-50 dark:hover:bg-slate-850"
               title="Download File"
             >
-              <Download className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+              <Download className="h-5 w-5 text-slate-700 dark:text-slate-200" strokeWidth={2.25} />
             </a>
             <Button
               variant="secondary"
               size="sm"
               onClick={onClose}
-              className="h-8 w-8 p-0 rounded-lg hover:bg-rose-50 hover:text-rose-600 transition-colors"
+              className="h-10 w-10 p-0 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors"
+              title="Close"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" strokeWidth={2.25} />
             </Button>
           </div>
         </div>

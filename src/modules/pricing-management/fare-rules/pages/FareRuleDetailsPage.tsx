@@ -8,10 +8,14 @@ import { StatusBadge } from '@/shared/components/StatusBadge'
 import { Button } from '@/shared/components/ui/Button'
 import { Edit2, ArrowLeft, Calendar, Shield, Clock, Car, Bike } from 'lucide-react'
 import { FareRulePreviewCard } from '../components/FareRulePreviewCard'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 
 export const FareRuleDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'pricing:write')
 
   const { data: rule, isLoading, isError } = useFareRule(id || '')
 
@@ -52,13 +56,15 @@ export const FareRuleDetailsPage: React.FC = () => {
               <ArrowLeft className="h-4 w-4" />
               <span>Back to list</span>
             </Button>
-            <Button
-              onClick={() => navigate(`/pricing-management/fare-rules/${rule.id}/edit`)}
-              className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
-            >
-              <Edit2 className="h-4 w-4" />
-              <span>Edit Configuration</span>
-            </Button>
+            {canWrite && (
+              <Button
+                onClick={() => navigate(`/pricing-management/fare-rules/${rule.id}/edit`)}
+                className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
+              >
+                <Edit2 className="h-4 w-4" />
+                <span>Edit Configuration</span>
+              </Button>
+            )}
           </div>
         }
       />
