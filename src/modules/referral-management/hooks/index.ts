@@ -10,6 +10,8 @@ const QK = {
   referrals: (params?: QueryParams) => ['referral-management', 'referrals', params],
 }
 
+export { useReferralSegment } from './useReferralSegment'
+
 export const useReferralPrograms = (params?: QueryParams) =>
   useQuery({
     queryKey: QK.programs(params),

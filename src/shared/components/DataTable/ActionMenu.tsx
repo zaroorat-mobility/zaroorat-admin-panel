@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { MoreHorizontal, Eye, Pencil, Trash2 } from 'lucide-react'
+import { MoreVertical, Eye, Pencil, Trash2 } from 'lucide-react'
 
 interface ActionMenuProps {
   onView?: () => void
@@ -85,7 +85,7 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ onView, onEdit, onDelete
         aria-haspopup="menu"
         aria-expanded={isOpen}
       >
-        <MoreHorizontal className="w-4 h-4" />
+        <MoreVertical className="w-4 h-4" />
       </button>
 
       {isOpen &&

@@ -3,7 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { AppRouter } from '../router'
 import { useThemeStore } from '@/store/theme.store'
+import { useAuthSessionRefresh } from '@/modules/auth/hooks/useAuthSessionRefresh'
 import { ToastProvider, ToastContainer } from '@/shared/context/toast'
+
+function AuthSessionManager() {
+  useAuthSessionRefresh()
+  return null
+}
 
 /**
  * Root App Providers Registry configuring React Query, React Router,
@@ -37,6 +43,7 @@ export const AppProviders: React.FC = () => {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <BrowserRouter>
+          <AuthSessionManager />
           <AppRouter />
         </BrowserRouter>
         {/* Portal-rendered toast stack — always present at root level */}

@@ -13,6 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/sha
 import { StatusBadge } from '@/shared/components/StatusBadge'
 import { Button } from '@/shared/components/ui/Button'
 import { ImagePreviewModal } from '../../components/ImagePreviewModal'
+import { FileImage } from '@/shared/components/FileImage'
+import { getFileReadUrl } from '@/shared/services/file-upload.service'
+import { isFileId, resolveFileRef } from '@/shared/utils/file-ref'
 import { ApplicationSourceBadge } from '../../components/ApplicationSourceBadge'
 import { ExpiryIndicator } from '../../components/ExpiryIndicator'
 import {
@@ -169,9 +172,15 @@ export const ApplicationReviewPage: React.FC = () => {
   const rejectedDocs = application.documents.filter(d => d.verifyStatus === 'rejected' || d.verifyStatus === 'reupload_requested')
   const pendingDocs = application.documents.filter(d => d.verifyStatus === 'pending')
 
-  const openPreview = (url: string, title: string) => {
-    setPreviewImage(url)
-    setPreviewTitle(title)
+  const openPreview = async (ref: string, title: string) => {
+    if (!ref) return
+    try {
+      const url = isFileId(ref) ? await getFileReadUrl(ref) : ref
+      setPreviewImage(url)
+      setPreviewTitle(title)
+    } catch {
+      showError('Preview unavailable', 'Could not load the document image.')
+    }
   }
 
   return (
@@ -241,11 +250,12 @@ export const ApplicationReviewPage: React.FC = () => {
               <Card className="premium-card text-left">
                 <CardContent className="p-6 flex flex-col sm:flex-row items-center gap-6">
                   <div className="h-24 w-24 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-border flex-shrink-0 flex items-center justify-center">
-                    {application.profilePhotoUrl ? (
-                      <img src={application.profilePhotoUrl} alt="Driver Profile" className="h-full w-full object-cover" />
-                    ) : (
-                      <User className="h-8 w-8 text-slate-300" />
-                    )}
+                    <FileImage
+                      src={application.profilePhotoUrl}
+                      alt="Driver Profile"
+                      className="h-full w-full object-cover"
+                      fallback={<User className="h-8 w-8 text-slate-300" />}
+                    />
                   </div>
                   <div className="space-y-1 flex-grow">
                     <div className="flex items-center gap-2">
@@ -338,13 +348,17 @@ export const ApplicationReviewPage: React.FC = () => {
 
                       {/* Small thumbnail preview */}
                       <div className="h-28 w-full bg-slate-100 dark:bg-slate-900 border border-border rounded-lg overflow-hidden relative group">
-                        <img src={doc.fileUrl} alt={doc.docType} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <FileImage
+                          src={resolveFileRef(doc.fileUrl, doc.fileId)}
+                          alt={doc.docType}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
                         <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                           <Button
                             type="button"
                             variant="primary"
                             size="sm"
-                            onClick={() => openPreview(doc.fileUrl, doc.docType.replace('_', ' '))}
+                            onClick={() => openPreview(resolveFileRef(doc.fileUrl, doc.fileId), doc.docType.replace('_', ' '))}
                             className="h-8 w-8 p-0 rounded-lg"
                           >
                             <Eye className="h-4 w-4" />

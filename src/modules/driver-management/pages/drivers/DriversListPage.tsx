@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { hasPermission } from '@/infrastructure/permissions'
 import { Users, UserCheck, UserX, Eye, ShieldAlert, Ban, ShieldCheck } from 'lucide-react'
 import { ActionDropdown } from '../../components'
+import { FileImage } from '@/shared/components/FileImage'
 import type { DriverEntity } from '../../types'
 
 export const DriversListPage: React.FC = () => {
@@ -39,11 +40,14 @@ export const DriversListPage: React.FC = () => {
       render: (value, row) => (
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs overflow-hidden">
-            {row.profilePhotoUrl ? (
-              <img src={row.profilePhotoUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              String(value || '?').charAt(0).toUpperCase()
-            )}
+            <FileImage
+              src={row.profilePhotoUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              fallback={
+                <span className="text-xs font-bold">{String(value || '?').charAt(0).toUpperCase()}</span>
+              }
+            />
           </div>
           <div>
             <p className="font-bold text-slate-800 dark:text-slate-100">{value}</p>

@@ -54,6 +54,7 @@ export interface DriverKycDocument {
   docType: DocType
   docNumber?: string
   fileUrl: string
+  fileId?: string
   issuedDate?: string
   expiryDate?: string
   verifyStatus: DocVerifyStatus

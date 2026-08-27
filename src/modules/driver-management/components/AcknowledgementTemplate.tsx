@@ -1,4 +1,5 @@
 import React from 'react'
+import { FileImage } from '@/shared/components/FileImage'
 import type { DriverKycFormData } from '../schemas'
 
 interface AcknowledgementTemplateProps {
@@ -39,11 +40,12 @@ export const AcknowledgementTemplate: React.FC<AcknowledgementTemplateProps> = (
               <p><span className="text-slate-500">Emergency Contact:</span> <strong className="text-slate-800">{formValues.emergencyContactName} ({formValues.emergencyContactNumber})</strong></p>
             </div>
             <div className="h-24 w-24 rounded-lg border border-slate-350 overflow-hidden bg-slate-50 flex-shrink-0 ml-6 flex items-center justify-center">
-              {formValues.profilePhotoUrl ? (
-                <img src={formValues.profilePhotoUrl} alt="Driver Profile" className="h-full w-full object-cover" />
-              ) : (
-                <div className="text-[10px] text-slate-400">No Photo</div>
-              )}
+              <FileImage
+                src={formValues.profilePhotoUrl}
+                alt="Driver Profile"
+                className="h-full w-full object-cover"
+                fallback={<div className="text-[10px] text-slate-400">No Photo</div>}
+              />
             </div>
           </div>
         </div>

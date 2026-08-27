@@ -108,7 +108,7 @@ export const UsersListPage: React.FC = () => {
           statusKey="status"
           actionConfig={{
             onView: (row) => navigate(`/users/${row.id}`),
-            onEdit: (row) => navigate(`/users/${row.id}`),
+            onEdit: (row) => navigate(`/users/${row.id}/edit`),
             onDelete: (row) => setDeleteId(row.id)
           }}
           isLoading={isLoading}

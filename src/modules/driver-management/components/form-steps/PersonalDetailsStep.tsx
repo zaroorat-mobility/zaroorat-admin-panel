@@ -2,10 +2,11 @@ import type { UseFormRegister, Control, UseFormSetValue, UseFormWatch, UseFormGe
 import { Controller } from 'react-hook-form'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/shared/components/ui/Card'
 import { Input } from '@/shared/components/ui/Input'
+import { FileUploadField } from '@/shared/components/FileUploadField'
 import CustomSelect from '@/shared/components/ui/CustomSelect'
 import SearchableDropdown from '@/shared/components/ui/SearchableDropdown'
 import DatePicker from '@/shared/components/ui/DatePicker'
-import { MapPin, Phone, User } from 'lucide-react'
+import { MapPin, Phone } from 'lucide-react'
 import type { DriverKycFormData } from '../../schemas'
 
 interface PersonalDetailsStepProps {
@@ -52,30 +53,26 @@ export const PersonalDetailsStep: React.FC<PersonalDetailsStepProps> = ({
         <CardDescription>Enter personal identifiers, custom contact numbers, preferred language, and residence details.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        
-        {/* Profile Photo URL Field */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Input
-            label="Profile Photo URL *"
-            placeholder="Enter direct photo URL (e.g. https://images.unsplash.com/...)"
-            error={errors.profilePhotoUrl?.message}
-            {...register('profilePhotoUrl')}
-          />
-          <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 border border-dashed border-border p-3 rounded-xl">
-            <div className="h-10 w-10 rounded-lg overflow-hidden bg-slate-200 flex-shrink-0 flex items-center justify-center">
-              {watch('profilePhotoUrl') ? (
-                <img src={watch('profilePhotoUrl')} alt="Profile Preview" className="h-full w-full object-cover" />
-              ) : (
-                <User className="h-5 w-5 text-slate-400" />
-              )}
-            </div>
-            <div className="text-[10px] text-slate-400 leading-tight">
-              Paste a valid URL image link. It will be prefilled inside the final acknowledgements.
-            </div>
-          </div>
-        </div>
+        <Controller
+          name="profilePhotoUrl"
+          control={control}
+          render={({ field }) => (
+            <FileUploadField
+              label="Profile Photo"
+              value={field.value ?? ''}
+              onChange={(val) => {
+                field.onChange(val)
+                setValue('profilePhotoUrl', val, { shouldValidate: true, shouldDirty: true })
+              }}
+              purpose="PROFILE_IMAGE"
+              variant="avatar"
+              required
+              error={errors.profilePhotoUrl?.message}
+              helperText="Upload a clear passport-style photo of the driver."
+            />
+          )}
+        />
 
-        {/* Bio Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Input
             label="Full Name *"
@@ -144,7 +141,6 @@ export const PersonalDetailsStep: React.FC<PersonalDetailsStepProps> = ({
           />
         </div>
 
-        {/* Emergency Contact */}
         <div className="border-t border-border pt-6 space-y-6">
           <div className="flex items-center gap-2">
             <Phone className="h-4.5 w-4.5 text-primary" />
@@ -167,7 +163,6 @@ export const PersonalDetailsStep: React.FC<PersonalDetailsStepProps> = ({
           </div>
         </div>
 
-        {/* Current Address Details */}
         <div className="border-t border-border pt-6 space-y-6">
           <div className="flex items-center gap-2">
             <MapPin className="h-4.5 w-4.5 text-primary" />

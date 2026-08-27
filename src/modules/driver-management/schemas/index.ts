@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { phoneSchema, emailSchema } from '@/shared/schemas'
+import { phoneSchema, emailSchema, requiredFileRefSchema, fileRefSchema } from '@/shared/schemas'
 
 // ─── Registration Action ────────────────────────────────────────────────────
 export const registrationActionSchema = z.enum(['submit_for_review', 'approve_immediately'])
@@ -36,15 +36,15 @@ export const driverKycFormSchema = z.object({
   // Emergency Contact
   emergencyContactName: z.string().min(2, 'Emergency contact name is required'),
   emergencyContactNumber: phoneSchema,
-  profilePhotoUrl: z.string().url('Invalid profile photo URL').or(z.string().length(0)),
+  profilePhotoUrl: requiredFileRefSchema,
 
   // Step 2: Identity Verification
   aadhaarNumber: z.string().regex(/^\d{12}$/, 'Aadhaar must be exactly 12 digits'),
-  aadhaarFrontUrl: z.string().url('Aadhaar front scan is required').or(z.string().length(0)),
-  aadhaarBackUrl: z.string().url('Aadhaar back scan is required').or(z.string().length(0)),
+  aadhaarFrontUrl: requiredFileRefSchema,
+  aadhaarBackUrl: requiredFileRefSchema,
   panNumber: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, 'Invalid PAN Card format (e.g. ABCDE1234F)'),
-  panUrl: z.string().url('PAN scan is required').or(z.string().length(0)),
-  driverSelfieUrl: z.string().url('Selfie upload is required').or(z.string().length(0)),
+  panUrl: requiredFileRefSchema,
+  driverSelfieUrl: requiredFileRefSchema,
 
   // Step 3: Vehicle Information
   vehicleType: z.enum(['cab', 'auto', 'bike', 'carpool']),
@@ -62,33 +62,33 @@ export const driverKycFormSchema = z.object({
   licenseExpiry: z.string().min(1, 'License expiry date is required').refine((val) => {
     return new Date(val) > new Date()
   }, 'Expiry date must be in the future'),
-  licenseFrontUrl: z.string().url('License front scan is required').or(z.string().length(0)),
-  licenseBackUrl: z.string().url('License back scan is required').or(z.string().length(0)),
+  licenseFrontUrl: requiredFileRefSchema,
+  licenseBackUrl: requiredFileRefSchema,
 
   rcNumber: z.string().min(5, 'RC number is required'),
-  rcUrl: z.string().url('RC scan is required').or(z.string().length(0)),
+  rcUrl: requiredFileRefSchema,
 
   insuranceNo: z.string().min(5, 'Insurance policy number is required'),
   insuranceExpiry: z.string().min(1, 'Insurance expiry date is required').refine((val) => {
     return new Date(val) > new Date()
   }, 'Expiry date must be in the future'),
-  insuranceUrl: z.string().url('Insurance scan is required').or(z.string().length(0)),
+  insuranceUrl: requiredFileRefSchema,
 
   permitNo: z.string().min(5, 'Permit number is required'),
   permitExpiry: z.string().min(1, 'Permit expiry date is required').refine((val) => {
     return new Date(val) > new Date()
   }, 'Expiry date must be in the future'),
-  permitUrl: z.string().url('Permit scan is required').or(z.string().length(0)),
+  permitUrl: requiredFileRefSchema,
 
   pollutionNo: z.string().min(5, 'Pollution certificate number is required'),
   pollutionExpiry: z.string().min(1, 'Pollution expiry date is required').refine((val) => {
     return new Date(val) > new Date()
   }, 'Expiry date must be in the future'),
-  pollutionUrl: z.string().url('Pollution scan is required').or(z.string().length(0)),
+  pollutionUrl: requiredFileRefSchema,
 
   fitnessNo: z.string().optional().or(z.string().length(0)),
   fitnessExpiry: z.string().optional().or(z.string().length(0)),
-  fitnessUrl: z.string().optional().or(z.string().length(0)),
+  fitnessUrl: fileRefSchema.optional(),
 
   // Step 5: Bank Details
   bankAccountName: z.string().min(2, 'Account holder name is required'),

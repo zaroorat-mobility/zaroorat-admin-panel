@@ -27,6 +27,7 @@ export function toLoginResponse(result: AdminLoginResponse): LoginResponse {
     token: result.accessToken,
     refreshToken: result.refreshToken,
     user: toSessionUser(result.user),
+    accessTokenExpiresInSec: result.accessTokenExpiresInSec,
   }
 }
 

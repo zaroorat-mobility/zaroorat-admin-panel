@@ -27,3 +27,16 @@ export const dateRangeSchema = z.object({
   from: z.date().optional(),
   to: z.date().optional(),
 })
+
+export const fileRefSchema = z.union([
+  z.string().uuid('Please upload a file'),
+  z.string().url('Invalid file reference'),
+  z.literal(''),
+])
+
+export const requiredFileRefSchema = z.union([
+  z.string().uuid({ message: 'Please upload a file' }),
+  z.string().url({ message: 'Please upload a file' }),
+])
+
+export const optionalFileRefSchema = z.union([fileRefSchema, z.literal('')]).optional()
