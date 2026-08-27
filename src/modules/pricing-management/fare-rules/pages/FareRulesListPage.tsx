@@ -14,6 +14,8 @@ import { StatusBadge } from '@/shared/components/StatusBadge'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
 import { Button } from '@/shared/components/ui/Button'
 import { ActionDropdown, type DropdownAction } from '@/modules/driver-management/components/ActionDropdown'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 import {
   DollarSign,
   Plus,
@@ -30,6 +32,8 @@ import type { FareRule } from '../types'
 
 export const FareRulesListPage: React.FC = () => {
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'pricing:write')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Modal triggers
@@ -146,45 +150,48 @@ export const FareRulesListPage: React.FC = () => {
             icon: <Eye className="h-3.5 w-3.5" />,
             onClick: () => navigate(`/pricing-management/fare-rules/${row.id}`)
           },
-          {
+        ]
+
+        if (canWrite) {
+          dropActions.push({
             label: 'Edit Configuration',
             icon: <Edit2 className="h-3.5 w-3.5" />,
             onClick: () => navigate(`/pricing-management/fare-rules/${row.id}/edit`)
-          }
-        ]
-
-        if (row.status === 'inactive') {
-          dropActions.push({
-            label: 'Activate Rule',
-            icon: <ToggleRight className="h-3.5 w-3.5" />,
-            onClick: () => {
-              setActionRule(row)
-              setActionType('activate')
-              setIsModalOpen(true)
-            }
           })
-        } else {
+
+          if (row.status === 'inactive') {
+            dropActions.push({
+              label: 'Activate Rule',
+              icon: <ToggleRight className="h-3.5 w-3.5" />,
+              onClick: () => {
+                setActionRule(row)
+                setActionType('activate')
+                setIsModalOpen(true)
+              }
+            })
+          } else {
+            dropActions.push({
+              label: 'Deactivate Rule',
+              icon: <ToggleLeft className="h-3.5 w-3.5" />,
+              onClick: () => {
+                setActionRule(row)
+                setActionType('deactivate')
+                setIsModalOpen(true)
+              }
+            })
+          }
+
           dropActions.push({
-            label: 'Deactivate Rule',
-            icon: <ToggleLeft className="h-3.5 w-3.5" />,
+            label: 'Delete Rule',
+            icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
             onClick: () => {
               setActionRule(row)
-              setActionType('deactivate')
+              setActionType('delete')
               setIsModalOpen(true)
-            }
+            },
+            variant: 'danger' as const
           })
         }
-
-        dropActions.push({
-          label: 'Delete Rule',
-          icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
-          onClick: () => {
-            setActionRule(row)
-            setActionType('delete')
-            setIsModalOpen(true)
-          },
-          variant: 'danger' as const
-        })
 
         return <ActionDropdown actions={dropActions} />
       }
@@ -198,13 +205,15 @@ export const FareRulesListPage: React.FC = () => {
         description="Review base tariffs, per-km/per-min charges, and operational scheduled waiting settings."
         onBack={() => navigate('/pricing-management')}
         actions={
-          <Button
-            onClick={() => navigate('/pricing-management/fare-rules/new')}
-            className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Fare Rule</span>
-          </Button>
+          canWrite ? (
+            <Button
+              onClick={() => navigate('/pricing-management/fare-rules/new')}
+              className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Fare Rule</span>
+            </Button>
+          ) : undefined
         }
       />
 

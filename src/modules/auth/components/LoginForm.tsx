@@ -13,6 +13,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/context/toast'
 import heroLogo from "@/assets/images/hero-logo.jpg"
 import { cn } from "@/shared/utils"
+import { getRememberedEmail } from '@/store/auth.store'
 
 interface LoginFormProps {
   onForgotPasswordClick: () => void
@@ -35,9 +36,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const sendOtp = useSendAdminOtp()
   const verifyOtp = useVerifyAdminOtp()
 
+  const rememberedEmail = getRememberedEmail()
+
   const passwordForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '', rememberMe: false },
+    defaultValues: {
+      email: rememberedEmail,
+      password: '',
+      rememberMe: rememberedEmail.length > 0,
+    },
   })
 
   const otpForm = useForm<AdminOtpSendData>({
@@ -177,10 +184,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           </div>
 
           <div className="flex items-center justify-between pt-1">
-            <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-dark-400 cursor-pointer">
+            <label className="flex items-center gap-2.5 text-xs text-slate-500 dark:text-dark-400 cursor-pointer select-none">
               <input
                 type="checkbox"
-                className="rounded border-slate-350 text-[#2B317A] focus:ring-[#2B317A] dark:border-dark-700 dark:bg-dark-900"
+                className="h-4 w-4 rounded border-slate-300 text-[#2B317A] accent-[#2B317A] focus:ring-[#2B317A] dark:border-dark-700 dark:bg-dark-900 cursor-pointer"
                 {...passwordForm.register('rememberMe')}
               />
               Remember me

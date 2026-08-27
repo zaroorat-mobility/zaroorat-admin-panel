@@ -7,10 +7,14 @@ import { Card, CardHeader, CardContent } from '@/shared/components/ui/Card'
 import { StatusBadge } from '@/shared/components/StatusBadge'
 import { Button } from '@/shared/components/ui/Button'
 import { Edit2, ArrowLeft, User, Shield, AlertOctagon } from 'lucide-react'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 
 export const CancellationRuleDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'pricing:write')
 
   const { data: rule, isLoading, isError } = useCancellationRule(id || '')
 
@@ -51,13 +55,15 @@ export const CancellationRuleDetailsPage: React.FC = () => {
               <ArrowLeft className="h-4 w-4" />
               <span>Back to list</span>
             </Button>
-            <Button
-              onClick={() => navigate(`/pricing-management/cancellation-rules/${rule.id}/edit`)}
-              className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
-            >
-              <Edit2 className="h-4 w-4" />
-              <span>Edit Configuration</span>
-            </Button>
+            {canWrite && (
+              <Button
+                onClick={() => navigate(`/pricing-management/cancellation-rules/${rule.id}/edit`)}
+                className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
+              >
+                <Edit2 className="h-4 w-4" />
+                <span>Edit Configuration</span>
+              </Button>
+            )}
           </div>
         }
       />

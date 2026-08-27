@@ -18,9 +18,11 @@ import {
   RefreshCw,
   AlertTriangle,
   CreditCard,
-  ExternalLink,
   School,
-  GraduationCap
+  GraduationCap,
+  Tag,
+  Gift,
+  History,
 } from "lucide-react";
 import { useAppStore } from "@/store/app.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -56,7 +58,6 @@ const navItems: NavItem[] = [
     icon: Users,
     children: [
       { href: "/riders", label: "Riders Directory", icon: Users, permission: "riders:read" },
-      { href: "/riders/services", label: "Cross-link to Services", icon: ExternalLink, permission: "riders:read" }
     ],
   },
   {
@@ -127,7 +128,29 @@ const navItems: NavItem[] = [
       { href: "/school-mobility/parent-portal", label: "Parent Portal Settings", icon: Settings }
     ]
   },
-  { href: "/notifications", label: "Campaigns & Coupons", icon: Bell, permission: "campaigns:read" },
+  {
+    label: "Promotions & Campaigns",
+    href: "promotions-management",
+    icon: Tag,
+    children: [
+      { href: "/promotions-management/promotions", label: "Promotions", icon: Tag, permission: "campaigns:read" },
+      { href: "/promotions-management/campaigns", label: "Campaigns", icon: Bell },
+      { href: "/promotions-management/batches", label: "Coupon Batches", icon: CreditCard },
+      { href: "/promotions-management/segments", label: "Audience Segments", icon: Users },
+      { href: "/promotions-management/banners", label: "Banners", icon: FileText },
+      { href: "/promotions-management/reports", label: "Reports", icon: Activity },
+    ],
+  },
+  {
+    label: "Referral & Rewards",
+    href: "referral-management",
+    icon: Gift,
+    children: [
+      { href: "/referral-management/programs", label: "Configuration", icon: Settings, permission: "referrals:read" },
+      { href: "/referral-management/codes", label: "Referral Codes", icon: Tag },
+      { href: "/referral-management/history", label: "Referral History", icon: History },
+    ],
+  },
   { href: "/document-controller", label: "Document Controller", icon: FileText, permission: "documents:read" },
   { href: "/carpooling", label: "Carpooling Rules", icon: Car, permission: "carpooling:read" },
   { href: "/audit-log", label: "Audit Log", icon: FileText, permission: "audit:read" },
@@ -159,7 +182,7 @@ export const Sidebar: React.FC = () => {
     .filter((item): item is NavItem => item != null);
   const [expandedSections, setExpandedSections] = useState<string[]>([
     "user-management", "rider-management", "driver-management", "vehicle-management", "pricing-management",
-    "operations", "financial-operations", "school-mobility"
+    "promotions-management", "referral-management", "operations", "financial-operations", "school-mobility"
   ]);
 
   const toggleSection = (href: string) => {
