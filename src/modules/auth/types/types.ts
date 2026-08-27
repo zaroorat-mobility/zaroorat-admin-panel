@@ -26,6 +26,7 @@ export interface LoginResponse {
   token: string
   refreshToken: string
   user: User
+  accessTokenExpiresInSec?: number
 }
 
 export interface AuthError {

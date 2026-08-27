@@ -1,4 +1,5 @@
-import type { AxiosResponse, InternalAxiosRequestConfig, AxiosError } from 'axios'
+import axios, { type AxiosResponse, type InternalAxiosRequestConfig, type AxiosError } from 'axios'
+import { refreshSession } from '@/infrastructure/auth/session-refresh'
 import { useAuthStore } from '@/store/auth.store'
 
 export const requestAuthInterceptor = (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
@@ -19,18 +20,29 @@ function apiErrorMessage(error: AxiosError): string {
   return envelope?.message || error.message || 'Request failed'
 }
 
-export const responseErrorInterceptor = async (error: AxiosError): Promise<never> => {
+function isAuthAttempt(url: string): boolean {
+  return (
+    url.includes('/auth/admin/login') ||
+    url.includes('/auth/admin/otp') ||
+    url.includes('/auth/otp') ||
+    url.includes('/auth/token/refresh')
+  )
+}
+
+export const responseErrorInterceptor = async (error: AxiosError): Promise<AxiosResponse | never> => {
   const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
   if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
-    originalRequest._retry = true
     const url = originalRequest.url ?? ''
-    const isAuthAttempt =
-      url.includes('/auth/admin/login') ||
-      url.includes('/auth/admin/otp') ||
-      url.includes('/auth/otp')
-    if (!isAuthAttempt) {
-      useAuthStore.getState().clearCredentials()
+    if (!isAuthAttempt(url)) {
+      originalRequest._retry = true
+      const newToken = await refreshSession({ force: true })
+      if (newToken) {
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`
+        }
+        return axios.request(originalRequest)
+      }
     }
   }
 

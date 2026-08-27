@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
 import { User, MapPin, Car, FileText, CreditCard, Printer, Eye, Edit2 } from 'lucide-react'
+import { FileImage } from '@/shared/components/FileImage'
+import { useFileReadUrl } from '@/shared/hooks/useFileReadUrl'
 import { ImagePreviewModal } from '../ImagePreviewModal'
 import type { DriverKycFormData } from '../../schemas'
 
@@ -24,6 +26,34 @@ export const ReviewSubmitStep: React.FC<ReviewSubmitStepProps> = ({
       setPreviewImage(url)
       setPreviewTitle(title)
     }
+  }
+
+  const ProfilePhotoPreview: React.FC<{ src?: string }> = ({ src }) => (
+    <div className="h-20 w-20 rounded-xl bg-slate-100 dark:bg-slate-900 border border-border overflow-hidden flex items-center justify-center">
+      <FileImage
+        src={src}
+        alt="Photo"
+        className="h-full w-full object-cover"
+        fallback={<User className="h-6 w-6 text-slate-350" />}
+      />
+    </div>
+  )
+
+  const DocPreviewButton: React.FC<{ refValue?: string; label: string }> = ({ refValue, label }) => {
+    const { url } = useFileReadUrl(refValue)
+    if (!refValue) {
+      return <span className="text-[9px] text-rose-500 font-bold">Missing</span>
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => url && handlePreview(url, label)}
+        disabled={!url}
+        className="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 border border-border flex-shrink-0 disabled:opacity-50"
+      >
+        <Eye className="h-3 w-3" />
+      </button>
+    )
   }
 
   return (
@@ -64,13 +94,7 @@ export const ReviewSubmitStep: React.FC<ReviewSubmitStepProps> = ({
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-center">
-            <div className="h-20 w-20 rounded-xl bg-slate-100 dark:bg-slate-900 border border-border overflow-hidden flex items-center justify-center">
-              {formValues.profilePhotoUrl ? (
-                <img src={formValues.profilePhotoUrl} alt="Photo" className="h-full w-full object-cover" />
-              ) : (
-                <User className="h-6 w-6 text-slate-350" />
-              )}
-            </div>
+            <ProfilePhotoPreview src={formValues.profilePhotoUrl} />
             <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
               <p><span className="text-muted-foreground font-medium">Full Name:</span> <strong>{formValues.fullName || '—'}</strong></p>
               <p><span className="text-muted-foreground font-medium">Mobile Phone:</span> <strong>{formValues.mobileNumber || '—'}</strong></p>
@@ -122,13 +146,7 @@ export const ReviewSubmitStep: React.FC<ReviewSubmitStepProps> = ({
             ].map((doc, idx) => (
               <div key={idx} className="border border-border p-2.5 rounded-lg flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
                 <span className="text-[10px] font-semibold truncate pr-2">{doc.label}</span>
-                {doc.url ? (
-                  <button type="button" onClick={() => handlePreview(doc.url || '', doc.label)} className="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 border border-border flex-shrink-0">
-                    <Eye className="h-3 w-3" />
-                  </button>
-                ) : (
-                  <span className="text-[9px] text-rose-500 font-bold">Missing</span>
-                )}
+                <DocPreviewButton refValue={doc.url} label={doc.label} />
               </div>
             ))}
           </div>
@@ -195,13 +213,7 @@ export const ReviewSubmitStep: React.FC<ReviewSubmitStepProps> = ({
                   <p className="text-[10px] font-semibold truncate">{doc.label}</p>
                   <p className="text-[8px] text-slate-400 truncate">{doc.details}</p>
                 </div>
-                {doc.url ? (
-                  <button type="button" onClick={() => handlePreview(doc.url || '', doc.label)} className="p-1 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 border border-border flex-shrink-0">
-                    <Eye className="h-3 w-3" />
-                  </button>
-                ) : (
-                  <span className="text-[9px] text-rose-500 font-bold">Missing</span>
-                )}
+                <DocPreviewButton refValue={doc.url} label={doc.label} />
               </div>
             ))}
           </div>

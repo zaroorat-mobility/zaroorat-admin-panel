@@ -6,6 +6,7 @@ import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
 import { ExpiryIndicator } from '../../components/ExpiryIndicator'
+import { FileImage } from '@/shared/components/FileImage'
 import { useToast } from '@/shared/context/toast'
 import { useAuthStore } from '@/store/auth.store'
 import { hasPermission } from '@/infrastructure/permissions'
@@ -134,11 +135,12 @@ export const VehicleDetailsPage: React.FC = () => {
             </CardHeader>
             <CardContent className="p-5 flex gap-4 items-center">
               <div className="h-14 w-14 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-border flex items-center justify-center flex-shrink-0">
-                {driver.profilePhotoUrl ? (
-                  <img src={driver.profilePhotoUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <User className="h-6 w-6 text-slate-350" />
-                )}
+                <FileImage
+                  src={driver.profilePhotoUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  fallback={<User className="h-6 w-6 text-slate-350" />}
+                />
               </div>
               <div className="space-y-1 truncate">
                 <h4

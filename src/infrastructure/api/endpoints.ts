@@ -171,6 +171,11 @@ export const API_ENDPOINTS = {
     approve: (id: string) => `/verifications/${id}/approve`,
     reject: (id: string) => `/verifications/${id}/reject`,
   },
+  files: {
+    create: '/files',
+    complete: (id: string) => `/files/${id}/complete`,
+    readUrl: (id: string) => `/files/${id}/url`,
+  },
 } as const
 
 export type ApiEndpoints = typeof API_ENDPOINTS

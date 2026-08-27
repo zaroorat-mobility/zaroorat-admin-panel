@@ -7,7 +7,9 @@ import {
   useDeactivateMilestone,
   useReferralProgram,
   useUpdateReferralProgram,
+  useReferralSegment,
 } from '../../hooks'
+import { programsBasePath } from '../../constants'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardContent } from '@/shared/components/ui/Card'
@@ -21,25 +23,6 @@ function toLocalInput(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-const emptyForm = (): ReferralProgramInput & {
-  maxReferralsStr: string
-  rewardExpiryStr: string
-} => ({
-  name: '',
-  referrerReward: 50,
-  refereeReward: 50,
-  rewardType: 'WALLET',
-  qualifyingEvent: 'FIRST_RIDE',
-  qualifyingThreshold: 1,
-  maxReferralsPerUser: null,
-  maxReferralsStr: '',
-  rewardExpiryDays: null,
-  rewardExpiryStr: '',
-  validFrom: new Date().toISOString().slice(0, 16),
-  validTo: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 16),
-  isActive: true,
-})
-
 function errMsg(err: unknown): string {
   return (
     (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
@@ -49,17 +32,41 @@ function errMsg(err: unknown): string {
   )
 }
 
+const needsThreshold = (event: string) =>
+  event === 'NTH_RIDE' || event === 'DRIVER_NTH_RIDE'
+
 export const ProgramFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
+  const segment = useReferralSegment()
   const isEdit = Boolean(id)
   const navigate = useNavigate()
+  const basePath = programsBasePath(segment.segment)
   const { data: existing } = useReferralProgram(id ?? '')
   const create = useCreateReferralProgram()
   const update = useUpdateReferralProgram()
   const addMilestone = useAddMilestone()
   const activateMilestone = useActivateMilestone(id)
   const deactivateMilestone = useDeactivateMilestone(id)
-  const [form, setForm] = useState(emptyForm())
+
+  const [form, setForm] = useState<
+    ReferralProgramInput & { maxReferralsStr: string; rewardExpiryStr: string }
+  >({
+    audience: segment.audience,
+    name: '',
+    referrerReward: segment.defaultReferrerReward,
+    refereeReward: segment.defaultRefereeReward,
+    rewardType: 'WALLET',
+    rewardWallet: segment.audience === 'DRIVER' ? 'DRIVER' : 'CUSTOMER',
+    qualifyingEvent: segment.defaultQualifyingEvent,
+    qualifyingThreshold: 1,
+    maxReferralsPerUser: null,
+    maxReferralsStr: '',
+    rewardExpiryDays: null,
+    rewardExpiryStr: '',
+    validFrom: new Date().toISOString().slice(0, 16),
+    validTo: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 16),
+    isActive: true,
+  })
   const [error, setError] = useState<string | null>(null)
   const [milestone, setMilestone] = useState({
     name: '',
@@ -69,12 +76,18 @@ export const ProgramFormPage: React.FC = () => {
 
   useEffect(() => {
     if (!existing) return
+    if (existing.audience !== segment.audience) {
+      navigate(basePath, { replace: true })
+      return
+    }
     setForm({
       code: existing.code,
       name: existing.name,
+      audience: existing.audience,
       referrerReward: existing.referrerReward,
       refereeReward: existing.refereeReward,
       rewardType: existing.rewardType,
+      rewardWallet: existing.rewardWallet,
       qualifyingEvent: existing.qualifyingEvent,
       qualifyingThreshold: existing.qualifyingThreshold,
       maxReferralsPerUser: existing.maxReferralsPerUser,
@@ -87,7 +100,7 @@ export const ProgramFormPage: React.FC = () => {
       validTo: toLocalInput(existing.validTo),
       isActive: existing.isActive,
     })
-  }, [existing])
+  }, [existing, segment.audience, navigate, basePath])
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -96,12 +109,16 @@ export const ProgramFormPage: React.FC = () => {
     e.preventDefault()
     setError(null)
     const payload: ReferralProgramInput = {
+      audience: segment.audience,
       name: form.name || null,
       referrerReward: Number(form.referrerReward) || 0,
       refereeReward: Number(form.refereeReward) || 0,
-      rewardType: form.rewardType,
+      rewardType: 'WALLET',
+      rewardWallet: segment.audience === 'DRIVER' ? 'DRIVER' : 'CUSTOMER',
       qualifyingEvent: form.qualifyingEvent,
-      qualifyingThreshold: Number(form.qualifyingThreshold) || 1,
+      qualifyingThreshold: needsThreshold(form.qualifyingEvent ?? '')
+        ? Number(form.qualifyingThreshold) || 1
+        : 1,
       maxReferralsPerUser: form.maxReferralsStr.trim()
         ? Number(form.maxReferralsStr)
         : null,
@@ -112,7 +129,7 @@ export const ProgramFormPage: React.FC = () => {
       validTo: new Date(form.validTo).toISOString(),
       isActive: form.isActive,
     }
-    const go = () => navigate('/referral-management/programs')
+    const go = () => navigate(basePath)
     if (isEdit && id) {
       update.mutate(
         { id, updates: payload },
@@ -127,24 +144,25 @@ export const ProgramFormPage: React.FC = () => {
   }
 
   const pending = create.isPending || update.isPending
+  const showThreshold = needsThreshold(form.qualifyingEvent ?? '')
 
   return (
     <PageWrapper>
       <PageHeader
-        title={isEdit ? 'Edit referral program' : 'New referral program'}
-        description="Configure referrer reward, new-user reward, eligibility, caps, and expiry."
-        onBack={() => navigate('/referral-management/programs')}
+        title={isEdit ? `Edit ${segment.programsTitle.toLowerCase()}` : `New ${segment.programsTitle.toLowerCase()}`}
+        description={segment.description.form}
+        onBack={() => navigate(basePath)}
       />
       <Card className="mt-4 max-w-3xl">
         <CardContent className="pt-6">
           <form onSubmit={onSubmit} className="space-y-4">
             <label className="block text-sm">
-              <span className="font-medium">Name</span>
+              <span className="font-medium">Program name</span>
               <input
                 className="mt-1 w-full rounded border px-3 py-2"
                 value={form.name ?? ''}
                 onChange={(e) => set('name', e.target.value)}
-                placeholder="e.g. Launch referral"
+                placeholder={segment.segment === 'driver' ? 'e.g. Driver launch bonus' : 'e.g. Friend invite bonus'}
               />
             </label>
 
@@ -161,7 +179,7 @@ export const ProgramFormPage: React.FC = () => {
                 />
               </label>
               <label className="block text-sm">
-                <span className="font-medium">New-user reward (₹)</span>
+                <span className="font-medium">{segment.newUserLabel} (₹)</span>
                 <input
                   type="number"
                   min={0}
@@ -173,62 +191,54 @@ export const ProgramFormPage: React.FC = () => {
               </label>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 gap-4 ${showThreshold ? 'md:grid-cols-2' : ''}`}>
               <label className="block text-sm">
-                <span className="font-medium">Reward type</span>
-                <select
-                  className="mt-1 w-full rounded border px-3 py-2"
-                  value={form.rewardType}
-                  onChange={(e) => set('rewardType', e.target.value)}
-                >
-                  <option value="WALLET">Wallet</option>
-                  <option value="CREDIT">Credit</option>
-                  <option value="PROMO">Promo</option>
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium">Qualifying event</span>
+                <span className="font-medium">Qualifies when</span>
                 <select
                   className="mt-1 w-full rounded border px-3 py-2"
                   value={form.qualifyingEvent}
                   onChange={(e) => set('qualifyingEvent', e.target.value)}
                 >
-                  <option value="FIRST_RIDE">First ride</option>
-                  <option value="NTH_RIDE">Nth ride</option>
-                  <option value="SIGNUP">Signup</option>
+                  {segment.qualifyingOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </label>
-              <label className="block text-sm">
-                <span className="font-medium">Qualifying threshold</span>
-                <input
-                  type="number"
-                  min={1}
-                  className="mt-1 w-full rounded border px-3 py-2"
-                  value={form.qualifyingThreshold ?? 1}
-                  onChange={(e) => set('qualifyingThreshold', Number(e.target.value))}
-                />
-              </label>
+              {showThreshold && (
+                <label className="block text-sm">
+                  <span className="font-medium">Ride count</span>
+                  <input
+                    type="number"
+                    min={2}
+                    className="mt-1 w-full rounded border px-3 py-2"
+                    value={form.qualifyingThreshold ?? 2}
+                    onChange={(e) => set('qualifyingThreshold', Number(e.target.value))}
+                  />
+                </label>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="block text-sm">
-                <span className="font-medium">Max referrals per user</span>
+                <span className="font-medium">Max invites per user</span>
                 <input
                   type="number"
                   min={1}
                   className="mt-1 w-full rounded border px-3 py-2"
-                  placeholder="Blank = unlimited"
+                  placeholder="Leave blank for unlimited"
                   value={form.maxReferralsStr}
                   onChange={(e) => set('maxReferralsStr', e.target.value)}
                 />
               </label>
               <label className="block text-sm">
-                <span className="font-medium">Reward expiry (days)</span>
+                <span className="font-medium">Reward expires after (days)</span>
                 <input
                   type="number"
                   min={1}
                   className="mt-1 w-full rounded border px-3 py-2"
-                  placeholder="Blank = no expiry"
+                  placeholder="Leave blank for no expiry"
                   value={form.rewardExpiryStr}
                   onChange={(e) => set('rewardExpiryStr', e.target.value)}
                 />
@@ -273,11 +283,7 @@ export const ProgramFormPage: React.FC = () => {
               <Button type="submit" disabled={pending}>
                 {pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create program'}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/referral-management/programs')}
-              >
+              <Button type="button" variant="outline" onClick={() => navigate(basePath)}>
                 Cancel
               </Button>
             </div>
@@ -288,7 +294,10 @@ export const ProgramFormPage: React.FC = () => {
       {isEdit && id && existing && (
         <Card className="mt-4 max-w-3xl">
           <CardContent className="pt-6 space-y-3">
-            <p className="text-sm font-semibold">Milestones</p>
+            <p className="text-sm font-semibold">Bonus milestones</p>
+            <p className="text-xs text-muted-foreground">
+              Extra rewards when a referrer hits referral count targets.
+            </p>
             {(existing.milestones ?? []).length === 0 ? (
               <p className="text-xs text-muted-foreground">No milestones yet.</p>
             ) : (
@@ -299,7 +308,7 @@ export const ProgramFormPage: React.FC = () => {
                     className="flex items-center justify-between rounded border px-3 py-2 text-sm"
                   >
                     <span>
-                      {m.name} — {m.requiredReferrals} refs → ₹{m.bonusAmount}
+                      {m.name} — {m.requiredReferrals} referrals → ₹{m.bonusAmount}
                       {!m.isActive ? (
                         <span className="ml-2 text-xs text-muted-foreground">(inactive)</span>
                       ) : null}
@@ -332,7 +341,7 @@ export const ProgramFormPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-2">
               <input
                 className="rounded border px-3 py-2 text-sm md:col-span-2"
-                placeholder="Milestone name"
+                placeholder="e.g. 5 referrals bonus"
                 value={milestone.name}
                 onChange={(e) => setMilestone({ ...milestone, name: e.target.value })}
               />
@@ -340,7 +349,7 @@ export const ProgramFormPage: React.FC = () => {
                 type="number"
                 min={1}
                 className="rounded border px-3 py-2 text-sm"
-                placeholder="Required"
+                placeholder="Count"
                 value={milestone.requiredReferrals}
                 onChange={(e) =>
                   setMilestone({ ...milestone, requiredReferrals: Number(e.target.value) })

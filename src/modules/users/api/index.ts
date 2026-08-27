@@ -1,7 +1,7 @@
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import type { QueryParams, PaginatedResponse } from '@/shared/types'
 import type { UserEntity, UserDetails } from '../types'
-import type { UserFormData } from '../schemas'
+import type { UserFormData, UserEditFormData } from '../schemas'
 
 function splitName(name: string): { firstName: string; lastName: string } {
   const trimmed = name.trim()
@@ -33,8 +33,18 @@ export const createUser = async (data: UserFormData): Promise<UserEntity> => {
   return response.data.data
 }
 
-export const updateUser = async (id: string, data: Partial<UserFormData>): Promise<UserEntity> => {
-  const response = await api.patch<{ data: UserEntity }>(API_ENDPOINTS.users.update(id), data)
+export const updateUser = async (id: string, data: UserEditFormData): Promise<UserEntity> => {
+  const { firstName, lastName } = splitName(data.name)
+  const payload: Record<string, string> = {
+    firstName,
+    email: data.email,
+    phoneNumber: data.phone,
+    role: data.role,
+  }
+  if (lastName) payload.lastName = lastName
+  if (data.password) payload.password = data.password
+
+  const response = await api.patch<{ data: UserEntity }>(API_ENDPOINTS.users.update(id), payload)
   return response.data.data
 }
 

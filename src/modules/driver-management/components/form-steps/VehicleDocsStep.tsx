@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import type { UseFormRegister, Control, UseFormWatch } from 'react-hook-form'
+import type { Control, UseFormRegister, UseFormWatch } from 'react-hook-form'
 import { Controller } from 'react-hook-form'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/shared/components/ui/Card'
 import { Input } from '@/shared/components/ui/Input'
+import { FileUploadField } from '@/shared/components/FileUploadField'
 import DatePicker from '@/shared/components/ui/DatePicker'
-import { Eye, FileText } from 'lucide-react'
 import { ImagePreviewModal } from '../ImagePreviewModal'
 import type { DriverKycFormData } from '../../schemas'
 
@@ -25,24 +25,12 @@ export const VehicleDocsStep: React.FC<VehicleDocsStepProps> = ({
   const [previewTitle, setPreviewTitle] = useState('')
 
   const handlePreview = (url: string, title: string) => {
-    if (url) {
-      setPreviewImage(url)
-      setPreviewTitle(title)
-    }
+    setPreviewImage(url)
+    setPreviewTitle(title)
   }
 
-  // Watch vehicleType to conditionally render Fitness Certificate
   const vehicleType = watch('vehicleType')
   const showFitness = vehicleType === 'auto' || vehicleType === 'cab'
-
-  // Document URLs to show previews
-  const dlFront = watch('licenseFrontUrl')
-  const dlBack = watch('licenseBackUrl')
-  const rcUrl = watch('rcUrl')
-  const insuranceUrl = watch('insuranceUrl')
-  const permitUrl = watch('permitUrl')
-  const pollutionUrl = watch('pollutionUrl')
-  const fitnessUrl = watch('fitnessUrl')
 
   return (
     <Card className="premium-card text-left">
@@ -51,8 +39,6 @@ export const VehicleDocsStep: React.FC<VehicleDocsStepProps> = ({
         <CardDescription>Enter registry document identifiers, validity scopes, and upload digital scans.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-
-        {/* Driving License Details */}
         <div className="space-y-4">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Driving License Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
@@ -91,48 +77,39 @@ export const VehicleDocsStep: React.FC<VehicleDocsStepProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-            <Input
-              label="DL Front Scan URL *"
-              placeholder="Enter DL Front image link"
-              error={errors.licenseFrontUrl?.message}
-              {...register('licenseFrontUrl')}
-            />
-            <Input
-              label="DL Back Scan URL *"
-              placeholder="Enter DL Back image link"
-              error={errors.licenseBackUrl?.message}
-              {...register('licenseBackUrl')}
-            />
-          </div>
-
-          {/* DL Previews */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <div className="border border-border rounded-xl p-3 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4.5 w-4.5 text-primary" />
-                <span className="text-xs font-medium text-slate-800 dark:text-slate-200">DL Front Scan</span>
-              </div>
-              {dlFront && (
-                <button type="button" onClick={() => handlePreview(dlFront, 'Driving License Front')} className="p-1 rounded border border-border text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-                  <Eye className="h-4 w-4" />
-                </button>
+            <Controller
+              name="licenseFrontUrl"
+              control={control}
+              render={({ field }) => (
+                <FileUploadField
+                  label="DL Front Scan"
+                  value={field.value}
+                  onChange={field.onChange}
+                  purpose="DRIVER_DOCUMENT"
+                  required
+                  error={errors.licenseFrontUrl?.message}
+                  onPreview={handlePreview}
+                />
               )}
-            </div>
-            <div className="border border-border rounded-xl p-3 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4.5 w-4.5 text-primary" />
-                <span className="text-xs font-medium text-slate-800 dark:text-slate-200">DL Back Scan</span>
-              </div>
-              {dlBack && (
-                <button type="button" onClick={() => handlePreview(dlBack, 'Driving License Back')} className="p-1 rounded border border-border text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-                  <Eye className="h-4 w-4" />
-                </button>
+            />
+            <Controller
+              name="licenseBackUrl"
+              control={control}
+              render={({ field }) => (
+                <FileUploadField
+                  label="DL Back Scan"
+                  value={field.value}
+                  onChange={field.onChange}
+                  purpose="DRIVER_DOCUMENT"
+                  required
+                  error={errors.licenseBackUrl?.message}
+                  onPreview={handlePreview}
+                />
               )}
-            </div>
+            />
           </div>
         </div>
 
-        {/* RC Details */}
         <div className="border-t border-border pt-6 space-y-4">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Registration Certificate (RC)</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
@@ -142,27 +119,24 @@ export const VehicleDocsStep: React.FC<VehicleDocsStepProps> = ({
               error={errors.rcNumber?.message}
               {...register('rcNumber')}
             />
-            <Input
-              label="RC File URL *"
-              placeholder="Enter RC Image Link"
-              error={errors.rcUrl?.message}
-              {...register('rcUrl')}
+            <Controller
+              name="rcUrl"
+              control={control}
+              render={({ field }) => (
+                <FileUploadField
+                  label="RC Document Scan"
+                  value={field.value}
+                  onChange={field.onChange}
+                  purpose="VEHICLE_DOCUMENT"
+                  required
+                  error={errors.rcUrl?.message}
+                  onPreview={handlePreview}
+                />
+              )}
             />
           </div>
-          {rcUrl && (
-            <div className="border border-border rounded-xl p-3 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 max-w-sm">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4.5 w-4.5 text-primary" />
-                <span className="text-xs font-medium text-slate-800 dark:text-slate-200">RC Document Scan</span>
-              </div>
-              <button type="button" onClick={() => handlePreview(rcUrl, 'Registration Certificate')} className="p-1 rounded border border-border text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-                <Eye className="h-4 w-4" />
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Insurance details */}
         <div className="border-t border-border pt-6 space-y-4">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Vehicle Insurance Policy</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
@@ -186,27 +160,24 @@ export const VehicleDocsStep: React.FC<VehicleDocsStepProps> = ({
               )}
             />
 
-            <Input
-              label="Insurance Document URL *"
-              placeholder="Enter Insurance Image Link"
-              error={errors.insuranceUrl?.message}
-              {...register('insuranceUrl')}
+            <Controller
+              name="insuranceUrl"
+              control={control}
+              render={({ field }) => (
+                <FileUploadField
+                  label="Insurance Document"
+                  value={field.value}
+                  onChange={field.onChange}
+                  purpose="VEHICLE_DOCUMENT"
+                  required
+                  error={errors.insuranceUrl?.message}
+                  onPreview={handlePreview}
+                />
+              )}
             />
           </div>
-          {insuranceUrl && (
-            <div className="border border-border rounded-xl p-3 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 max-w-sm">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4.5 w-4.5 text-primary" />
-                <span className="text-xs font-medium text-slate-800 dark:text-slate-200">Insurance Cover Scan</span>
-              </div>
-              <button type="button" onClick={() => handlePreview(insuranceUrl, 'Insurance Policy Cover')} className="p-1 rounded border border-border text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-                <Eye className="h-4 w-4" />
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Road Permit */}
         <div className="border-t border-border pt-6 space-y-4">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Commercial Road Permit</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
@@ -230,27 +201,24 @@ export const VehicleDocsStep: React.FC<VehicleDocsStepProps> = ({
               )}
             />
 
-            <Input
-              label="Permit Document URL *"
-              placeholder="Enter Permit Image Link"
-              error={errors.permitUrl?.message}
-              {...register('permitUrl')}
+            <Controller
+              name="permitUrl"
+              control={control}
+              render={({ field }) => (
+                <FileUploadField
+                  label="Permit Document"
+                  value={field.value}
+                  onChange={field.onChange}
+                  purpose="VEHICLE_DOCUMENT"
+                  required
+                  error={errors.permitUrl?.message}
+                  onPreview={handlePreview}
+                />
+              )}
             />
           </div>
-          {permitUrl && (
-            <div className="border border-border rounded-xl p-3 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 max-w-sm">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4.5 w-4.5 text-primary" />
-                <span className="text-xs font-medium text-slate-800 dark:text-slate-200">Road Permit Scan</span>
-              </div>
-              <button type="button" onClick={() => handlePreview(permitUrl, 'Road Permit')} className="p-1 rounded border border-border text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-                <Eye className="h-4 w-4" />
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Pollution Certificate */}
         <div className="border-t border-border pt-6 space-y-4">
           <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Pollution Under Control (PUC) Certificate</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
@@ -274,27 +242,24 @@ export const VehicleDocsStep: React.FC<VehicleDocsStepProps> = ({
               )}
             />
 
-            <Input
-              label="Certificate Document URL *"
-              placeholder="Enter Pollution Image Link"
-              error={errors.pollutionUrl?.message}
-              {...register('pollutionUrl')}
+            <Controller
+              name="pollutionUrl"
+              control={control}
+              render={({ field }) => (
+                <FileUploadField
+                  label="Pollution Certificate"
+                  value={field.value}
+                  onChange={field.onChange}
+                  purpose="VEHICLE_DOCUMENT"
+                  required
+                  error={errors.pollutionUrl?.message}
+                  onPreview={handlePreview}
+                />
+              )}
             />
           </div>
-          {pollutionUrl && (
-            <div className="border border-border rounded-xl p-3 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 max-w-sm">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4.5 w-4.5 text-primary" />
-                <span className="text-xs font-medium text-slate-800 dark:text-slate-200">Pollution Certificate Scan</span>
-              </div>
-              <button type="button" onClick={() => handlePreview(pollutionUrl, 'Pollution Certificate')} className="p-1 rounded border border-border text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-                <Eye className="h-4 w-4" />
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Fitness Certificate (Only for Auto/Cab) */}
         {showFitness && (
           <div className="border-t border-border pt-6 space-y-4">
             <div className="flex items-center gap-2">
@@ -322,27 +287,23 @@ export const VehicleDocsStep: React.FC<VehicleDocsStepProps> = ({
                 )}
               />
 
-              <Input
-                label="Certificate Document URL"
-                placeholder="Enter Fitness Image Link"
-                error={errors.fitnessUrl?.message}
-                {...register('fitnessUrl')}
+              <Controller
+                name="fitnessUrl"
+                control={control}
+                render={({ field }) => (
+                  <FileUploadField
+                    label="Fitness Certificate"
+                    value={field.value || ''}
+                    onChange={field.onChange}
+                    purpose="VEHICLE_DOCUMENT"
+                    error={errors.fitnessUrl?.message}
+                    onPreview={handlePreview}
+                  />
+                )}
               />
             </div>
-            {fitnessUrl && (
-              <div className="border border-border rounded-xl p-3 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 max-w-sm">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4.5 w-4.5 text-primary" />
-                  <span className="text-xs font-medium text-slate-800 dark:text-slate-200">Fitness Certificate Scan</span>
-                </div>
-                <button type="button" onClick={() => handlePreview(fitnessUrl, 'Fitness Certificate')} className="p-1 rounded border border-border text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-                  <Eye className="h-4 w-4" />
-                </button>
-              </div>
-            )}
           </div>
         )}
-
       </CardContent>
 
       <ImagePreviewModal

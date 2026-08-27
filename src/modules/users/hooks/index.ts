@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import UserService from '../services'
 import type { QueryParams } from '@/shared/types'
-import type { UserFormData } from '../schemas'
+import type { UserFormData, UserEditFormData } from '../schemas'
 
 export const useUsers = (params?: QueryParams) => {
   return useQuery({
@@ -31,7 +31,7 @@ export const useCreateUser = () => {
 export const useUpdateUser = (id: string) => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: Partial<UserFormData>) => UserService.updateUser(id, data),
+    mutationFn: (data: UserEditFormData) => UserService.updateUser(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users', 'list'] })
       queryClient.invalidateQueries({ queryKey: ['users', 'detail', id] })

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Mail, Lock, Phone } from 'lucide-react'
+import { Mail, Lock, Phone, Eye, EyeOff } from 'lucide-react'
 import {
   loginSchema,
   adminOtpSendSchema,
@@ -28,6 +28,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 }) => {
   const { success: showSuccessToast } = useToast()
   const [method, setMethod] = useState<LoginMethod>('password')
+  const [showPassword, setShowPassword] = useState(false)
   const [otpCode, setOtpCode] = useState('')
   const [challengeId, setChallengeId] = useState<string | null>(null)
   const [otpPhone, setOtpPhone] = useState('')
@@ -169,14 +170,22 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 <Lock className="w-4 h-4" />
               </span>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 placeholder="Password"
                 className={cn(
-                  "flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 text-sm text-foreground transition-all placeholder:text-slate-400/80 focus:border-[#2B317A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2B317A]/10 dark:border-slate-800 dark:bg-slate-900/60",
+                  "flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-11 text-sm text-foreground transition-all placeholder:text-slate-400/80 focus:border-[#2B317A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#2B317A]/10 dark:border-slate-800 dark:bg-slate-900/60",
                   passwordForm.formState.errors.password ? 'border-destructive focus:border-destructive focus:ring-destructive/10' : ''
                 )}
                 {...passwordForm.register('password')}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
             {passwordForm.formState.errors.password?.message && (
               <p className="text-xs font-medium text-destructive mt-1">{passwordForm.formState.errors.password.message}</p>

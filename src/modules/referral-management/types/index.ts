@@ -13,9 +13,11 @@ export interface ReferralProgram {
   id: string
   code: string
   name: string | null
+  audience: 'RIDER' | 'DRIVER'
   referrerReward: number
   refereeReward: number
   rewardType: string
+  rewardWallet: 'CUSTOMER' | 'DRIVER'
   qualifyingEvent: string
   qualifyingThreshold: number
   maxReferralsPerUser: number | null
@@ -33,9 +35,11 @@ export interface ReferralProgram {
 export type ReferralProgramInput = {
   code?: string
   name?: string | null
+  audience?: 'RIDER' | 'DRIVER'
   referrerReward?: number
   refereeReward?: number
   rewardType?: string
+  rewardWallet?: 'CUSTOMER' | 'DRIVER'
   qualifyingEvent?: string
   qualifyingThreshold?: number
   maxReferralsPerUser?: number | null
@@ -84,6 +88,7 @@ export interface ReferralHistoryRow {
   id: string
   programId: string
   programCode: string
+  programAudience: 'RIDER' | 'DRIVER'
   referrerId: string
   referrerEmail: string | null
   referrerPhone: string | null

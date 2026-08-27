@@ -18,6 +18,7 @@ export const useLogin = () => {
     onSuccess: (data, variables) => {
       setCredentials(data.token, data.user, data.refreshToken, {
         rememberMe: variables.rememberMe === true,
+        accessTokenExpiresInSec: data.accessTokenExpiresInSec,
       })
       navigate('/dashboard', { replace: true })
     },
@@ -45,7 +46,10 @@ export const useVerifyAdminOtp = () => {
     },
     onSuccess: (data) => {
       // OTP logins are session-only unless we add a remember control later.
-      setCredentials(data.token, data.user, data.refreshToken, { rememberMe: false })
+      setCredentials(data.token, data.user, data.refreshToken, {
+        rememberMe: false,
+        accessTokenExpiresInSec: data.accessTokenExpiresInSec,
+      })
       navigate('/dashboard', { replace: true })
     },
     onSettled: () => {
