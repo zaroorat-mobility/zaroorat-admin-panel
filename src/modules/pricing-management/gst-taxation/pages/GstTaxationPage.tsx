@@ -1,19 +1,24 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardContent } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
 import { Percent, ShieldCheck, Landmark, Save } from 'lucide-react'
+import { loadGstConfig, saveGstConfig, getIntraStateGstRate } from '../../config/pricing-config.storage'
 
 export const GstTaxationPage: React.FC = () => {
-  const [cgst, setCgst] = useState<number>(2.5)
-  const [sgst, setSgst] = useState<number>(2.5)
-  const [igst, setIgst] = useState<number>(5.0)
-  const [gstin, setGstin] = useState<string>('29AAAAA1111A1Z1')
+  const navigate = useNavigate()
+  const stored = loadGstConfig()
+  const [cgst, setCgst] = useState<number>(stored.cgst)
+  const [sgst, setSgst] = useState<number>(stored.sgst)
+  const [igst, setIgst] = useState<number>(stored.igst)
+  const [gstin, setGstin] = useState<string>(stored.gstin)
   const [isSaved, setIsSaved] = useState(false)
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
+    saveGstConfig({ cgst, sgst, igst, gstin })
     setIsSaved(true)
     setTimeout(() => setIsSaved(false), 3000)
   }
@@ -23,6 +28,7 @@ export const GstTaxationPage: React.FC = () => {
       <PageHeader
         title="GST & Taxation Config"
         description="Manage government tax ratios, SGST/CGST rates, and corporate GSTIN registrations."
+        onBack={() => navigate('/pricing-management')}
       />
 
       <div className="max-w-2xl text-left space-y-6">
@@ -35,6 +41,11 @@ export const GstTaxationPage: React.FC = () => {
                   <p className="text-[10px] text-muted-foreground mt-0.5">Determine CGST, SGST and corporate registration variables.</p>
                 </div>
                 <Landmark className="h-5 w-5 text-primary" />
+              </div>
+
+              <div className="p-3 rounded-lg border border-border bg-slate-50/50 dark:bg-slate-900/30 text-[10px] text-slate-500">
+                Combined intra-state GST rate: <strong className="text-slate-800 dark:text-slate-200">{getIntraStateGstRate().toFixed(1)}%</strong>.
+                Per-fare-rule overrides can be set via <button type="button" onClick={() => navigate('/pricing-management/fare-rules')} className="text-primary font-bold hover:underline">Fare Rules</button> (tax % field).
               </div>
 
               <div className="space-y-1">

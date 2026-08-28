@@ -1,4 +1,4 @@
-import axios, { type AxiosResponse, type InternalAxiosRequestConfig, type AxiosError } from 'axios'
+import { type AxiosResponse, type InternalAxiosRequestConfig, type AxiosError } from 'axios'
 import { refreshSession } from '@/infrastructure/auth/session-refresh'
 import { useAuthStore } from '@/store/auth.store'
 
@@ -41,7 +41,8 @@ export const responseErrorInterceptor = async (error: AxiosError): Promise<Axios
         if (originalRequest.headers) {
           originalRequest.headers.Authorization = `Bearer ${newToken}`
         }
-        return axios.request(originalRequest)
+        const { default: apiClient } = await import('./axios')
+        return apiClient.request(originalRequest)
       }
     }
   }
@@ -50,5 +51,8 @@ export const responseErrorInterceptor = async (error: AxiosError): Promise<Axios
     console.error('API Infrastructure critical server error:', error.message)
   }
 
-  return Promise.reject(new Error(apiErrorMessage(error)))
+  const authError = new Error(apiErrorMessage(error)) as Error & { status?: number; isAuthError?: boolean }
+  authError.status = error.response?.status
+  authError.isAuthError = error.response?.status === 401
+  return Promise.reject(authError)
 }

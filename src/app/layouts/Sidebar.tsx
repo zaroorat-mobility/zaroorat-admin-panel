@@ -23,6 +23,9 @@ import {
   Tag,
   Gift,
   History,
+  Globe2,
+  MapPin,
+  Shield,
 } from "lucide-react";
 import { useAppStore } from "@/store/app.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -75,6 +78,19 @@ const navItems: NavItem[] = [
     icon: Car,
     children: [
       { href: "/vehicle-management/vehicles", label: "Vehicles Directory", icon: Car, permission: "vehicles:read" },
+    ],
+  },
+  {
+    label: "Geographic Management",
+    href: "geographic-management",
+    icon: Globe2,
+    children: [
+      { href: "/geographic-management", label: "Coverage Dashboard", icon: LayoutDashboard, permission: "geography:read" },
+      { href: "/geographic-management/countries", label: "Countries", icon: Globe2, permission: "geography:read" },
+      { href: "/geographic-management/states", label: "States", icon: MapPin, permission: "geography:read" },
+      { href: "/geographic-management/cities", label: "Cities", icon: MapPin, permission: "geography:read" },
+      { href: "/geographic-management/service-zones", label: "Service Zones", icon: Shield, permission: "geography:read" },
+      { href: "/geographic-management/surge-zones", label: "Surge Zones", icon: Activity, permission: "pricing:read" },
     ],
   },
   {
@@ -184,7 +200,7 @@ export const Sidebar: React.FC = () => {
     })
     .filter((item): item is NavItem => item != null);
   const [expandedSections, setExpandedSections] = useState<string[]>([
-    "user-management", "rider-management", "driver-management", "vehicle-management", "pricing-management",
+    "user-management", "rider-management", "driver-management", "vehicle-management", "geographic-management", "pricing-management",
     "promotions-management", "referral-management", "operations", "financial-operations", "school-mobility"
   ]);
 

@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
 
-export type FilePurpose = 'PROFILE_IMAGE' | 'DRIVER_DOCUMENT' | 'VEHICLE_DOCUMENT'
+export type FilePurpose = 'PROFILE_IMAGE' | 'DRIVER_DOCUMENT' | 'VEHICLE_DOCUMENT' | 'PROMO_BANNER'
 
 interface CreateUploadResponse {
   fileId: string

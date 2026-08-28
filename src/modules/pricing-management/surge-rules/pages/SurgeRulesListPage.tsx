@@ -97,12 +97,44 @@ export const SurgeRulesListPage: React.FC = () => {
       )
     },
     {
+      key: 'zoneName',
+      label: 'Surge Zone',
+      align: 'left',
+      render: (val: string | undefined) => (
+        <span className="text-[10px] font-medium text-slate-500">{val ?? '—'}</span>
+      )
+    },
+    {
       key: 'multiplier',
       label: 'Multiplier',
       align: 'center',
       render: (val?: number) => (
         <span className="px-2.5 py-0.5 rounded font-black text-xs border bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-950/20 dark:text-rose-450 animate-pulse">
           {val !== undefined && typeof val === 'number' ? `${val.toFixed(1)}x` : '—'}
+        </span>
+      )
+    },
+    {
+      key: 'demandThresholdPct',
+      label: 'Thresholds',
+      align: 'center',
+      render: (_, row) => (
+        <span className="text-[10px] text-slate-500 font-mono">
+          {row.demandThresholdPct != null || row.supplyThresholdPct != null
+            ? `D:${row.demandThresholdPct ?? '—'}% S:${row.supplyThresholdPct ?? '—'}%`
+            : '—'}
+        </span>
+      )
+    },
+    {
+      key: 'isPeakHourOnly',
+      label: 'Peak Hours',
+      align: 'center',
+      render: (_, row) => (
+        <span className="text-[10px] text-slate-500 font-mono">
+          {row.isPeakHourOnly && row.peakHourStart && row.peakHourEnd
+            ? `${row.peakHourStart}–${row.peakHourEnd}`
+            : '—'}
         </span>
       )
     },

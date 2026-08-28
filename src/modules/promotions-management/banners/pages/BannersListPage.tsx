@@ -14,6 +14,8 @@ import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { StatusBadge } from '@/shared/components/StatusBadge'
 import { Button } from '@/shared/components/ui/Button'
 import { Card, CardContent } from '@/shared/components/ui/Card'
+import { FileUploadField } from '@/shared/components/FileUploadField'
+import { useFileReadUrl } from '@/shared/hooks/useFileReadUrl'
 import { ActionDropdown, type DropdownAction } from '@/modules/driver-management/components/ActionDropdown'
 import { useAuthStore } from '@/store/auth.store'
 import { hasPermission } from '@/infrastructure/permissions'
@@ -24,7 +26,7 @@ const PLACEMENTS = ['HOME', 'RIDE', 'WALLET', 'SPLASH', 'OFFERS'] as const
 
 type FormState = {
   title: string
-  imageUrl: string
+  imageFileId: string
   placement: string
   campaignId: string
   actionUrl: string
@@ -36,7 +38,7 @@ type FormState = {
 
 const emptyForm = (): FormState => ({
   title: '',
-  imageUrl: '',
+  imageFileId: '',
   placement: 'HOME',
   campaignId: '',
   actionUrl: '',
@@ -59,8 +61,17 @@ function errMsg(err: unknown): string {
     (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
       ?.message ??
     (err as Error)?.message ??
-    'Failed to save banner (image URL must be a valid https URL)'
+    'Failed to save banner'
   )
+}
+
+function BannerImagePreview({ fileId }: { fileId: string }) {
+  const { url, loading } = useFileReadUrl(fileId)
+  if (loading) return <span className="text-xs text-muted-foreground">Loading…</span>
+  if (!url) {
+    return <span className="text-xs font-mono text-muted-foreground">{fileId.slice(0, 8)}…</span>
+  }
+  return <img src={url} alt="" className="h-8 w-14 rounded object-cover border" />
 }
 
 export const BannersListPage: React.FC = () => {
@@ -91,7 +102,7 @@ export const BannersListPage: React.FC = () => {
     setEditingId(row.id)
     setForm({
       title: row.title ?? '',
-      imageUrl: row.imageUrl,
+      imageFileId: row.imageFileId,
       placement: row.placement,
       campaignId: row.campaignId ?? '',
       actionUrl: row.actionUrl ?? '',
@@ -108,7 +119,7 @@ export const BannersListPage: React.FC = () => {
     setError(null)
     const payload = {
       title: form.title.trim() || null,
-      imageUrl: form.imageUrl.trim(),
+      imageFileId: form.imageFileId,
       placement: form.placement,
       campaignId: form.campaignId || null,
       actionUrl: form.actionUrl.trim() || null,
@@ -161,18 +172,9 @@ export const BannersListPage: React.FC = () => {
       ),
     },
     {
-      key: 'imageUrl',
+      key: 'imageFileId',
       label: 'Image',
-      render: (v: string) => (
-        <a
-          href={v}
-          target="_blank"
-          rel="noreferrer"
-          className="text-primary text-xs truncate max-w-[140px] block"
-        >
-          {v}
-        </a>
-      ),
+      render: (v: string) => <BannerImagePreview fileId={v} />,
     },
     { key: 'priority', label: 'Priority' },
     {
@@ -254,15 +256,17 @@ export const BannersListPage: React.FC = () => {
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
-            <input
-              className="w-full rounded border px-3 py-2"
-              placeholder="Image URL (https://...) *"
-              value={form.imageUrl}
-              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+            <FileUploadField
+              label="Banner image"
+              value={form.imageFileId}
+              onChange={(imageFileId) => setForm({ ...form, imageFileId })}
+              purpose="PROMO_BANNER"
+              required
+              helperText="Upload JPG, PNG, or WEBP (max 5 MB)"
             />
             <input
               className="w-full rounded border px-3 py-2"
-              placeholder="Action URL (optional, https://...)"
+              placeholder="Action URL (optional, e.g. /offers/welcome)"
               value={form.actionUrl}
               onChange={(e) => setForm({ ...form, actionUrl: e.target.value })}
             />
@@ -332,7 +336,7 @@ export const BannersListPage: React.FC = () => {
             </label>
             {error && <p className="text-sm text-rose-600">{error}</p>}
             <div className="flex gap-2">
-              <Button disabled={pending || !form.imageUrl.trim()} onClick={submit}>
+              <Button disabled={pending || !form.imageFileId} onClick={submit}>
                 {pending ? 'Saving…' : editingId ? 'Save changes' : 'Create'}
               </Button>
               <Button

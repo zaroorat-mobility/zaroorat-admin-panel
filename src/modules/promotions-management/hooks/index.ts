@@ -171,6 +171,7 @@ export const useCoupons = (params?: QueryParams) =>
   useQuery({
     queryKey: QK.coupons(params),
     queryFn: () => PromotionsManagementService.getCoupons(params),
+    enabled: Boolean(params?.batchId),
   })
 
 export const useBanners = (params?: QueryParams) =>

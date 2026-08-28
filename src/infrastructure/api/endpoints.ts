@@ -75,9 +75,15 @@ export const API_ENDPOINTS = {
     deactivate: (id: string) => `/admin/fare-rules/${id}/deactivate`,
     delete: (id: string) => `/admin/fare-rules/${id}`,
   },
+  serviceZones: {
+    list: '/admin/service-zones',
+  },
   surgeZones: {
     list: '/admin/surge-zones',
     detail: (id: string) => `/admin/surge-zones/${id}`,
+    create: '/admin/surge-zones',
+    update: (id: string) => `/admin/surge-zones/${id}`,
+    delete: (id: string) => `/admin/surge-zones/${id}`,
   },
   surgeWindows: {
     list: '/admin/surge-windows',
@@ -94,6 +100,17 @@ export const API_ENDPOINTS = {
     activate: (id: string) => `/admin/cancellation-policies/${id}/activate`,
     deactivate: (id: string) => `/admin/cancellation-policies/${id}/deactivate`,
     delete: (id: string) => `/admin/cancellation-policies/${id}`,
+  },
+  invoices: {
+    list: '/admin/invoices',
+    detail: (id: string) => `/admin/invoices/${id}`,
+  },
+  invoiceTemplates: {
+    list: '/admin/invoice-templates',
+    create: '/admin/invoice-templates',
+    update: (id: string) => `/admin/invoice-templates/${id}`,
+    delete: (id: string) => `/admin/invoice-templates/${id}`,
+    setDefault: (id: string) => `/admin/invoice-templates/${id}/set-default`,
   },
   promotions: {
     list: '/admin/promotions',
@@ -141,6 +158,17 @@ export const API_ENDPOINTS = {
   },
   cities: {
     list: '/admin/cities',
+  },
+  geographic: {
+    countries: '/admin/geographic/countries',
+    states: '/admin/geographic/states',
+    state: (id: string) => `/admin/geographic/states/${id}`,
+    cities: '/admin/geographic/cities',
+    city: (id: string) => `/admin/geographic/cities/${id}`,
+    serviceZones: '/admin/geographic/service-zones',
+    serviceZone: (id: string) => `/admin/geographic/service-zones/${id}`,
+    activateServiceZone: (id: string) => `/admin/geographic/service-zones/${id}/activate`,
+    deactivateServiceZone: (id: string) => `/admin/geographic/service-zones/${id}/deactivate`,
   },
   referralPrograms: {
     list: '/admin/referral-programs',

@@ -134,3 +134,40 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   setLoading: (isLoading) => set({ isLoading }),
 }))
+
+function syncAuthFromStorageEvent(): void {
+  const cached = readAuthFromStorage()
+  const state = useAuthStore.getState()
+
+  if (!cached.token) {
+    if (state.isAuthenticated) state.clearCredentials()
+    return
+  }
+
+  if (
+    cached.token !== state.token ||
+    cached.refreshToken !== state.refreshToken ||
+    cached.tokenExpiresAt !== state.tokenExpiresAt
+  ) {
+    useAuthStore.setState({
+      isAuthenticated: true,
+      token: cached.token,
+      refreshToken: cached.refreshToken,
+      tokenExpiresAt: cached.tokenExpiresAt,
+      user: cached.user ?? state.user,
+    })
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (
+      event.key === AUTH_TOKEN_KEY ||
+      event.key === AUTH_REFRESH_KEY ||
+      event.key === AUTH_TOKEN_EXPIRES_KEY ||
+      event.key === AUTH_USER_KEY
+    ) {
+      syncAuthFromStorageEvent()
+    }
+  })
+}

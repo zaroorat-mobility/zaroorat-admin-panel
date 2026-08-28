@@ -11,6 +11,7 @@ const QK = {
   cancellationRules: (params?: QueryParams) => ['pricing-management', 'cancellation-rules', params],
   cancellationRule: (id: string) => ['pricing-management', 'cancellation-rule', id],
   history: (params?: QueryParams) => ['pricing-management', 'history', params],
+  surgeZones: (cityCode?: string) => ['pricing-management', 'surge-zones', cityCode],
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -258,5 +259,12 @@ export const usePricingHistory = (params?: QueryParams) => {
   return useQuery({
     queryKey: QK.history(params),
     queryFn: () => PricingManagementService.getPricingHistory(params)
+  })
+}
+
+export const useSurgeZones = (cityCode?: string) => {
+  return useQuery({
+    queryKey: QK.surgeZones(cityCode),
+    queryFn: () => PricingManagementService.getSurgeZones(cityCode),
   })
 }

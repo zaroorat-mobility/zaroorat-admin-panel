@@ -23,7 +23,11 @@ export const AppProviders: React.FC = () => {
         defaultOptions: {
           queries: {
             refetchOnWindowFocus: false,
-            retry: 1,
+            retry: (failureCount, error) => {
+              const authError = error as Error & { isAuthError?: boolean }
+              if (authError.isAuthError) return false
+              return failureCount < 1
+            },
             staleTime: 5 * 60 * 1000, // 5 minutes cache
           },
         },

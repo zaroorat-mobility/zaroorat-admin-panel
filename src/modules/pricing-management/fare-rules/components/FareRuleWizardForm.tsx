@@ -1,22 +1,27 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { ChevronLeft, ChevronRight, Save, Info, Sparkles, CheckCircle2 } from 'lucide-react'
-import type { FareRule } from '../types'
+import type { FareRule, RideServiceTypeUi, ServiceZoneOption, CityOption } from '../types'
 import type { VehicleType } from '@/modules/driver-management/types'
 import { FareRulePreviewCard } from './FareRulePreviewCard'
+import { getCities, getServiceZones } from '../../api'
 
 interface FareRuleWizardFormProps {
   initialValues?: FareRule | null
-  onSubmit: (data: Omit<FareRule, 'id' | 'createdAt' | 'updatedAt' | 'version'>) => void
+  presetCityCode?: string
+  presetServiceZoneId?: string
+  onSubmit: (data: Omit<FareRule, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'serviceZoneName'>) => void
   loading?: boolean
 }
 
-type StepType = 'basic' | 'base_pricing' | 'waiting' | 'night' | 'simulation' | 'review'
+type StepType = 'basic' | 'base_pricing' | 'waiting' | 'night' | 'fees' | 'simulation' | 'review'
 
 export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
   initialValues,
+  presetCityCode,
+  presetServiceZoneId,
   onSubmit,
   loading
 }) => {
@@ -25,6 +30,17 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
   // Form states
   const [ruleName, setRuleName] = useState(initialValues?.ruleName || '')
   const [vehicleType, setVehicleType] = useState<VehicleType>(initialValues?.vehicleType || 'cab')
+  const [cityCode, setCityCode] = useState(
+    initialValues?.cityCode || presetCityCode || 'GLOBAL',
+  )
+  const [serviceType, setServiceType] = useState<RideServiceTypeUi | ''>(
+    initialValues?.serviceType ?? '',
+  )
+  const [serviceZoneId, setServiceZoneId] = useState<string>(
+    initialValues?.serviceZoneId ?? presetServiceZoneId ?? '',
+  )
+  const [cities, setCities] = useState<CityOption[]>([])
+  const [serviceZones, setServiceZones] = useState<ServiceZoneOption[]>([])
   const [status, setStatus] = useState<'active' | 'inactive'>(initialValues?.status || 'active')
   const [effectiveFrom, setEffectiveFrom] = useState(initialValues?.effectiveFrom || new Date().toISOString().split('T')[0])
   const [effectiveTo, setEffectiveTo] = useState(initialValues?.effectiveTo || '')
@@ -42,8 +58,33 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
   const [nightEndTime, setNightEndTime] = useState(initialValues?.nightEndTime || '05:00')
   const [nightChargePercentage, setNightChargePercentage] = useState(initialValues?.nightChargePercentage || 20)
 
+  const [bookingFee, setBookingFee] = useState(initialValues?.bookingFee ?? 0)
+  const [platformFeePct, setPlatformFeePct] = useState(initialValues?.platformFeePct ?? 0)
+  const [taxRatePct, setTaxRatePct] = useState(initialValues?.taxRatePct ?? 5)
+  const [commissionRatePct, setCommissionRatePct] = useState(initialValues?.commissionRatePct ?? 15)
+
   // Errors for validations
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    void getCities().then(setCities).catch(() => setCities([]))
+  }, [])
+
+  useEffect(() => {
+    if (!cityCode || cityCode === 'GLOBAL') {
+      setServiceZones([])
+      if (!presetServiceZoneId) setServiceZoneId('')
+      return
+    }
+    void getServiceZones(cityCode)
+      .then((zones) => {
+        setServiceZones(zones)
+        if (presetServiceZoneId && zones.some((z) => z.id === presetServiceZoneId)) {
+          setServiceZoneId(presetServiceZoneId)
+        }
+      })
+      .catch(() => setServiceZones([]))
+  }, [cityCode, presetServiceZoneId])
 
   // Validator
   const validateStep = (step: StepType): boolean => {
@@ -75,6 +116,13 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
       }
     }
 
+    if (step === 'fees') {
+      if (bookingFee < 0) errs.bookingFee = 'Booking fee cannot be negative.'
+      if (platformFeePct < 0 || platformFeePct > 100) errs.platformFeePct = 'Platform fee must be 0–100%.'
+      if (taxRatePct < 0 || taxRatePct > 100) errs.taxRatePct = 'Tax rate must be 0–100%.'
+      if (commissionRatePct < 0 || commissionRatePct > 100) errs.commissionRatePct = 'Commission must be 0–100%.'
+    }
+
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -84,8 +132,9 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
     { id: 'base_pricing', label: '2. Base Pricing' },
     { id: 'waiting', label: '3. Waiting Charges' },
     { id: 'night', label: '4. Night Pricing' },
-    { id: 'simulation', label: '5. Fare Simulator' },
-    { id: 'review', label: '6. Review & Publish' }
+    { id: 'fees', label: '5. Fees & Marketplace' },
+    { id: 'simulation', label: '6. Fare Simulator' },
+    { id: 'review', label: '7. Review & Publish' }
   ]
 
   const handleStepChange = (targetStepId: StepType) => {
@@ -130,6 +179,9 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
     onSubmit({
       ruleName,
       vehicleType,
+      cityCode,
+      serviceType: serviceType || null,
+      serviceZoneId: serviceZoneId || null,
       status,
       effectiveFrom,
       effectiveTo: effectiveTo || undefined,
@@ -139,6 +191,10 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
       perMinuteRate,
       freeWaitingMinutes,
       waitingChargePerMinute,
+      bookingFee,
+      platformFeePct,
+      taxRatePct,
+      commissionRatePct,
       nightEnabled,
       nightStartTime,
       nightEndTime,
@@ -192,6 +248,56 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
                         <option value="cab">Cab</option>
                         <option value="auto">Auto</option>
                         <option value="bike">Bike</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">City</label>
+                      <select
+                        value={cityCode}
+                        onChange={(e) => setCityCode(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+                      >
+                        {cities.map((c) => (
+                          <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+                        ))}
+                        {cities.length === 0 && (
+                          <>
+                            <option value="GLOBAL">All cities (GLOBAL)</option>
+                            <option value="SGR">Srinagar (SGR)</option>
+                            <option value="BLR">Bengaluru (BLR)</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Service Type</label>
+                      <select
+                        value={serviceType}
+                        onChange={(e) => setServiceType(e.target.value as RideServiceTypeUi | '')}
+                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+                      >
+                        <option value="">All service types</option>
+                        <option value="instant">Instant</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="rental">Rental</option>
+                        <option value="outstation">Outstation</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Zone (optional)</label>
+                      <select
+                        value={serviceZoneId}
+                        onChange={(e) => setServiceZoneId(e.target.value)}
+                        disabled={cityCode === 'GLOBAL' || serviceZones.length === 0}
+                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px] disabled:opacity-50"
+                      >
+                        <option value="">Citywide default</option>
+                        {serviceZones.map((z) => (
+                          <option key={z.id} value={z.id}>{z.name}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -400,7 +506,74 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
                 </div>
               )}
 
-              {/* STEP 5: Simulation */}
+              {/* STEP 5: Fees & Marketplace */}
+              {activeStep === 'fees' && (
+                <div className="space-y-4 text-xs">
+                  <div className="border-b pb-3 mb-2">
+                    <h3 className="font-bold text-slate-800 text-sm">Fees & Marketplace</h3>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Configure booking, platform, tax, and driver commission rates for this rule.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Booking Fee (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={bookingFee}
+                        onChange={(e) => setBookingFee(parseFloat(e.target.value) || 0)}
+                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+                      />
+                      {errors.bookingFee && <p className="text-[10px] text-rose-500 font-bold">{errors.bookingFee}</p>}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Platform Fee (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={platformFeePct}
+                        onChange={(e) => setPlatformFeePct(parseFloat(e.target.value) || 0)}
+                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+                      />
+                      {errors.platformFeePct && <p className="text-[10px] text-rose-500 font-bold">{errors.platformFeePct}</p>}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Tax Rate (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={taxRatePct}
+                        onChange={(e) => setTaxRatePct(parseFloat(e.target.value) || 0)}
+                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+                      />
+                      {errors.taxRatePct && <p className="text-[10px] text-rose-500 font-bold">{errors.taxRatePct}</p>}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Driver Commission (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={commissionRatePct}
+                        onChange={(e) => setCommissionRatePct(parseFloat(e.target.value) || 0)}
+                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+                      />
+                      {errors.commissionRatePct && <p className="text-[10px] text-rose-500 font-bold">{errors.commissionRatePct}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 6: Simulation */}
               {activeStep === 'simulation' && (
                 <div className="space-y-4 text-xs">
                   <div className="border-b pb-3 mb-2 flex items-center justify-between">
@@ -433,6 +606,9 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
                       <p className="text-[9px] font-bold text-slate-400 uppercase">Rule Metadata</p>
                       <p><strong>Name:</strong> {ruleName}</p>
                       <p><strong>Vehicle Category:</strong> <span className="uppercase font-bold text-primary">{vehicleType}</span></p>
+                      <p><strong>City:</strong> {cityCode}</p>
+                      <p><strong>Service Type:</strong> {serviceType || 'All types'}</p>
+                      <p><strong>Zone:</strong> {serviceZoneId ? (serviceZones.find(z => z.id === serviceZoneId)?.name ?? serviceZoneId) : 'Citywide default'}</p>
                       <p><strong>Status:</strong> {status === 'active' ? <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">ACTIVE</span> : <span className="text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded border">DRAFT</span>}</p>
                       <p><strong>Effective Dates:</strong> {effectiveFrom} {effectiveTo ? `to ${effectiveTo}` : '(No End Expiry)'}</p>
                     </div>
@@ -443,6 +619,7 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
                       <p><strong>Rates:</strong> ₹{perKmRate}/KM, ₹{perMinuteRate}/Min</p>
                       <p><strong>Waiting:</strong> ₹{waitingChargePerMinute}/min after {freeWaitingMinutes}m</p>
                       <p><strong>Night Surcharge:</strong> {nightEnabled ? `Enabled (+${nightChargePercentage}%, ${nightStartTime}-${nightEndTime})` : 'Disabled'}</p>
+                      <p><strong>Fees:</strong> Booking ₹{bookingFee.toFixed(2)}, Platform {platformFeePct}%, Tax {taxRatePct}%, Commission {commissionRatePct}%</p>
                     </div>
                   </div>
 
@@ -452,7 +629,7 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
                       <div>
                         <p className="font-bold">Auto-Deactivation Event</p>
                         <p className="text-[10px] text-amber-700/90 leading-relaxed mt-0.5">
-                          Activating this configuration will automatically deactivate any other active rule for <strong>{vehicleType.toUpperCase()}</strong> categories. Historical data remains intact as Version {initialValues ? initialValues.version : 1}.
+                          Activating this configuration will automatically deactivate any other active rule for the same <strong>{vehicleType.toUpperCase()}</strong>, city, service type, and zone combination. Historical data remains intact as Version {initialValues ? initialValues.version : 1}.
                         </p>
                       </div>
                     </div>
@@ -506,6 +683,12 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
             minimumFare={minimumFare}
             perKmRate={perKmRate}
             perMinuteRate={perMinuteRate}
+            freeWaitingMinutes={freeWaitingMinutes}
+            waitingChargePerMinute={waitingChargePerMinute}
+            bookingFee={bookingFee}
+            platformFeePct={platformFeePct}
+            taxRatePct={taxRatePct}
+            commissionRatePct={commissionRatePct}
             nightEnabled={nightEnabled}
             nightChargePercentage={nightChargePercentage}
           />

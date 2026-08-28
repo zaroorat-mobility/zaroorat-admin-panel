@@ -5,7 +5,15 @@ export interface SurgeRule extends BaseEntity {
   ruleName: string
   version: number
   vehicleType: VehicleType | VehicleType[]
+  zoneId?: string
+  zoneName?: string
+  cityCode?: string
   multiplier: number
+  demandThresholdPct?: number | null
+  supplyThresholdPct?: number | null
+  peakHourStart?: string | null
+  peakHourEnd?: string | null
+  isPeakHourOnly?: boolean
   startTime?: string
   endTime?: string
   effectiveFrom: string

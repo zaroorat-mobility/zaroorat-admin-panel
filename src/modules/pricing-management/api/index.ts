@@ -1,6 +1,7 @@
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import type { QueryParams, PaginatedResponse } from '@/shared/types'
-import type { FareRule, SurgeRule, CancellationRule } from '../types'
+import type { FareRule, CityOption, ServiceZoneOption } from '../fare-rules/types'
+import type { SurgeRule, CancellationRule } from '../types'
 import type { VehicleType } from '@/modules/driver-management/types'
 
 const CODE_TO_UI: Record<string, VehicleType> = {
@@ -35,6 +36,11 @@ export interface SurgeWindowDto {
   vehicleTypeId: string | null
   multiplier: number | string
   reason: string | null
+  demandThresholdPct?: number | string | null
+  supplyThresholdPct?: number | string | null
+  peakHourStart?: string | null
+  peakHourEnd?: string | null
+  isPeakHourOnly?: boolean
   startsAt: string
   endsAt: string | null
   isActive: boolean
@@ -64,6 +70,14 @@ function toNum(value: number | string): number {
 function normalizeFare(rule: ApiFareRule): FareRule {
   return {
     ...rule,
+    cityCode: rule.cityCode ?? 'GLOBAL',
+    serviceType: rule.serviceType ?? null,
+    serviceZoneId: rule.serviceZoneId ?? null,
+    serviceZoneName: rule.serviceZoneName ?? null,
+    bookingFee: rule.bookingFee ?? 0,
+    platformFeePct: rule.platformFeePct ?? 0,
+    taxRatePct: rule.taxRatePct ?? null,
+    commissionRatePct: rule.commissionRatePct ?? null,
     nightStartTime: rule.nightStartTime ?? '22:00',
     nightEndTime: rule.nightEndTime ?? '05:00',
   }
@@ -94,7 +108,16 @@ function windowToSurgeRule(window: SurgeWindowDto): SurgeRule {
     ruleName: window.reason || window.zoneName || 'Surge Window',
     version: 1,
     vehicleType: code ? (CODE_TO_UI[code] ?? 'cab') : 'cab',
+    zoneId: window.zoneId,
+    zoneName: window.zoneName,
     multiplier: toNum(window.multiplier),
+    demandThresholdPct:
+      window.demandThresholdPct != null ? toNum(window.demandThresholdPct) : null,
+    supplyThresholdPct:
+      window.supplyThresholdPct != null ? toNum(window.supplyThresholdPct) : null,
+    peakHourStart: window.peakHourStart ?? null,
+    peakHourEnd: window.peakHourEnd ?? null,
+    isPeakHourOnly: window.isPeakHourOnly ?? false,
     startTime: starts.toISOString().slice(11, 16),
     endTime: ends ? ends.toISOString().slice(11, 16) : undefined,
     effectiveFrom: starts.toISOString().slice(0, 10),
@@ -103,6 +126,15 @@ function windowToSurgeRule(window: SurgeWindowDto): SurgeRule {
     createdAt: window.createdAt,
     updatedAt: window.createdAt,
   }
+}
+
+export const getSurgeZones = async (cityCode?: string): Promise<SurgeZoneDto[]> => {
+  const response = await api.get<SurgeZoneDto[] | { data: SurgeZoneDto[] }>(
+    API_ENDPOINTS.surgeZones.list,
+    cityCode ? { params: { cityCode } } : undefined,
+  )
+  const payload = response.data
+  return Array.isArray(payload) ? payload : payload.data
 }
 
 async function resolveCitywideZoneId(): Promise<string> {
@@ -134,6 +166,26 @@ async function resolveVehicleTypeIds(types: VehicleType[]): Promise<string[]> {
 }
 
 // ─── Fare rules ───────────────────────────────────────────────────────────────
+
+export const getCities = async (): Promise<CityOption[]> => {
+  const response = await api.get<{ data: CityOption[] }>(API_ENDPOINTS.geographic.cities, {
+    params: { activeOnly: true },
+  })
+  return response.data.data.map((c) => ({
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    state: c.state ?? null,
+    isActive: c.isActive,
+  }))
+}
+
+export const getServiceZones = async (cityCode: string): Promise<ServiceZoneOption[]> => {
+  const response = await api.get<{ data: ServiceZoneOption[] }>(API_ENDPOINTS.geographic.serviceZones, {
+    params: { cityCode, activeOnly: true },
+  })
+  return response.data.data
+}
 
 export const getFareRules = async (
   params?: QueryParams,
@@ -217,7 +269,7 @@ export const getSurgeRuleById = async (id: string): Promise<SurgeRule> => {
 export const createSurgeRule = async (
   data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt' | 'version'>,
 ): Promise<SurgeRule> => {
-  const zoneId = await resolveCitywideZoneId()
+  const zoneId = data.zoneId ?? (await resolveCitywideZoneId())
   const types = Array.isArray(data.vehicleType)
     ? data.vehicleType
     : [data.vehicleType as VehicleType]
@@ -230,14 +282,22 @@ export const createSurgeRule = async (
       : undefined
 
   let createdId: string | null = null
+  const surgePayload = {
+    zoneId,
+    multiplier: Math.min(2, Math.max(1, data.multiplier)),
+    startsAt,
+    ...(endsAt ? { endsAt } : {}),
+    reason: data.ruleName,
+    ...(data.demandThresholdPct != null ? { demandThresholdPct: data.demandThresholdPct } : {}),
+    ...(data.supplyThresholdPct != null ? { supplyThresholdPct: data.supplyThresholdPct } : {}),
+    ...(data.peakHourStart ? { peakHourStart: data.peakHourStart } : {}),
+    ...(data.peakHourEnd ? { peakHourEnd: data.peakHourEnd } : {}),
+    ...(data.isPeakHourOnly !== undefined ? { isPeakHourOnly: data.isPeakHourOnly } : {}),
+  }
   for (const vehicleTypeId of vehicleTypeIds) {
     const response = await api.post<SurgeWindowDto>(API_ENDPOINTS.surgeWindows.create, {
-      zoneId,
+      ...surgePayload,
       vehicleTypeId,
-      multiplier: Math.min(2, Math.max(1, data.multiplier)),
-      startsAt,
-      ...(endsAt ? { endsAt } : {}),
-      reason: data.ruleName,
     })
     createdId = response.data.id
     if (data.status === 'inactive' && createdId) {
@@ -269,6 +329,11 @@ export const updateSurgeRule = async (
     startsAt,
     reason: merged.ruleName,
     isActive: merged.status === 'active',
+    demandThresholdPct: merged.demandThresholdPct ?? null,
+    supplyThresholdPct: merged.supplyThresholdPct ?? null,
+    peakHourStart: merged.peakHourStart ?? null,
+    peakHourEnd: merged.peakHourEnd ?? null,
+    isPeakHourOnly: merged.isPeakHourOnly ?? false,
   }
   if (endsAt) body.endsAt = endsAt
 
