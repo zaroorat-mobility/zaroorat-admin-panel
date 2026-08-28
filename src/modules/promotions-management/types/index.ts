@@ -143,7 +143,7 @@ export interface PromoBanner {
   id: string
   campaignId: string | null
   title: string | null
-  imageUrl: string
+  imageFileId: string
   placement: string
   actionUrl: string | null
   priority: number
@@ -157,7 +157,7 @@ export interface PromoBanner {
 export type BannerInput = {
   campaignId?: string | null
   title?: string | null
-  imageUrl: string
+  imageFileId: string
   placement?: string
   actionUrl?: string | null
   priority?: number

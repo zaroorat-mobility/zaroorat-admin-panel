@@ -25,12 +25,15 @@ export async function refreshSession(options?: { force?: boolean }): Promise<str
     }
   }
 
+  const refreshTokenSnapshot = useAuthStore.getState().refreshToken
+  if (!refreshTokenSnapshot) return null
+
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
         const response = await axios.post(
           `${APP_CONFIG.api.baseUrl}/auth/token/refresh`,
-          { refreshToken: useAuthStore.getState().refreshToken },
+          { refreshToken: refreshTokenSnapshot },
           {
             headers: {
               'Content-Type': 'application/json',

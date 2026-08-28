@@ -19,6 +19,7 @@ import { FinancialOperationsRoutes } from '@/modules/financial-operations'
 import { SchoolMobilityRoutes } from '@/modules/school-mobility'
 import { CarpoolingRoutes } from '@/modules/carpooling'
 import { DocumentControllerRoutes } from '@/modules/document-controller'
+import { GeographicManagementRoutes } from '@/modules/geographic-management'
 
 /**
  * Main Application Routing Declarations for Zaroorat Mobility
@@ -90,6 +91,16 @@ export const AppRouter: React.FC = () => {
           element={
             <RequirePermission requiredPermission="pricing:read">
               <PricingManagementRoutes />
+            </RequirePermission>
+          }
+        />
+
+        {/* Geographic Management */}
+        <Route
+          path="geographic-management/*"
+          element={
+            <RequirePermission requiredPermission="geography:read">
+              <GeographicManagementRoutes />
             </RequirePermission>
           }
         />

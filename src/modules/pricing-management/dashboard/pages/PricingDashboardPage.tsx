@@ -23,7 +23,11 @@ import {
   Car,
   Bike,
   User,
-  Zap
+  Zap,
+  Landmark,
+  CreditCard,
+  FileText,
+  MapPin
 } from 'lucide-react'
 
 export const PricingDashboardPage: React.FC = () => {
@@ -148,6 +152,8 @@ export const PricingDashboardPage: React.FC = () => {
                               {rule.vehicleType === 'bike' ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
                               {rule.vehicleType}
                             </span>
+                            <span className="font-semibold text-slate-500">{rule.cityCode}</span>
+                            <span className="text-slate-400">{rule.serviceZoneName ?? 'Citywide'}</span>
                             <span>Base: ₹{rule.baseFare.toFixed(0)}</span>
                             <span>Min: ₹{rule.minimumFare.toFixed(0)}</span>
                             <span>Per KM: ₹{rule.perKmRate}</span>
@@ -205,6 +211,9 @@ export const PricingDashboardPage: React.FC = () => {
                               <Zap className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
                               {rule.vehicleType}
                             </span>
+                            {rule.zoneName && (
+                              <span className="font-semibold text-slate-500">{rule.zoneName}</span>
+                            )}
                             <span className="bg-rose-50 border border-rose-100 px-2 py-0.5 rounded font-black text-rose-700 text-[11px]">{rule.multiplier}x Multiplier</span>
                             {rule.startTime && (
                               <span className="flex items-center gap-1 font-mono text-[9px] text-slate-450">
@@ -332,7 +341,7 @@ export const PricingDashboardPage: React.FC = () => {
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => navigate('history')}
+                  onClick={() => navigate('pricing-history')}
                   className="h-7 px-2 text-[9px] font-bold border-border"
                 >
                   View All
@@ -363,6 +372,58 @@ export const PricingDashboardPage: React.FC = () => {
 
           </div>
 
+        </div>
+
+        {/* Quick Navigation */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Finance, Audit & Geographic Links</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <button
+              type="button"
+              onClick={() => navigate('pricing-history')}
+              className="p-4 rounded-xl border text-left hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
+            >
+              <History className="h-4 w-4 text-slate-500 mb-2" />
+              <p className="font-bold text-sm">Pricing History</p>
+              <p className="text-xs text-muted-foreground mt-1">Audit trail of fare, surge, and cancellation changes</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('gst')}
+              className="p-4 rounded-xl border text-left hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
+            >
+              <Landmark className="h-4 w-4 text-primary mb-2" />
+              <p className="font-bold text-sm">GST & Taxation</p>
+              <p className="text-xs text-muted-foreground mt-1">CGST, SGST, IGST rates and corporate GSTIN</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('razorpay')}
+              className="p-4 rounded-xl border text-left hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
+            >
+              <CreditCard className="h-4 w-4 text-[#2B317A] mb-2" />
+              <p className="font-bold text-sm">Razorpay Commission</p>
+              <p className="text-xs text-muted-foreground mt-1">Payment gateway fee schedule and MDR breakdown</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('invoices')}
+              className="p-4 rounded-xl border text-left hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
+            >
+              <FileText className="h-4 w-4 text-emerald-600 mb-2" />
+              <p className="font-bold text-sm">Invoices Console</p>
+              <p className="text-xs text-muted-foreground mt-1">Generate invoices and manage billing templates</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/geographic-management/surge-zones')}
+              className="p-4 rounded-xl border text-left hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
+            >
+              <MapPin className="h-4 w-4 text-amber-500 mb-2" />
+              <p className="font-bold text-sm">Surge Zones</p>
+              <p className="text-xs text-muted-foreground mt-1">Manage demand geofences linked to surge rules</p>
+            </button>
+          </div>
         </div>
 
       </div>

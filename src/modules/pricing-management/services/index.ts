@@ -261,6 +261,7 @@ export const PricingManagementService = {
   deactivateCancellationRule,
 
   getPricingHistory,
+  getSurgeZones: pricingApi.getSurgeZones,
 }
 
 export default PricingManagementService

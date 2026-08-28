@@ -1,5 +1,5 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCreateFareRule } from '../../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -7,6 +7,9 @@ import { FareRuleWizardForm } from '../components/FareRuleWizardForm'
 
 export const CreateFareRulePage: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const presetCityCode = searchParams.get('cityCode') ?? undefined
+  const presetServiceZoneId = searchParams.get('serviceZoneId') ?? undefined
   const { mutate: createRule, isPending } = useCreateFareRule()
 
   const handleFormSubmit = (formData: any) => {
@@ -27,6 +30,8 @@ export const CreateFareRulePage: React.FC = () => {
 
       <div className="mt-4">
         <FareRuleWizardForm
+          presetCityCode={presetCityCode}
+          presetServiceZoneId={presetServiceZoneId}
           onSubmit={handleFormSubmit}
           loading={isPending}
         />

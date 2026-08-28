@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   useFareRules,
   useDeleteFareRule,
@@ -32,6 +32,9 @@ import type { FareRule } from '../types'
 
 export const FareRulesListPage: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const filterCityCode = searchParams.get('cityCode') ?? ''
+  const filterServiceZoneId = searchParams.get('serviceZoneId') ?? ''
   const user = useAuthStore((state) => state.user)
   const canWrite = hasPermission(user, 'pricing:write')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -48,7 +51,11 @@ export const FareRulesListPage: React.FC = () => {
   const { mutate: activateRule, isPending: isActivating } = useActivateFareRule()
   const { mutate: deactivateRule, isPending: isDeactivating } = useDeactivateFareRule()
 
-  const rules = data?.data || []
+  const rules = (data?.data || []).filter((rule) => {
+    if (filterCityCode && rule.cityCode !== filterCityCode) return false
+    if (filterServiceZoneId && rule.serviceZoneId !== filterServiceZoneId) return false
+    return true
+  })
 
   // Metrics
   const totalRules = rules.length
@@ -104,6 +111,28 @@ export const FareRulesListPage: React.FC = () => {
       )
     },
     {
+      key: 'cityCode',
+      label: 'City',
+      align: 'center',
+      render: (val: string) => <span className="font-semibold text-[10px] text-slate-650">{val}</span>
+    },
+    {
+      key: 'serviceType',
+      label: 'Service',
+      align: 'center',
+      render: (val: string | null) => (
+        <span className="text-[10px] font-medium text-slate-500 uppercase">{val ?? 'All'}</span>
+      )
+    },
+    {
+      key: 'serviceZoneName',
+      label: 'Zone',
+      align: 'left',
+      render: (val: string | null | undefined) => (
+        <span className="text-[10px] text-slate-500">{val ?? 'Citywide'}</span>
+      )
+    },
+    {
       key: 'baseFare',
       label: 'Base Fare',
       align: 'right',
@@ -120,6 +149,22 @@ export const FareRulesListPage: React.FC = () => {
       label: 'Per Minute',
       align: 'right',
       render: (val: number) => <span className="font-semibold text-slate-750 dark:text-slate-300">₹{val.toFixed(2)}</span>
+    },
+    {
+      key: 'bookingFee',
+      label: 'Booking',
+      align: 'right',
+      render: (val: number | undefined) => (
+        <span className="font-semibold text-slate-700 dark:text-slate-350">₹{(val ?? 0).toFixed(2)}</span>
+      )
+    },
+    {
+      key: 'taxRatePct',
+      label: 'Tax %',
+      align: 'center',
+      render: (val: number | undefined) => (
+        <span className="text-[10px] font-medium text-slate-500">{val ?? 0}%</span>
+      )
     },
     {
       key: 'status',
@@ -276,7 +321,7 @@ export const FareRulesListPage: React.FC = () => {
             </p>
             {actionType === 'activate' && (
               <p className="text-amber-600 font-bold bg-amber-50/50 p-2.5 rounded border border-amber-100">
-                Notice: Activating this will automatically turn off any other active rule for this vehicle category.
+                Notice: Activating this will automatically turn off any other active rule for the same vehicle, city, service type, and zone.
               </p>
             )}
           </div>

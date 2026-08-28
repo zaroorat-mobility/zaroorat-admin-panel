@@ -91,6 +91,32 @@ export const FareRuleDetailsPage: React.FC = () => {
               
               {/* Grid sections */}
               <div className="grid grid-cols-2 gap-6">
+
+                {/* Scope */}
+                <div className="space-y-4 col-span-2">
+                  <h4 className="text-[10px] font-bold text-slate-450 uppercase tracking-wider flex items-center gap-1.5 border-b pb-1.5">
+                    <Car className="h-3.5 w-3.5 text-primary" />
+                    <span>Rule Scope</span>
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-[10px] text-slate-400">City</p>
+                      <strong className="text-slate-800 dark:text-white">{rule.cityCode}</strong>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400">Service Type</p>
+                      <strong className="text-slate-800 dark:text-white uppercase">{rule.serviceType ?? 'All types'}</strong>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400">Zone</p>
+                      <strong className="text-slate-800 dark:text-white">{rule.serviceZoneName ?? 'Citywide default'}</strong>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400">Vehicle</p>
+                      <strong className="text-slate-800 dark:text-white uppercase">{rule.vehicleType}</strong>
+                    </div>
+                  </div>
+                </div>
                 
                 {/* Pricing values */}
                 <div className="space-y-4">
@@ -136,6 +162,32 @@ export const FareRuleDetailsPage: React.FC = () => {
                   </div>
                 </div>
 
+              </div>
+
+              {/* Fees & Marketplace */}
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="text-[10px] font-bold text-slate-450 uppercase tracking-wider flex items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>Fees & Marketplace</span>
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-border">
+                  <div>
+                    <p className="text-[10px] text-slate-400">Booking Fee</p>
+                    <strong className="text-slate-850 dark:text-white text-xs">₹{(rule.bookingFee ?? 0).toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400">Platform Fee</p>
+                    <strong className="text-slate-850 dark:text-white text-xs">{rule.platformFeePct ?? 0}%</strong>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400">Tax Rate</p>
+                    <strong className="text-slate-850 dark:text-white text-xs">{rule.taxRatePct ?? 0}%</strong>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400">Driver Commission</p>
+                    <strong className="text-slate-850 dark:text-white text-xs">{rule.commissionRatePct ?? 0}%</strong>
+                  </div>
+                </div>
               </div>
 
               {/* Night Surcharges Section */}
@@ -187,6 +239,12 @@ export const FareRuleDetailsPage: React.FC = () => {
             minimumFare={rule.minimumFare}
             perKmRate={rule.perKmRate}
             perMinuteRate={rule.perMinuteRate}
+            freeWaitingMinutes={rule.freeWaitingMinutes}
+            waitingChargePerMinute={rule.waitingChargePerMinute}
+            bookingFee={rule.bookingFee ?? 0}
+            platformFeePct={rule.platformFeePct ?? 0}
+            taxRatePct={rule.taxRatePct ?? 0}
+            commissionRatePct={rule.commissionRatePct ?? 0}
             nightEnabled={rule.nightEnabled}
             nightChargePercentage={rule.nightChargePercentage}
           />

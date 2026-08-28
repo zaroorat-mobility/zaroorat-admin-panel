@@ -1,11 +1,12 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardContent } from '@/shared/components/ui/Card'
 import { CreditCard, Landmark, Percent, Info, ShieldCheck } from 'lucide-react'
 
 export const RazorpayCommissionPage: React.FC = () => {
-  // Read-only values set by Razorpay fee schedule
+  const navigate = useNavigate()
   const commissionRate = 2.0
   const fixedFee = 3.0
   const gstRate = 18.0
@@ -15,6 +16,7 @@ export const RazorpayCommissionPage: React.FC = () => {
       <PageHeader
         title="Razorpay PG Commission Schedule"
         description="View payment gateway transaction fees and standard transfer commission parameters. Gateway fees are configured by Razorpay and are read-only."
+        onBack={() => navigate('/pricing-management')}
       />
 
       <div className="max-w-2xl text-left space-y-6">
@@ -88,7 +90,10 @@ export const RazorpayCommissionPage: React.FC = () => {
         <div className="p-4 bg-amber-50/25 border border-amber-200/50 rounded-xl text-left space-y-1.5">
           <p className="text-[10px] uppercase font-bold text-amber-700 tracking-wider">Gateway Configuration Policy</p>
           <p className="text-[10px] text-slate-500 leading-relaxed">
-            Razorpay gateway and merchant processing fees are read-only to ensure compliance with service agreement schedules. To adjust Zaroorat platform commissions (e.g. partner ride margins or subscription rules), visit the main <span className="font-bold text-primary hover:underline cursor-pointer">Pricing Control Center</span>.
+            Razorpay gateway and merchant processing fees are read-only to ensure compliance with service agreement schedules. To adjust Zaroorat platform commissions (e.g. partner ride margins or subscription rules), visit the{' '}
+            <button type="button" onClick={() => navigate('/pricing-management')} className="font-bold text-primary hover:underline">
+              Pricing Control Center
+            </button>.
           </p>
         </div>
       </div>
