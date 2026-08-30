@@ -14,9 +14,9 @@ import { PricingManagementRoutes } from '@/modules/pricing-management'
 import { OperationsRoutes } from '@/modules/operations'
 import { FinancialOperationsRoutes } from '@/modules/financial-operations'
 import { SchoolMobilityRoutes } from '@/modules/school-mobility'
-import { NotificationsRoutes } from '@/modules/notifications'
 import { CarpoolingRoutes } from '@/modules/carpooling'
 import { DocumentControllerRoutes } from '@/modules/document-controller'
+import { MapSettingsPage } from '@/modules/system-settings'
 
 /**
  * Main Application Routing Declarations for Zaroorat Mobility
@@ -80,6 +80,10 @@ export const AppRouter: React.FC = () => {
 
         {/* School Mobility */}
         <Route path="school-mobility/*" element={<SchoolMobilityRoutes />} />
+
+        {/* System & Map Provider Settings */}
+        <Route path="settings/maps" element={<MapSettingsPage />} />
+        <Route path="settings" element={<Navigate to="/settings/maps" replace />} />
 
         {/* Legacy redirect routes */}
         <Route path="drivers/*" element={<Navigate to="/driver-management/drivers" replace />} />

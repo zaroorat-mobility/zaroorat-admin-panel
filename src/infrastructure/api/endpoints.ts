@@ -3,7 +3,7 @@
  */
 export const API_ENDPOINTS = {
   auth: {
-    login: '/auth/login',
+    login: '/auth/admin/login',
     logout: '/auth/logout',
     me: '/auth/me',
     refreshToken: '/auth/refresh-token',
@@ -39,6 +39,10 @@ export const API_ENDPOINTS = {
     approve: (id: string) => `/verifications/${id}/approve`,
     reject: (id: string) => `/verifications/${id}/reject`,
   },
-} as const
+  systemSettings: {
+    maps: '/admin/settings/maps',
+    testMapHealth: '/admin/settings/maps/test',
+  },
+} as const;
 
-export type ApiEndpoints = typeof API_ENDPOINTS
+export type ApiEndpoints = typeof API_ENDPOINTS;
