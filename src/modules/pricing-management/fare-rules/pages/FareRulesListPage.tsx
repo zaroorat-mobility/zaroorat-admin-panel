@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   useFareRules,
   useDeleteFareRule,
@@ -14,6 +14,8 @@ import { StatusBadge } from '@/shared/components/StatusBadge'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
 import { Button } from '@/shared/components/ui/Button'
 import { ActionDropdown, type DropdownAction } from '@/modules/driver-management/components/ActionDropdown'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 import {
   DollarSign,
   Plus,
@@ -30,6 +32,11 @@ import type { FareRule } from '../types'
 
 export const FareRulesListPage: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const filterCityCode = searchParams.get('cityCode') ?? ''
+  const filterServiceZoneId = searchParams.get('serviceZoneId') ?? ''
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'pricing:write')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Modal triggers
@@ -44,7 +51,11 @@ export const FareRulesListPage: React.FC = () => {
   const { mutate: activateRule, isPending: isActivating } = useActivateFareRule()
   const { mutate: deactivateRule, isPending: isDeactivating } = useDeactivateFareRule()
 
-  const rules = data?.data || []
+  const rules = (data?.data || []).filter((rule) => {
+    if (filterCityCode && rule.cityCode !== filterCityCode) return false
+    if (filterServiceZoneId && rule.serviceZoneId !== filterServiceZoneId) return false
+    return true
+  })
 
   // Metrics
   const totalRules = rules.length
@@ -100,6 +111,28 @@ export const FareRulesListPage: React.FC = () => {
       )
     },
     {
+      key: 'cityCode',
+      label: 'City',
+      align: 'center',
+      render: (val: string) => <span className="font-semibold text-[10px] text-slate-650">{val}</span>
+    },
+    {
+      key: 'serviceType',
+      label: 'Service',
+      align: 'center',
+      render: (val: string | null) => (
+        <span className="text-[10px] font-medium text-slate-500 uppercase">{val ?? 'All'}</span>
+      )
+    },
+    {
+      key: 'serviceZoneName',
+      label: 'Zone',
+      align: 'left',
+      render: (val: string | null | undefined) => (
+        <span className="text-[10px] text-slate-500">{val ?? 'Citywide'}</span>
+      )
+    },
+    {
       key: 'baseFare',
       label: 'Base Fare',
       align: 'right',
@@ -116,6 +149,22 @@ export const FareRulesListPage: React.FC = () => {
       label: 'Per Minute',
       align: 'right',
       render: (val: number) => <span className="font-semibold text-slate-750 dark:text-slate-300">₹{val.toFixed(2)}</span>
+    },
+    {
+      key: 'bookingFee',
+      label: 'Booking',
+      align: 'right',
+      render: (val: number | undefined) => (
+        <span className="font-semibold text-slate-700 dark:text-slate-350">₹{(val ?? 0).toFixed(2)}</span>
+      )
+    },
+    {
+      key: 'taxRatePct',
+      label: 'Tax %',
+      align: 'center',
+      render: (val: number | undefined) => (
+        <span className="text-[10px] font-medium text-slate-500">{val ?? 0}%</span>
+      )
     },
     {
       key: 'status',
@@ -146,45 +195,48 @@ export const FareRulesListPage: React.FC = () => {
             icon: <Eye className="h-3.5 w-3.5" />,
             onClick: () => navigate(`/pricing-management/fare-rules/${row.id}`)
           },
-          {
+        ]
+
+        if (canWrite) {
+          dropActions.push({
             label: 'Edit Configuration',
             icon: <Edit2 className="h-3.5 w-3.5" />,
             onClick: () => navigate(`/pricing-management/fare-rules/${row.id}/edit`)
-          }
-        ]
-
-        if (row.status === 'inactive') {
-          dropActions.push({
-            label: 'Activate Rule',
-            icon: <ToggleRight className="h-3.5 w-3.5" />,
-            onClick: () => {
-              setActionRule(row)
-              setActionType('activate')
-              setIsModalOpen(true)
-            }
           })
-        } else {
+
+          if (row.status === 'inactive') {
+            dropActions.push({
+              label: 'Activate Rule',
+              icon: <ToggleRight className="h-3.5 w-3.5" />,
+              onClick: () => {
+                setActionRule(row)
+                setActionType('activate')
+                setIsModalOpen(true)
+              }
+            })
+          } else {
+            dropActions.push({
+              label: 'Deactivate Rule',
+              icon: <ToggleLeft className="h-3.5 w-3.5" />,
+              onClick: () => {
+                setActionRule(row)
+                setActionType('deactivate')
+                setIsModalOpen(true)
+              }
+            })
+          }
+
           dropActions.push({
-            label: 'Deactivate Rule',
-            icon: <ToggleLeft className="h-3.5 w-3.5" />,
+            label: 'Delete Rule',
+            icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
             onClick: () => {
               setActionRule(row)
-              setActionType('deactivate')
+              setActionType('delete')
               setIsModalOpen(true)
-            }
+            },
+            variant: 'danger' as const
           })
         }
-
-        dropActions.push({
-          label: 'Delete Rule',
-          icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
-          onClick: () => {
-            setActionRule(row)
-            setActionType('delete')
-            setIsModalOpen(true)
-          },
-          variant: 'danger' as const
-        })
 
         return <ActionDropdown actions={dropActions} />
       }
@@ -198,13 +250,15 @@ export const FareRulesListPage: React.FC = () => {
         description="Review base tariffs, per-km/per-min charges, and operational scheduled waiting settings."
         onBack={() => navigate('/pricing-management')}
         actions={
-          <Button
-            onClick={() => navigate('/pricing-management/fare-rules/new')}
-            className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Fare Rule</span>
-          </Button>
+          canWrite ? (
+            <Button
+              onClick={() => navigate('/pricing-management/fare-rules/new')}
+              className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Fare Rule</span>
+            </Button>
+          ) : undefined
         }
       />
 
@@ -267,7 +321,7 @@ export const FareRulesListPage: React.FC = () => {
             </p>
             {actionType === 'activate' && (
               <p className="text-amber-600 font-bold bg-amber-50/50 p-2.5 rounded border border-amber-100">
-                Notice: Activating this will automatically turn off any other active rule for this vehicle category.
+                Notice: Activating this will automatically turn off any other active rule for the same vehicle, city, service type, and zone.
               </p>
             )}
           </div>

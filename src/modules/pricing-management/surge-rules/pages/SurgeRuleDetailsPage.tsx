@@ -7,10 +7,14 @@ import { Card, CardHeader, CardContent } from '@/shared/components/ui/Card'
 import { StatusBadge } from '@/shared/components/StatusBadge'
 import { Button } from '@/shared/components/ui/Button'
 import { Edit2, ArrowLeft, Clock, Shield, Zap, Car, Bike } from 'lucide-react'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 
 export const SurgeRuleDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'pricing:write')
 
   const { data: rule, isLoading, isError } = useSurgeRule(id || '')
 
@@ -51,13 +55,15 @@ export const SurgeRuleDetailsPage: React.FC = () => {
               <ArrowLeft className="h-4 w-4" />
               <span>Back to list</span>
             </Button>
-            <Button
-              onClick={() => navigate(`/pricing-management/surge-rules/${rule.id}/edit`)}
-              className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
-            >
-              <Edit2 className="h-4 w-4" />
-              <span>Edit Configuration</span>
-            </Button>
+            {canWrite && (
+              <Button
+                onClick={() => navigate(`/pricing-management/surge-rules/${rule.id}/edit`)}
+                className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
+              >
+                <Edit2 className="h-4 w-4" />
+                <span>Edit Configuration</span>
+              </Button>
+            )}
           </div>
         }
       />
@@ -88,6 +94,12 @@ export const SurgeRuleDetailsPage: React.FC = () => {
               </h4>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Surge Zone:</span>
+                  <span className="font-bold text-slate-800 dark:text-white">
+                    {rule.zoneName ?? '—'}{rule.cityCode ? ` (${rule.cityCode})` : ''}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
                   <span className="text-slate-500">Vehicle Category:</span>
                   <span className="uppercase font-bold text-slate-800 dark:text-white flex items-center gap-1">
                     {rule.vehicleType === 'bike' ? <Bike className="h-3.5 w-3.5 text-slate-450" /> : <Car className="h-3.5 w-3.5 text-slate-450" />}
@@ -117,6 +129,14 @@ export const SurgeRuleDetailsPage: React.FC = () => {
                   </strong>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-slate-500">Peak Hour Window:</span>
+                  <strong className="text-slate-800 dark:text-white font-mono">
+                    {rule.isPeakHourOnly && rule.peakHourStart && rule.peakHourEnd
+                      ? `${rule.peakHourStart} – ${rule.peakHourEnd}`
+                      : 'Not restricted'}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-slate-500">Effective Date Period:</span>
                   <strong className="text-slate-800 dark:text-white font-mono">
                     {rule.effectiveFrom} {rule.effectiveTo ? `to ${rule.effectiveTo}` : 'onwards'}
@@ -125,6 +145,29 @@ export const SurgeRuleDetailsPage: React.FC = () => {
               </div>
             </div>
 
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 border-t border-border">
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-bold text-slate-450 uppercase tracking-wider flex items-center gap-1.5 border-b pb-1.5">
+                <Zap className="h-3.5 w-3.5 text-rose-500" />
+                <span>Demand & Supply Triggers</span>
+              </h4>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Demand Threshold:</span>
+                  <strong className="text-slate-800 dark:text-white font-mono">
+                    {rule.demandThresholdPct != null ? `${rule.demandThresholdPct}%` : '—'}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Supply Threshold:</span>
+                  <strong className="text-slate-800 dark:text-white font-mono">
+                    {rule.supplyThresholdPct != null ? `${rule.supplyThresholdPct}%` : '—'}
+                  </strong>
+                </div>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

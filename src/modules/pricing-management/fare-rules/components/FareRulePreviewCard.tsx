@@ -7,8 +7,18 @@ interface FareRulePreviewCardProps {
   minimumFare: number
   perKmRate: number
   perMinuteRate: number
+  freeWaitingMinutes: number
+  waitingChargePerMinute: number
+  bookingFee: number
+  platformFeePct: number
+  taxRatePct: number
+  commissionRatePct: number
   nightEnabled: boolean
   nightChargePercentage: number
+}
+
+function money(value: number): number {
+  return Math.round(value * 100) / 100
 }
 
 export const FareRulePreviewCard: React.FC<FareRulePreviewCardProps> = ({
@@ -16,24 +26,39 @@ export const FareRulePreviewCard: React.FC<FareRulePreviewCardProps> = ({
   minimumFare,
   perKmRate,
   perMinuteRate,
+  freeWaitingMinutes,
+  waitingChargePerMinute,
+  bookingFee,
+  platformFeePct,
+  taxRatePct,
+  commissionRatePct,
   nightEnabled,
-  nightChargePercentage
+  nightChargePercentage,
 }) => {
   const [distance, setDistance] = useState<number>(5)
   const [duration, setDuration] = useState<number>(15)
+  const [waitingMinutes, setWaitingMinutes] = useState<number>(0)
   const [isNightTrip, setIsNightTrip] = useState<boolean>(false)
   const [surge, setSurge] = useState<number>(1.0)
 
-  // Calculations
-  const calculatedFare = baseFare + (distance * perKmRate) + (duration * perMinuteRate)
-  
-  const withNightSurcharge = nightEnabled && isNightTrip
-    ? calculatedFare * (1 + nightChargePercentage / 100)
-    : calculatedFare
+  const distanceFare = money(distance * perKmRate)
+  const timeFare = money(duration * perMinuteRate)
+  const billableWaiting = Math.max(0, waitingMinutes - freeWaitingMinutes)
+  const waitingCharge = money(billableWaiting * waitingChargePerMinute)
+  const rawSubtotal = baseFare + distanceFare + timeFare + waitingCharge + bookingFee
 
-  const finalFareBeforeMin = withNightSurcharge * surge
-  const finalFare = Math.max(finalFareBeforeMin, minimumFare * surge)
-  const isMinFareApplied = finalFareBeforeMin < (minimumFare * surge)
+  const nightMultiplier = nightEnabled && isNightTrip ? 1 + nightChargePercentage / 100 : 1
+  const nightAdjustment = money(rawSubtotal * (nightMultiplier - 1))
+  const subtotalBeforeSurge = money(rawSubtotal + nightAdjustment)
+  const surgeAmount = money(subtotalBeforeSurge * (surge - 1))
+  const subtotal = money(subtotalBeforeSurge + surgeAmount)
+  const taxAmount = money(subtotal * (taxRatePct / 100))
+  const platformFee = money(subtotal * (platformFeePct / 100))
+  const totalBeforeMin = money(subtotal + taxAmount + platformFee)
+  const totalFare = Math.max(totalBeforeMin, minimumFare * surge)
+  const platformCommission = money(totalFare * (commissionRatePct / 100))
+  const driverEarning = money(totalFare - platformCommission)
+  const isMinFareApplied = totalBeforeMin < minimumFare * surge
 
   return (
     <Card className="premium-card text-left border border-slate-200 dark:border-slate-800 shadow-lg">
@@ -52,10 +77,8 @@ export const FareRulePreviewCard: React.FC<FareRulePreviewCardProps> = ({
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent className="p-5 space-y-4 text-xs">
-        
-        {/* Simulator controls */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Distance (KM)</label>
@@ -68,7 +91,6 @@ export const FareRulePreviewCard: React.FC<FareRulePreviewCardProps> = ({
               className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
             />
           </div>
-
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Duration (Mins)</label>
             <input
@@ -80,78 +102,79 @@ export const FareRulePreviewCard: React.FC<FareRulePreviewCardProps> = ({
               className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
             />
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Waiting (Mins)</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={waitingMinutes}
+              onChange={(e) => setWaitingMinutes(parseInt(e.target.value) || 0)}
+              className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+            />
+          </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Surge Multiplier</label>
             <input
               type="number"
-              min="1.0"
-              max="5.0"
+              min="1"
+              max="3"
               step="0.1"
               value={surge}
-              onChange={(e) => setSurge(parseFloat(e.target.value) || 1.0)}
+              onChange={(e) => setSurge(parseFloat(e.target.value) || 1)}
               className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
             />
           </div>
-
-          <div className="flex flex-col justify-end space-y-1.5 pb-0.5 text-left">
-            <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Night Pricing</span>
-            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={isNightTrip}
-                disabled={!nightEnabled}
-                onChange={(e) => setIsNightTrip(e.target.checked)}
-                className="rounded border-border text-primary focus:ring-primary h-4 w-4 bg-slate-50 dark:bg-slate-950 cursor-pointer"
-              />
-              <span className="text-xs text-slate-650 font-medium">Night trip hours</span>
-            </label>
-          </div>
         </div>
 
-        {/* Estimate Output display */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-border mt-3 text-center space-y-3">
-          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Estimated Ride Fare</span>
-          <p className="text-3xl font-black text-slate-800 dark:text-white">
-            ₹{finalFare.toFixed(2)}
-          </p>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isNightTrip}
+            onChange={(e) => setIsNightTrip(e.target.checked)}
+            disabled={!nightEnabled}
+            className="rounded border-border text-primary focus:ring-primary"
+          />
+          <span className="text-[10px] font-semibold text-slate-650 uppercase tracking-wider">Simulate Night Trip</span>
+        </label>
 
-          <div className="border-t border-border pt-3 space-y-1.5 text-[10px] text-slate-550 dark:text-slate-400 text-left font-medium">
-            <div className="flex justify-between">
-              <span>Base Tariff:</span>
-              <span>₹{baseFare.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Distance Charge ({distance} km × ₹{perKmRate}):</span>
-              <span>₹{(distance * perKmRate).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Duration Charge ({duration} mins × ₹{perMinuteRate}):</span>
-              <span>₹{(duration * perMinuteRate).toFixed(2)}</span>
-            </div>
-            {nightEnabled && isNightTrip && (
-              <div className="flex justify-between text-amber-600 dark:text-amber-400 font-semibold">
-                <span>Night Surcharge (+{nightChargePercentage}%):</span>
-                <span>+₹{(calculatedFare * (nightChargePercentage / 100)).toFixed(2)}</span>
-              </div>
-            )}
-            {surge > 1.0 && (
-              <div className="flex justify-between text-rose-600 dark:text-rose-400 font-semibold">
-                <span>Surge Multiplier ({surge}x):</span>
-                <span>+₹{(finalFare - (finalFare / surge)).toFixed(2)}</span>
-              </div>
-            )}
-            {isMinFareApplied && (
-              <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/50 dark:bg-blue-950/20 p-1.5 rounded mt-2 border border-blue-100/30">
-                <Info className="h-3.5 w-3.5 flex-shrink-0" />
-                <span>Base + km + duration estimate falls below Minimum Fare: ₹{(minimumFare * surge).toFixed(2)} applied.</span>
-              </div>
-            )}
+        <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 space-y-2 border border-border">
+          <div className="flex justify-between"><span>Base Fare</span><span className="font-bold">₹{baseFare.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>Distance ({distance} km)</span><span className="font-bold">₹{distanceFare.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>Time ({duration} min)</span><span className="font-bold">₹{timeFare.toFixed(2)}</span></div>
+          {waitingCharge > 0 && (
+            <div className="flex justify-between"><span>Waiting ({billableWaiting} min billable)</span><span className="font-bold">₹{waitingCharge.toFixed(2)}</span></div>
+          )}
+          {bookingFee > 0 && (
+            <div className="flex justify-between"><span>Booking Fee</span><span className="font-bold">₹{bookingFee.toFixed(2)}</span></div>
+          )}
+          {nightAdjustment > 0 && (
+            <div className="flex justify-between text-amber-600"><span>Night Surcharge</span><span className="font-bold">+₹{nightAdjustment.toFixed(2)}</span></div>
+          )}
+          {surgeAmount > 0 && (
+            <div className="flex justify-between text-rose-600"><span>Surge ({surge}x)</span><span className="font-bold">+₹{surgeAmount.toFixed(2)}</span></div>
+          )}
+          <div className="flex justify-between border-t border-border pt-2"><span>Subtotal</span><span className="font-bold">₹{subtotal.toFixed(2)}</span></div>
+          {taxAmount > 0 && (
+            <div className="flex justify-between"><span>Tax ({taxRatePct}%)</span><span className="font-bold">₹{taxAmount.toFixed(2)}</span></div>
+          )}
+          {platformFee > 0 && (
+            <div className="flex justify-between"><span>Platform Fee ({platformFeePct}%)</span><span className="font-bold">₹{platformFee.toFixed(2)}</span></div>
+          )}
+          <div className="flex justify-between text-base font-black text-primary border-t border-border pt-2 mt-1">
+            <span>Total Fare</span>
+            <span>₹{totalFare.toFixed(2)}</span>
+          </div>
+          {isMinFareApplied && (
+            <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+              <Info className="h-3 w-3" /> Minimum fare ₹{(minimumFare * surge).toFixed(2)} applied
+            </p>
+          )}
+          <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
+            <span>Driver earning ({commissionRatePct}% commission)</span>
+            <span className="font-semibold">₹{driverEarning.toFixed(2)}</span>
           </div>
         </div>
-
       </CardContent>
     </Card>
   )

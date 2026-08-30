@@ -4,6 +4,7 @@ import { Bell, ChevronDown, Globe, LogOut, Sun, Moon, Menu } from "lucide-react"
 import { useAuthStore } from "@/store/auth.store";
 import { useThemeStore } from "@/store/theme.store";
 import { useAppStore } from "@/store/app.store";
+import { AuthService } from "@/modules/auth/services";
 import { Breadcrumbs } from "./Breadcrumbs";
 
 export const Header: React.FC = () => {
@@ -26,10 +27,15 @@ export const Header: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
-    clearCredentials();
-    navigate("/login");
-  };
+  const handleLogout = async () => {
+    try {
+      await AuthService.logout()
+    } catch {
+      // Session may already be gone; still clear local credentials.
+    }
+    clearCredentials()
+    navigate("/login")
+  }
 
   return (
     <header className="h-16 w-full flex items-center justify-between px-6 bg-surface border-b border-border sticky top-0 z-20 backdrop-blur-sm bg-surface/95">

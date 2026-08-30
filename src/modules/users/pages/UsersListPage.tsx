@@ -49,14 +49,8 @@ export const UsersListPage: React.FC = () => {
     }
   }
 
-  // Placeholder data to prevent empty view in demo reviews
-  const demoUsers: UserEntity[] = [
-    { id: '1', name: 'Alok Sharma', email: 'alok.sharma@zaroorat.in', phone: '9876543210', role: 'admin', status: 'active', createdAt: '', updatedAt: '' },
-    { id: '2', name: 'Nisha Patil', email: 'nisha.patil@zaroorat.in', phone: '9876543211', role: 'support', status: 'active', createdAt: '', updatedAt: '' },
-    { id: '3', name: 'Vikram Singh', email: 'vikram.singh@zaroorat.in', phone: '9876543212', role: 'dispatcher', status: 'inactive', createdAt: '', updatedAt: '' },
-  ]
-
-  const activeData = data?.data ?? (isLoading ? [] : demoUsers)
+  // Live staff accounts from GET /admin/users
+  const activeData = data?.data ?? []
 
   // Metrics summary calculations
   const totalUsers = activeData.length
@@ -68,7 +62,7 @@ export const UsersListPage: React.FC = () => {
       {/* Dynamic breadcrumbs with actions */}
       <PageHeader
         title="Administrative Users"
-        description="Configure admin panel users, operators, dispatchers, and access privileges."
+        description="Configure admin panel users, operators, and staff access privileges."
         actions={
           <Button onClick={() => navigate('/users/new')} className="gap-2 text-xs font-semibold h-9 rounded-lg">
             <Plus className="h-4 w-4" />
@@ -114,7 +108,7 @@ export const UsersListPage: React.FC = () => {
           statusKey="status"
           actionConfig={{
             onView: (row) => navigate(`/users/${row.id}`),
-            onEdit: (row) => navigate(`/users/${row.id}`),
+            onEdit: (row) => navigate(`/users/${row.id}/edit`),
             onDelete: (row) => setDeleteId(row.id)
           }}
           isLoading={isLoading}

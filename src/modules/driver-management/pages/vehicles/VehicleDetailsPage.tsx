@@ -1,18 +1,25 @@
 import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useVehicle } from '../../hooks'
+import { useVehicle, useFlagVehicleForRenewal } from '../../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
 import { ExpiryIndicator } from '../../components/ExpiryIndicator'
+import { FileImage } from '@/shared/components/FileImage'
+import { useToast } from '@/shared/context/toast'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 import { User, AlertTriangle } from 'lucide-react'
-import { logAuditAction } from '@/shared/services/auditLogger'
 
 export const VehicleDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { data: detail, isLoading, isError } = useVehicle(id || '')
+  const { success: showSuccess, error: showError } = useToast()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'vehicles:write')
+  const { data: detail, isLoading, isError, refetch } = useVehicle(id || '')
+  const { mutate: flagRenewal, isPending: isFlagging } = useFlagVehicleForRenewal()
 
   if (isLoading) {
     return (
@@ -30,7 +37,7 @@ export const VehicleDetailsPage: React.FC = () => {
         <div className="flex flex-col items-center justify-center p-12 space-y-4">
           <AlertTriangle className="h-12 w-12 text-slate-400" />
           <h3 className="text-base font-bold text-text-primary">Vehicle Profile Not Found</h3>
-          <Button onClick={() => navigate('/driver-management/vehicles')}>Back to List</Button>
+          <Button onClick={() => navigate('/vehicle-management/vehicles')}>Back to List</Button>
         </div>
       </PageWrapper>
     )
@@ -43,23 +50,37 @@ export const VehicleDetailsPage: React.FC = () => {
       <PageHeader
         title={`Vehicle Profile: ${vehicle.registrationPlate}`}
         description="Verify fleet partner registered vehicle, policy certifications and associated operator details."
-        onBack={() => navigate('/driver-management/vehicles')}
+        onBack={() => navigate('/vehicle-management/vehicles')}
         actions={
-          <Button
-            variant="outline"
-            className="text-xs font-semibold h-9 rounded-lg border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/20"
-            onClick={() => {
-              logAuditAction(
-                'Vehicle Flagged for Renewal',
-                `Vehicle plate: ${vehicle.registrationPlate}. Flagged commercial certifications for audit renewal.`,
-                vehicle.id,
-                'vehicle'
-              )
-              alert('Vehicle documents successfully flagged for operational renewal. Driver partner will receive a system alert.')
-            }}
-          >
-            Flag for Renewal
-          </Button>
+          canWrite ? (
+            <Button
+              variant="outline"
+              className="text-xs font-semibold h-9 rounded-lg border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/20"
+              loading={isFlagging}
+              onClick={() => {
+                flagRenewal(
+                  { id: vehicle.id, notes: 'Flagged commercial certifications for audit renewal.' },
+                  {
+                    onSuccess: () => {
+                      showSuccess(
+                        'Flagged for renewal',
+                        'Vehicle documents were reset to pending and logged for re-verification.',
+                      )
+                      void refetch()
+                    },
+                    onError: (err: unknown) => {
+                      showError(
+                        'Could not flag vehicle',
+                        err instanceof Error ? err.message : 'Request failed',
+                      )
+                    },
+                  },
+                )
+              }}
+            >
+              Flag for Renewal
+            </Button>
+          ) : undefined
         }
       />
 
@@ -114,11 +135,12 @@ export const VehicleDetailsPage: React.FC = () => {
             </CardHeader>
             <CardContent className="p-5 flex gap-4 items-center">
               <div className="h-14 w-14 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-border flex items-center justify-center flex-shrink-0">
-                {driver.profilePhotoUrl ? (
-                  <img src={driver.profilePhotoUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <User className="h-6 w-6 text-slate-350" />
-                )}
+                <FileImage
+                  src={driver.profilePhotoUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  fallback={<User className="h-6 w-6 text-slate-350" />}
+                />
               </div>
               <div className="space-y-1 truncate">
                 <h4

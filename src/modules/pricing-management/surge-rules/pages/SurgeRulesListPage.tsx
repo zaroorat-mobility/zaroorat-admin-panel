@@ -13,6 +13,8 @@ import { StatusBadge } from '@/shared/components/StatusBadge'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
 import { Button } from '@/shared/components/ui/Button'
 import { ActionDropdown, type DropdownAction } from '@/modules/driver-management/components/ActionDropdown'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 import {
   Plus,
   Car,
@@ -29,6 +31,8 @@ import type { SurgeRule } from '../types'
 
 export const SurgeRulesListPage: React.FC = () => {
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'pricing:write')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Modal triggers
@@ -93,12 +97,44 @@ export const SurgeRulesListPage: React.FC = () => {
       )
     },
     {
+      key: 'zoneName',
+      label: 'Surge Zone',
+      align: 'left',
+      render: (val: string | undefined) => (
+        <span className="text-[10px] font-medium text-slate-500">{val ?? '—'}</span>
+      )
+    },
+    {
       key: 'multiplier',
       label: 'Multiplier',
       align: 'center',
       render: (val?: number) => (
         <span className="px-2.5 py-0.5 rounded font-black text-xs border bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-950/20 dark:text-rose-450 animate-pulse">
           {val !== undefined && typeof val === 'number' ? `${val.toFixed(1)}x` : '—'}
+        </span>
+      )
+    },
+    {
+      key: 'demandThresholdPct',
+      label: 'Thresholds',
+      align: 'center',
+      render: (_, row) => (
+        <span className="text-[10px] text-slate-500 font-mono">
+          {row.demandThresholdPct != null || row.supplyThresholdPct != null
+            ? `D:${row.demandThresholdPct ?? '—'}% S:${row.supplyThresholdPct ?? '—'}%`
+            : '—'}
+        </span>
+      )
+    },
+    {
+      key: 'isPeakHourOnly',
+      label: 'Peak Hours',
+      align: 'center',
+      render: (_, row) => (
+        <span className="text-[10px] text-slate-500 font-mono">
+          {row.isPeakHourOnly && row.peakHourStart && row.peakHourEnd
+            ? `${row.peakHourStart}–${row.peakHourEnd}`
+            : '—'}
         </span>
       )
     },
@@ -141,45 +177,48 @@ export const SurgeRulesListPage: React.FC = () => {
             icon: <Eye className="h-3.5 w-3.5" />,
             onClick: () => navigate(`/pricing-management/surge-rules/${row.id}`)
           },
-          {
+        ]
+
+        if (canWrite) {
+          dropActions.push({
             label: 'Edit Configuration',
             icon: <Edit2 className="h-3.5 w-3.5" />,
             onClick: () => navigate(`/pricing-management/surge-rules/${row.id}/edit`)
-          }
-        ]
-
-        if (row.status === 'inactive') {
-          dropActions.push({
-            label: 'Activate Rule',
-            icon: <ToggleRight className="h-3.5 w-3.5" />,
-            onClick: () => {
-              setActionRule(row)
-              setActionType('activate')
-              setIsModalOpen(true)
-            }
           })
-        } else {
+
+          if (row.status === 'inactive') {
+            dropActions.push({
+              label: 'Activate Rule',
+              icon: <ToggleRight className="h-3.5 w-3.5" />,
+              onClick: () => {
+                setActionRule(row)
+                setActionType('activate')
+                setIsModalOpen(true)
+              }
+            })
+          } else {
+            dropActions.push({
+              label: 'Deactivate Rule',
+              icon: <ToggleLeft className="h-3.5 w-3.5" />,
+              onClick: () => {
+                setActionRule(row)
+                setActionType('deactivate')
+                setIsModalOpen(true)
+              }
+            })
+          }
+
           dropActions.push({
-            label: 'Deactivate Rule',
-            icon: <ToggleLeft className="h-3.5 w-3.5" />,
+            label: 'Delete Rule',
+            icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
             onClick: () => {
               setActionRule(row)
-              setActionType('deactivate')
+              setActionType('delete')
               setIsModalOpen(true)
-            }
+            },
+            variant: 'danger' as const
           })
         }
-
-        dropActions.push({
-          label: 'Delete Rule',
-          icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
-          onClick: () => {
-            setActionRule(row)
-            setActionType('delete')
-            setIsModalOpen(true)
-          },
-          variant: 'danger' as const
-        })
 
         return <ActionDropdown actions={dropActions} />
       }
@@ -193,13 +232,15 @@ export const SurgeRulesListPage: React.FC = () => {
         description="Enable/disable real-time surge parameters, multiplier boundaries, and active surge levels."
         onBack={() => navigate('/pricing-management')}
         actions={
-          <Button
-            onClick={() => navigate('/pricing-management/surge-rules/new')}
-            className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Surge Rule</span>
-          </Button>
+          canWrite ? (
+            <Button
+              onClick={() => navigate('/pricing-management/surge-rules/new')}
+              className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Surge Rule</span>
+            </Button>
+          ) : undefined
         }
       />
 

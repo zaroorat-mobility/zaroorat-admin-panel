@@ -13,6 +13,8 @@ import { StatusBadge } from '@/shared/components/StatusBadge'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
 import { Button } from '@/shared/components/ui/Button'
 import { ActionDropdown, type DropdownAction } from '@/modules/driver-management/components/ActionDropdown'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 import {
   Plus,
   Edit2,
@@ -26,6 +28,8 @@ import type { CancellationRule } from '../types'
 
 export const CancellationRulesListPage: React.FC = () => {
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'pricing:write')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Modal triggers
@@ -136,45 +140,48 @@ export const CancellationRulesListPage: React.FC = () => {
             icon: <Eye className="h-3.5 w-3.5" />,
             onClick: () => navigate(`/pricing-management/cancellation-rules/${row.id}`)
           },
-          {
+        ]
+
+        if (canWrite) {
+          dropActions.push({
             label: 'Edit Configuration',
             icon: <Edit2 className="h-3.5 w-3.5" />,
             onClick: () => navigate(`/pricing-management/cancellation-rules/${row.id}/edit`)
-          }
-        ]
-
-        if (row.status === 'inactive') {
-          dropActions.push({
-            label: 'Activate Rule',
-            icon: <ToggleRight className="h-3.5 w-3.5" />,
-            onClick: () => {
-              setActionRule(row)
-              setActionType('activate')
-              setIsModalOpen(true)
-            }
           })
-        } else {
+
+          if (row.status === 'inactive') {
+            dropActions.push({
+              label: 'Activate Rule',
+              icon: <ToggleRight className="h-3.5 w-3.5" />,
+              onClick: () => {
+                setActionRule(row)
+                setActionType('activate')
+                setIsModalOpen(true)
+              }
+            })
+          } else {
+            dropActions.push({
+              label: 'Deactivate Rule',
+              icon: <ToggleLeft className="h-3.5 w-3.5" />,
+              onClick: () => {
+                setActionRule(row)
+                setActionType('deactivate')
+                setIsModalOpen(true)
+              }
+            })
+          }
+
           dropActions.push({
-            label: 'Deactivate Rule',
-            icon: <ToggleLeft className="h-3.5 w-3.5" />,
+            label: 'Delete Rule',
+            icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
             onClick: () => {
               setActionRule(row)
-              setActionType('deactivate')
+              setActionType('delete')
               setIsModalOpen(true)
-            }
+            },
+            variant: 'danger' as const
           })
         }
-
-        dropActions.push({
-          label: 'Delete Rule',
-          icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
-          onClick: () => {
-            setActionRule(row)
-            setActionType('delete')
-            setIsModalOpen(true)
-          },
-          variant: 'danger' as const
-        })
 
         return <ActionDropdown actions={dropActions} />
       }
@@ -188,13 +195,15 @@ export const CancellationRulesListPage: React.FC = () => {
         description="Configure penalty rules and passenger wallet deductions for order cancellations."
         onBack={() => navigate('/pricing-management')}
         actions={
-          <Button
-            onClick={() => navigate('/pricing-management/cancellation-rules/new')}
-            className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Penalty Rule</span>
-          </Button>
+          canWrite ? (
+            <Button
+              onClick={() => navigate('/pricing-management/cancellation-rules/new')}
+              className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary/95 text-white"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Penalty Rule</span>
+            </Button>
+          ) : undefined
         }
       />
 

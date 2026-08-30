@@ -90,7 +90,7 @@ export const AuditLogPage: React.FC = () => {
           } else if (row.entityType === 'rider') {
             navigate(`/riders/${val}`)
           } else if (row.entityType === 'vehicle') {
-            navigate(`/driver-management/vehicles`)
+            navigate(`/vehicle-management/vehicles`)
           }
         }
 

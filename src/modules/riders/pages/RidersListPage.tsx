@@ -4,7 +4,7 @@ import {
   useRiders,
   useSuspendRider,
   useBlockRider,
-  useActivateRider
+  useActivateRider,
 } from '../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -13,6 +13,9 @@ import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { StatusBadge } from '@/shared/components/StatusBadge'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
 import { ActionDropdown } from '@/modules/driver-management/components/ActionDropdown'
+import { useToast } from '@/shared/context/toast'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 import {
   Users,
   UserCheck,
@@ -21,35 +24,34 @@ import {
   Eye,
   AlertTriangle,
   Ban,
-  ShieldCheck
+  ShieldCheck,
 } from 'lucide-react'
 import type { RiderEntity } from '../types'
 
 export const RidersListPage: React.FC = () => {
   const navigate = useNavigate()
+  const { success: showSuccess, error: showError } = useToast()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'riders:write')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  // Modal triggers
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [actionRider, setActionRider] = useState<RiderEntity | null>(null)
   const [actionType, setActionType] = useState<'suspend' | 'block' | 'activate' | null>(null)
   const [actionNotes, setActionNotes] = useState('')
 
-  // React Query Queries & Mutations
-  const { data, isLoading, isError, refetch } = useRiders()
+  const { data, isLoading, isError, refetch } = useRiders({ limit: 100 })
 
   const { mutate: suspendRider, isPending: isSuspending } = useSuspendRider()
   const { mutate: blockRider, isPending: isBlocking } = useBlockRider()
   const { mutate: activateRider, isPending: isActivating } = useActivateRider()
 
   const riders = data?.data || []
-  const activeData = riders
 
-  // Funnel calculations
-  const totalRiders = activeData.length
-  const activeCount = activeData.filter(r => r.riderStatus === 'active').length
-  const suspendedCount = activeData.filter(r => r.riderStatus === 'suspended').length
-  const blockedCount = activeData.filter(r => r.riderStatus === 'blocked').length
+  const totalRiders = data?.meta.totalCount ?? riders.length
+  const activeCount = riders.filter((r) => r.riderStatus === 'active').length
+  const suspendedCount = riders.filter((r) => r.riderStatus === 'suspended').length
+  const blockedCount = riders.filter((r) => r.riderStatus === 'blocked').length
 
   const handleConfirmAction = () => {
     if (!actionRider || !actionType) return
@@ -57,18 +59,31 @@ export const RidersListPage: React.FC = () => {
     const actionMap = {
       suspend: suspendRider,
       block: blockRider,
-      activate: activateRider
+      activate: activateRider,
     }
 
-    actionMap[actionType]({ id: actionRider.id, notes: actionNotes }, {
-      onSuccess: () => {
-        setIsModalOpen(false)
-        setActionNotes('')
-        setActionRider(null)
-        setActionType(null)
-        refetch()
-      }
-    })
+    actionMap[actionType](
+      { id: actionRider.id, notes: actionNotes || undefined },
+      {
+        onSuccess: () => {
+          showSuccess(
+            'Rider updated',
+            `Account marked as ${actionType === 'activate' ? 'active' : actionType}.`,
+          )
+          setIsModalOpen(false)
+          setActionNotes('')
+          setActionRider(null)
+          setActionType(null)
+          void refetch()
+        },
+        onError: (err) => {
+          showError(
+            'Could not update rider',
+            err instanceof Error ? err.message : 'Request failed',
+          )
+        },
+      },
+    )
   }
 
   const columns: DataTableColumn<RiderEntity>[] = [
@@ -76,7 +91,9 @@ export const RidersListPage: React.FC = () => {
       key: 'riderId',
       label: 'Rider ID',
       align: 'center',
-      render: (val: string) => <span className="font-mono font-bold text-slate-850 dark:text-slate-200">{val}</span>
+      render: (val: string) => (
+        <span className="font-mono font-bold text-slate-850 dark:text-slate-200">{val}</span>
+      ),
     },
     {
       key: 'fullName',
@@ -87,25 +104,29 @@ export const RidersListPage: React.FC = () => {
           <span className="font-bold text-slate-700 dark:text-slate-350">{val}</span>
           {row.email && <span className="text-[10px] text-muted-foreground">{row.email}</span>}
         </div>
-      )
+      ),
     },
     {
       key: 'mobileNumber',
       label: 'Mobile No',
       align: 'center',
-      render: (val: string) => <span className="font-semibold text-slate-650 dark:text-slate-400">{val}</span>
+      render: (val: string) => (
+        <span className="font-semibold text-slate-650 dark:text-slate-400">{val}</span>
+      ),
     },
     {
       key: 'joinedAt',
       label: 'Registration Date',
       align: 'center',
-      render: (val: string) => <span>{new Date(val).toLocaleDateString('en-IN')}</span>
+      render: (val: string) => <span>{new Date(val).toLocaleDateString('en-IN')}</span>,
     },
     {
       key: 'totalRides',
       label: 'Total Trips',
       align: 'center',
-      render: (val: number) => <span className="font-bold text-slate-800 dark:text-slate-200">{val}</span>
+      render: (val: number) => (
+        <span className="font-bold text-slate-800 dark:text-slate-200">{val}</span>
+      ),
     },
     {
       key: 'walletBalance',
@@ -113,15 +134,15 @@ export const RidersListPage: React.FC = () => {
       align: 'right',
       render: (val: number) => (
         <span className={val >= 0 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
-          ₹{val.toFixed(2)}
+          ₹{Number(val).toFixed(2)}
         </span>
-      )
+      ),
     },
     {
       key: 'riderStatus',
       label: 'Status',
       align: 'center',
-      render: (val: string) => <StatusBadge status={val} />
+      render: (val: string) => <StatusBadge status={val} />,
     },
     {
       key: 'actions',
@@ -132,11 +153,11 @@ export const RidersListPage: React.FC = () => {
           {
             label: 'View Profile',
             icon: <Eye className="h-3.5 w-3.5" />,
-            onClick: () => navigate(`/riders/${row.id}`)
-          }
+            onClick: () => navigate(`/riders/${row.id}`),
+          },
         ]
 
-        if (row.riderStatus === 'active') {
+        if (canWrite && row.riderStatus === 'active') {
           dropActions.push(
             {
               label: 'Suspend Account',
@@ -145,7 +166,7 @@ export const RidersListPage: React.FC = () => {
                 setActionRider(row)
                 setActionType('suspend')
                 setIsModalOpen(true)
-              }
+              },
             },
             {
               label: 'Block Account',
@@ -154,10 +175,10 @@ export const RidersListPage: React.FC = () => {
                 setActionRider(row)
                 setActionType('block')
                 setIsModalOpen(true)
-              }
-            }
+              },
+            },
           )
-        } else {
+        } else if (canWrite) {
           dropActions.push({
             label: 'Reactivate Account',
             icon: <ShieldCheck className="h-3.5 w-3.5" />,
@@ -165,13 +186,13 @@ export const RidersListPage: React.FC = () => {
               setActionRider(row)
               setActionType('activate')
               setIsModalOpen(true)
-            }
+            },
           })
         }
 
         return <ActionDropdown actions={dropActions} />
-      }
-    }
+      },
+    },
   ]
 
   return (
@@ -214,7 +235,7 @@ export const RidersListPage: React.FC = () => {
         </InfoCardGrid>
 
         <DataTable
-          data={activeData}
+          data={riders}
           columns={columns}
           isLoading={isLoading}
           isError={isError}
@@ -240,7 +261,8 @@ export const RidersListPage: React.FC = () => {
         description={
           <div className="space-y-4 w-full">
             <p className="text-xs text-muted-foreground">
-              Are you sure you want to perform this operational status change on <strong>{actionRider?.fullName}</strong>?
+              Are you sure you want to perform this operational status change on{' '}
+              <strong>{actionRider?.fullName}</strong>?
             </p>
             <textarea
               value={actionNotes}

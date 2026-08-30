@@ -1,10 +1,20 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Button } from '@/shared/components/ui/Button'
 import { DataTable } from '@/shared/components/DataTable'
 import { Card, CardContent } from '@/shared/components/ui/Card'
 import { Download, Eye, Calendar, User, Search, Plus, Trash2, CheckCircle2, X, FileText, Printer, Upload, AlertTriangle, Clock, History, Lock, RotateCcw } from 'lucide-react'
+import {
+  useInvoices,
+  useInvoiceTemplates,
+  useCreateInvoiceTemplate,
+  useDeleteInvoiceTemplate,
+  useSetDefaultInvoiceTemplate,
+} from '../hooks'
+import { buildPreviewContext, substitutePreview } from '../api'
+import type { BillingInvoice, InvoiceTemplate } from '../types'
 
 // ─── CR-03: Uploaded Compliance Template types ─────────────────────────────────
 
@@ -37,16 +47,9 @@ const SUPPORTED_PLACEHOLDERS = new Set([
   'company_gstin', 'company_address',
 ])
 
-const SAMPLE_DATA: Record<string, string> = {
-  invoice_number: 'INV-2026-001', invoice_date: '2026-07-24',
-  customer_name: 'Shreya Iyer', customer_contact: '9876543210',
-  driver_name: 'Rajesh Kumar', driver_id: 'DRV-102',
-  trip_id: 'TRIP-9812', booking_id: 'R-9812',
-  fare_breakdown: '₹332.86 (base) + ₹17.14 (GST)', total_amount: '₹350.00', amount_in_words: 'Three Hundred Fifty Rupees Only',
-  commission_amount: '₹24.50',
-  subscription_plan: 'Monthly Plan', subscription_amount: '₹1,999',
-  tax_breakdown: 'CGST: ₹8.57 | SGST: ₹8.57 | IGST: ₹0.00',
-  company_gstin: '29AAAAA1111A1Z1', company_address: '102, MG Road, Bengaluru - 560001',
+const validatePlaceholders = (content: string): string[] => {
+  const found = [...content.matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1])
+  return found.filter(p => !SUPPORTED_PLACEHOLDERS.has(p))
 }
 
 const TEMPLATE_TYPE_LABELS: Record<UploadedTemplateType, string> = {
@@ -57,48 +60,32 @@ const TEMPLATE_TYPE_LABELS: Record<UploadedTemplateType, string> = {
   credit_note: 'Credit Note',
 }
 
-const validatePlaceholders = (content: string): string[] => {
-  const found = [...content.matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1])
-  return found.filter(p => !SUPPORTED_PLACEHOLDERS.has(p))
-}
-
-const substitutePreview = (content: string): string =>
-  content.replace(/\{\{(\w+)\}\}/g, (_, key) => SAMPLE_DATA[key] ?? `{{${key}}}`)
-
-interface Invoice {
-  id: string
-  bookingId: string
-  recipientName: string
-  recipientType: 'rider' | 'driver'
-  date: string
-  amount: number
-  status: 'generated' | 'pending'
-  hsnCode: string
-  fromRoute: string
-  toRoute: string
-}
-
-interface InvoiceTemplate {
-  id: string
-  name: string
-  headerLogoText: string
-  address: string
-  gstin: string
-  footerTerms: string
-  cgstRate: number
-  sgstRate: number
-  igstRate: number
-  appliesTo: 'ride' | 'school' | 'services'
-  isDefault: boolean
-}
-
 export const InvoiceGenerationPage: React.FC = () => {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'invoices' | 'templates'>('invoices')
   const [filterType, setFilterType] = useState<'all' | 'rider' | 'driver'>('all')
   const [searchQuery, setSearchQuery] = useState('')
+
+  const { data: invoiceData, isLoading: invoicesLoading, isError: invoicesError } = useInvoices({
+    recipientType: filterType,
+    search: searchQuery || undefined,
+  })
+  const { data: templates = [], isLoading: templatesLoading, refetch: refetchTemplates } = useInvoiceTemplates()
+  const { mutate: createTemplate, isPending: isCreatingTemplate } = useCreateInvoiceTemplate()
+  const { mutate: deleteTemplate } = useDeleteInvoiceTemplate()
+  const { mutate: setDefaultTemplate } = useSetDefaultInvoiceTemplate()
+
+  const invoices = invoiceData?.data ?? []
+  const previewContextInvoice = useMemo(() => invoices[0] ?? null, [invoices])
+  const defaultTemplate = templates.find((t) => t.isDefault) ?? templates[0]
+
+  const previewContext = useMemo(() => {
+    if (!previewContextInvoice || !defaultTemplate) return {}
+    return buildPreviewContext(previewContextInvoice, defaultTemplate)
+  }, [previewContextInvoice, defaultTemplate])
   
   // Modals state
-  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null)
+  const [previewInvoice, setPreviewInvoice] = useState<BillingInvoice | null>(null)
   const [showAddTemplateModal, setShowAddTemplateModal] = useState(false)
 
   // ── CR-03: Upload Template state ──────────────────────────────────────────
@@ -154,37 +141,6 @@ export const InvoiceGenerationPage: React.FC = () => {
 
   const versionHistoryList = uploadedTemplates.filter(t => t.type === versionHistoryType)
 
-  // Invoice Templates state
-  const [templates, setTemplates] = useState<InvoiceTemplate[]>([
-    {
-      id: 'TMP-001',
-      name: 'Standard Ride Invoice Template',
-      headerLogoText: 'ZAROORAT MOBILITY PVT LTD',
-      address: '102, 1st Floor, Start-up Hangar, MG Road, Bengaluru - 560001',
-      gstin: '29AAAAA1111A1Z1',
-      footerTerms: 'This is a computer generated invoice. No signature is required. Tax is calculated under reverse charge guidelines if applicable.',
-      cgstRate: 2.5,
-      sgstRate: 2.5,
-      igstRate: 0.0,
-      appliesTo: 'ride',
-      isDefault: true
-    },
-    {
-      id: 'TMP-002',
-      name: 'School Mode Reusable Receipt',
-      headerLogoText: 'ZAROORAT SCHOOL MOBILITY SERVICES',
-      address: '44, Outer Ring Road, HSR Layout, Bengaluru - 560102',
-      gstin: '29BBBBB2222B2Z2',
-      footerTerms: 'Applicable for school transportation billing cycles. Standard CGST and SGST rates apply as per service notifications.',
-      cgstRate: 2.5,
-      sgstRate: 2.5,
-      igstRate: 0.0,
-      appliesTo: 'school',
-      isDefault: false
-    }
-  ])
-
-  // New template form state
   const [newTemplate, setNewTemplate] = useState<Omit<InvoiceTemplate, 'id'>>({
     name: '',
     headerLogoText: 'ZAROORAT MOBILITY',
@@ -198,63 +154,62 @@ export const InvoiceGenerationPage: React.FC = () => {
     isDefault: false
   })
 
-  const invoices: Invoice[] = [
-    { id: 'INV-2026-001', bookingId: 'R-9812', recipientName: 'Shreya Iyer', recipientType: 'rider', date: '2026-07-24', amount: 350.00, status: 'generated', hsnCode: '9964', fromRoute: 'Indiranagar', toRoute: 'MG Road' },
-    { id: 'INV-2026-002', bookingId: 'R-9812', recipientName: 'Rajesh Kumar', recipientType: 'driver', date: '2026-07-24', amount: 24.50, status: 'generated', hsnCode: '9964', fromRoute: 'Indiranagar', toRoute: 'MG Road' },
-    { id: 'INV-2026-003', bookingId: 'R-9811', recipientName: 'Alok Singh', recipientType: 'rider', date: '2026-07-24', amount: 120.00, status: 'generated', hsnCode: '9964', fromRoute: 'Koramangala', toRoute: 'HSR Layout' },
-    { id: 'INV-2026-004', bookingId: 'R-9810', recipientName: 'Devendra Pal', recipientType: 'rider', date: '2026-07-23', amount: 210.00, status: 'pending', hsnCode: '9964', fromRoute: 'Whitefield', toRoute: 'Electronic City' },
-    { id: 'INV-2026-005', bookingId: 'R-9808', recipientName: 'Rohan Shah', recipientType: 'rider', date: '2026-07-22', amount: 410.00, status: 'generated', hsnCode: '9964', fromRoute: 'HSR Layout', toRoute: 'Indiranagar' },
-    { id: 'INV-2026-006', bookingId: 'R-9808', recipientName: 'Vikram Pal', recipientType: 'driver', date: '2026-07-22', amount: 28.70, status: 'generated', hsnCode: '9964', fromRoute: 'HSR Layout', toRoute: 'Indiranagar' }
-  ]
-
-  const filteredInvoices = invoices.filter(inv => {
-    const matchesType = filterType === 'all' || inv.recipientType === filterType
-    const matchesSearch = inv.recipientName.toLowerCase().includes(searchQuery.toLowerCase()) || inv.bookingId.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesType && matchesSearch
-  })
-
   const handleAddTemplate = (e: React.FormEvent) => {
     e.preventDefault()
-    const id = `TMP-${Math.floor(100 + Math.random() * 900)}`
-    
-    // If isDefault is true, set others to false
-    let updatedTemplates = [...templates]
-    if (newTemplate.isDefault) {
-      updatedTemplates = updatedTemplates.map(t => ({ ...t, isDefault: false }))
-    }
-
-    setTemplates([...updatedTemplates, { ...newTemplate, id }])
-    setShowAddTemplateModal(false)
-    // reset form
-    setNewTemplate({
-      name: '',
-      headerLogoText: 'ZAROORAT MOBILITY',
-      address: 'Bengaluru, India',
-      gstin: '29XXXXX9999X9Z9',
-      footerTerms: 'Thank you for choosing Zaroorat.',
-      cgstRate: 2.5,
-      sgstRate: 2.5,
-      igstRate: 0.0,
-      appliesTo: 'ride',
-      isDefault: false
+    createTemplate(newTemplate, {
+      onSuccess: () => {
+        setShowAddTemplateModal(false)
+        setNewTemplate({
+          name: '',
+          headerLogoText: 'ZAROORAT MOBILITY',
+          address: 'Bengaluru, India',
+          gstin: '29XXXXX9999X9Z9',
+          footerTerms: 'Thank you for choosing Zaroorat.',
+          cgstRate: 2.5,
+          sgstRate: 2.5,
+          igstRate: 0.0,
+          appliesTo: 'ride',
+          isDefault: false,
+        })
+        void refetchTemplates()
+      },
     })
   }
 
   const handleDeleteTemplate = (id: string) => {
-    setTemplates(templates.filter(t => t.id !== id))
+    deleteTemplate(id, { onSuccess: () => void refetchTemplates() })
   }
 
   const handleSetDefaultTemplate = (id: string) => {
-    setTemplates(templates.map(t => ({
-      ...t,
-      isDefault: t.id === id
-    })))
+    setDefaultTemplate(id, { onSuccess: () => void refetchTemplates() })
   }
 
-  // Math variables for invoice preview
-  const getInvoiceData = (inv: Invoice) => {
+  const getInvoiceData = (inv: BillingInvoice) => {
     // Find matching template based on vertical, fallback to default
     const template = templates.find(t => t.appliesTo === (inv.recipientType === 'driver' ? 'services' : 'ride')) || templates.find(t => t.isDefault) || templates[0]
+    if (!template) {
+      return {
+        template: {
+          id: '',
+          name: 'Default',
+          headerLogoText: 'ZAROORAT',
+          address: '',
+          gstin: '',
+          footerTerms: '',
+          cgstRate: 2.5,
+          sgstRate: 2.5,
+          igstRate: 0,
+          appliesTo: 'ride' as const,
+          isDefault: true,
+        },
+        taxableValue: inv.amount,
+        gstAmount: inv.taxAmount,
+        cgstAmount: inv.taxAmount / 2,
+        sgstAmount: inv.taxAmount / 2,
+        igstAmount: 0,
+        totalGstRate: 5,
+      }
+    }
     
     const totalGstRate = template.cgstRate + template.sgstRate + template.igstRate
     const baseMultiplier = 1 + (totalGstRate / 100)
@@ -278,19 +233,19 @@ export const InvoiceGenerationPage: React.FC = () => {
 
   const columns = [
     {
-      key: 'id',
+      key: 'invoiceNumber',
       label: 'Invoice ID',
       render: (val: string) => <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{val}</span>
     },
     {
       key: 'bookingId',
       label: 'Booking ID',
-      render: (val: string) => <span className="font-mono text-primary font-semibold">{val}</span>
+      render: (val: string | null) => <span className="font-mono text-primary font-semibold">{val ?? '—'}</span>
     },
     {
       key: 'recipientName',
       label: 'Recipient',
-      render: (val: string, row: Invoice) => (
+      render: (val: string, row: BillingInvoice) => (
         <div className="text-left text-xs font-semibold text-slate-800 dark:text-white flex items-center gap-1.5">
           <User className="h-3.5 w-3.5 text-slate-400" />
           <div>
@@ -319,7 +274,7 @@ export const InvoiceGenerationPage: React.FC = () => {
       key: 'taxableValue',
       label: 'Taxable Value',
       align: 'right' as const,
-      render: (_, row: Invoice) => {
+      render: (_, row: BillingInvoice) => {
         const { taxableValue } = getInvoiceData(row)
         return <span className="font-mono text-slate-700 dark:text-slate-300">₹{taxableValue.toFixed(2)}</span>
       }
@@ -328,7 +283,7 @@ export const InvoiceGenerationPage: React.FC = () => {
       key: 'gstRate',
       label: 'GST Rate',
       align: 'center' as const,
-      render: (_, row: Invoice) => {
+      render: (_, row: BillingInvoice) => {
         const { totalGstRate } = getInvoiceData(row)
         return <span className="font-mono font-bold text-slate-655">{totalGstRate.toFixed(1)}%</span>
       }
@@ -337,7 +292,7 @@ export const InvoiceGenerationPage: React.FC = () => {
       key: 'gstAmount',
       label: 'GST Amt',
       align: 'right' as const,
-      render: (_, row: Invoice) => {
+      render: (_, row: BillingInvoice) => {
         const { gstAmount } = getInvoiceData(row)
         return <span className="font-mono font-bold text-indigo-650 dark:text-indigo-400">₹{gstAmount.toFixed(2)}</span>
       }
@@ -345,7 +300,7 @@ export const InvoiceGenerationPage: React.FC = () => {
     {
       key: 'gstSplit',
       label: 'CGST/SGST/IGST Split',
-      render: (_, row: Invoice) => {
+      render: (_, row: BillingInvoice) => {
         const { cgstAmount, sgstAmount, igstAmount, template } = getInvoiceData(row)
         return (
           <div className="text-[9px] font-mono text-slate-500 leading-normal">
@@ -376,7 +331,7 @@ export const InvoiceGenerationPage: React.FC = () => {
       key: 'actions',
       label: 'Actions',
       align: 'center' as const,
-      render: (_, row: Invoice) => (
+      render: (_, row: BillingInvoice) => (
         <div className="flex justify-center gap-2">
           <Button
             variant="outline"
@@ -392,7 +347,7 @@ export const InvoiceGenerationPage: React.FC = () => {
             size="sm"
             className="h-8 w-8 p-0 rounded-lg bg-[#2B317A] hover:bg-[#2B317A]/95 text-white border-transparent"
             title="Download PDF"
-            onClick={() => alert(`Downloading PDF for ${row.id}`)}
+            onClick={() => alert(`Downloading PDF for ${row.invoiceNumber}`)}
           >
             <Download className="h-4 w-4" />
           </Button>
@@ -406,6 +361,7 @@ export const InvoiceGenerationPage: React.FC = () => {
       <PageHeader
         title="Invoice Generation Console"
         description="Generate, review, and download digital VAT/GST-compliant billing invoices, and manage reusable template designs."
+        onBack={() => navigate('/pricing-management')}
         actions={
           activeTab === 'templates' ? (
             <Button
@@ -477,7 +433,9 @@ export const InvoiceGenerationPage: React.FC = () => {
             {/* Invoice Data Grid */}
             <DataTable
               columns={columns}
-              data={filteredInvoices}
+              data={invoices}
+              isLoading={invoicesLoading}
+              isError={invoicesError}
               selectable={false}
               resultLabel="invoices"
             />
@@ -694,7 +652,7 @@ export const InvoiceGenerationPage: React.FC = () => {
               <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-slate-50 dark:bg-slate-800/50">
                 <div className="flex items-center gap-2 text-slate-800 dark:text-white">
                   <FileText className="h-5 w-5 text-primary" />
-                  <span className="font-bold text-sm">Invoice Preview: {previewInvoice.id}</span>
+                  <span className="font-bold text-sm">Invoice Preview: {previewInvoice.invoiceNumber}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -724,7 +682,7 @@ export const InvoiceGenerationPage: React.FC = () => {
                   </div>
                   <div className="text-right space-y-1">
                     <h1 className="text-lg font-black tracking-wider uppercase text-slate-450">INVOICE</h1>
-                    <p className="font-mono"><strong>Invoice No:</strong> {previewInvoice.id}</p>
+                    <p className="font-mono"><strong>Invoice No:</strong> {previewInvoice.invoiceNumber}</p>
                     <p className="font-mono"><strong>Date:</strong> {previewInvoice.date}</p>
                     <p className="font-mono text-primary font-bold"><strong>Booking ID:</strong> {previewInvoice.bookingId}</p>
                   </div>
@@ -764,7 +722,7 @@ export const InvoiceGenerationPage: React.FC = () => {
                       <tr className="hover:bg-slate-50/20">
                         <td className="px-4 py-3.5">
                           <p className="font-semibold text-slate-800 dark:text-slate-100">Passenger Transport Services</p>
-                          <p className="text-[9px] text-slate-400 italic">Ride booking: {previewInvoice.fromRoute} to {previewInvoice.toRoute}</p>
+                          <p className="text-[9px] text-slate-400 italic">Ride booking: {previewInvoice.fromRoute ?? '—'} to {previewInvoice.toRoute ?? '—'}</p>
                         </td>
                         <td className="px-4 py-3.5 text-center font-mono">{previewInvoice.hsnCode}</td>
                         <td className="px-4 py-3.5 text-right font-mono">₹{taxableValue.toFixed(2)}</td>
@@ -1098,11 +1056,16 @@ export const InvoiceGenerationPage: React.FC = () => {
             <div className="p-6 space-y-4 text-xs">
               <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-[10px] text-amber-700 font-semibold flex items-center gap-2">
                 <Clock className="h-4 w-4 flex-shrink-0" />
-                Previewing with sample data. Approve preview to enable activation for this template.
+                Previewing with seeded ride data. Approve preview to enable activation for this template.
               </div>
               <div className="border border-border rounded-xl p-5 bg-slate-50 dark:bg-slate-950 font-mono text-[10px] whitespace-pre-wrap leading-relaxed min-h-[200px]">
                 {previewUploadedTemplate.content
-                  ? substitutePreview(previewUploadedTemplate.content)
+                  ? substitutePreview(
+                      previewUploadedTemplate.content,
+                      previewInvoice
+                        ? buildPreviewContext(previewInvoice, defaultTemplate ?? templates[0]!)
+                        : previewContext,
+                    )
                   : 'No template content to preview.'}
               </div>
               <div className="border-t border-border pt-4">

@@ -7,10 +7,19 @@ import { PageHeader } from '@/shared/components/PageHeader'
 import { Button } from '@/shared/components/ui/Button'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { Save, FileCheck } from 'lucide-react'
-import { driverKycFormSchema, type DriverKycFormData } from '../../schemas'
+import { driverKycFormSchema, type DriverKycFormData, type DriverKycFormInput } from '../../schemas'
 import { useCreateApplication, useUpdateApplication, useApplication } from '../../hooks'
 import { useCountriesNow, usePostalCodeLookup } from '@/shared/hooks'
+import { useToast } from '@/shared/context/toast'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/shared/components/ui/Card'
+import { resolveFileRef } from '@/shared/utils/file-ref'
+import {
+  clearRegistrationDraft,
+  loadRegistrationDraft,
+  notifyDraftRestoredOnce,
+  saveRegistrationDraft,
+  type RegistrationDraftTab,
+} from '../../utils/registration-draft'
 import {
   PersonalDetailsStep,
   IdentityVerificationStep,
@@ -32,8 +41,10 @@ export const ManualRegistrationPage: React.FC = () => {
   const { data: application, isLoading: isFetching } = useApplication(id || '')
   const { mutate: createKyc, isPending: isCreating } = useCreateApplication()
   const { mutate: updateKyc, isPending: isUpdating } = useUpdateApplication()
+  const { success: showSuccess, error: showError } = useToast()
 
   const [activeFormTab, setActiveFormTab] = useState<TabType>('bio')
+  const draftRestoreStarted = React.useRef(false)
 
   // Shared address and postal hooks
   const {
@@ -60,7 +71,7 @@ export const ManualRegistrationPage: React.FC = () => {
     reset,
     trigger,
     formState: { errors, isValid }
-  } = useForm<DriverKycFormData>({
+  } = useForm<DriverKycFormInput, unknown, DriverKycFormData>({
     resolver: zodResolver(driverKycFormSchema),
     mode: 'all',
     defaultValues: {
@@ -129,10 +140,40 @@ export const ManualRegistrationPage: React.FC = () => {
   const vehicleType = watch('vehicleType')
   const registrationAction = watch('registrationAction')
 
-  // Fetch initial countries on mount
+  // Fetch initial countries on mount, then hydrate states for the default/selected country
   useEffect(() => {
-    fetchCountries()
+    void (async () => {
+      await fetchCountries()
+      const country = getValues('country')
+      if (country) {
+        await fetchStates(country)
+      }
+    })()
   }, [])
+
+  // Restore locally saved draft for new registrations
+  useEffect(() => {
+    if (isEdit || draftRestoreStarted.current) return
+    draftRestoreStarted.current = true
+
+    const draft = loadRegistrationDraft()
+    if (!draft?.form || Object.keys(draft.form).length === 0) return
+
+    reset((current) => ({ ...current, ...draft.form }))
+    if (draft.activeFormTab) {
+      setActiveFormTab(draft.activeFormTab as TabType)
+    }
+
+    const country = draft.form.country
+    const state = draft.form.state
+    if (country) {
+      void fetchStates(country).then(() => {
+        if (state) void fetchCities(country, state)
+      })
+    }
+
+    notifyDraftRestoredOnce(draft.savedAt, showSuccess)
+  }, [isEdit, reset, fetchStates, fetchCities, showSuccess])
 
   // Auto lookup postal codes
   const handlePostcodeBlur = async () => {
@@ -144,10 +185,20 @@ export const ManualRegistrationPage: React.FC = () => {
         const details = await lookupPostalCode(postcode, countryCode)
         if (details) {
           if (details.state) {
-            setValue('state', details.state, { shouldValidate: true })
-            fetchCities(getValues('country') || 'India', details.state)
-          }
-          if (details.city) {
+            const matchedState =
+              states.find((s) => s.toLowerCase() === details.state.toLowerCase()) ||
+              states.find((s) => s.toLowerCase().includes(details.state.toLowerCase()) || details.state.toLowerCase().includes(s.toLowerCase())) ||
+              details.state
+            setValue('state', matchedState, { shouldValidate: true })
+            const cityList = await fetchCities(country, matchedState)
+            if (details.city) {
+              const matchedCity =
+                cityList.find((c) => c.toLowerCase() === details.city.toLowerCase()) ||
+                cityList.find((c) => c.toLowerCase().includes(details.city.toLowerCase()) || details.city.toLowerCase().includes(c.toLowerCase())) ||
+                details.city
+              setValue('city', matchedCity, { shouldValidate: true })
+            }
+          } else if (details.city) {
             setValue('city', details.city, { shouldValidate: true })
           }
         }
@@ -180,13 +231,13 @@ export const ManualRegistrationPage: React.FC = () => {
         landmark: application.landmark || '',
         emergencyContactName: application.emergencyContactName || '',
         emergencyContactNumber: application.emergencyContactNumber || '',
-        profilePhotoUrl: application.profilePhotoUrl || '',
+        profilePhotoUrl: resolveFileRef(application.profilePhotoUrl),
         aadhaarNumber: application.aadhaarNumber || '',
-        aadhaarFrontUrl: docsMap.get('aadhaar_front')?.fileUrl || '',
-        aadhaarBackUrl: docsMap.get('aadhaar_back')?.fileUrl || '',
+        aadhaarFrontUrl: resolveFileRef(docsMap.get('aadhaar_front')?.fileUrl, docsMap.get('aadhaar_front')?.fileId),
+        aadhaarBackUrl: resolveFileRef(docsMap.get('aadhaar_back')?.fileUrl, docsMap.get('aadhaar_back')?.fileId),
         panNumber: application.panNumber || '',
-        panUrl: docsMap.get('pan')?.fileUrl || '',
-        driverSelfieUrl: docsMap.get('selfie')?.fileUrl || '',
+        panUrl: resolveFileRef(docsMap.get('pan')?.fileUrl, docsMap.get('pan')?.fileId),
+        driverSelfieUrl: resolveFileRef(docsMap.get('selfie')?.fileUrl, docsMap.get('selfie')?.fileId),
         vehicleType: application.vehicleType || 'cab',
         vehicleCategory: v?.vehicleCategory || 'Sedan',
         brand: v?.brand || '',
@@ -196,24 +247,24 @@ export const ManualRegistrationPage: React.FC = () => {
         manufacturingYear: v?.manufacturingYear || new Date().getFullYear(),
         seatCapacity: v?.seatsCapacity || 4,
         licenseNo: application.licenseNo || '',
-        licenseFrontUrl: docsMap.get('license_front')?.fileUrl || '',
-        licenseBackUrl: docsMap.get('license_back')?.fileUrl || '',
+        licenseFrontUrl: resolveFileRef(docsMap.get('license_front')?.fileUrl, docsMap.get('license_front')?.fileId),
+        licenseBackUrl: resolveFileRef(docsMap.get('license_back')?.fileUrl, docsMap.get('license_back')?.fileId),
         licenseExpiry: docsMap.get('license_front')?.expiryDate || '',
         licenseIssueDate: docsMap.get('license_front')?.issuedDate || '',
         rcNumber: v?.rcNumber || '',
-        rcUrl: docsMap.get('rc')?.fileUrl || '',
+        rcUrl: resolveFileRef(docsMap.get('rc')?.fileUrl, docsMap.get('rc')?.fileId),
         insuranceNo: v?.insuranceNo || '',
         insuranceExpiry: v?.insuranceExpiry || '',
-        insuranceUrl: docsMap.get('insurance')?.fileUrl || '',
+        insuranceUrl: resolveFileRef(docsMap.get('insurance')?.fileUrl, docsMap.get('insurance')?.fileId),
         permitNo: v?.permitNo || '',
         permitExpiry: v?.permitExpiry || '',
-        permitUrl: docsMap.get('permit')?.fileUrl || '',
+        permitUrl: resolveFileRef(docsMap.get('permit')?.fileUrl, docsMap.get('permit')?.fileId),
         pollutionNo: v?.pollutionNo || '',
         pollutionExpiry: v?.pollutionExpiry || '',
-        pollutionUrl: docsMap.get('pollution')?.fileUrl || '',
+        pollutionUrl: resolveFileRef(docsMap.get('pollution')?.fileUrl, docsMap.get('pollution')?.fileId),
         fitnessNo: v?.fitnessNo || '',
         fitnessExpiry: v?.fitnessExpiry || '',
-        fitnessUrl: docsMap.get('fitness')?.fileUrl || '',
+        fitnessUrl: resolveFileRef(docsMap.get('fitness')?.fileUrl, docsMap.get('fitness')?.fileId),
         bankAccountName: application.bankAccountName || '',
         bankAccountNumber: application.bankAccountNumber || '',
         confirmBankAccountNumber: application.bankAccountNumber || '',
@@ -225,15 +276,26 @@ export const ManualRegistrationPage: React.FC = () => {
 
       reset(defaultData as DriverKycFormData)
 
+      const draft = loadRegistrationDraft(id)
+      if (draft?.form) {
+        reset({ ...defaultData, ...draft.form } as DriverKycFormData)
+        if (draft.activeFormTab) {
+          setActiveFormTab(draft.activeFormTab as TabType)
+        }
+        notifyDraftRestoredOnce(draft.savedAt, showSuccess)
+      }
+
       // Fetch states/cities for prefilled values
-      if (application.country) {
-        fetchStates(application.country)
-        if (application.state) {
-          fetchCities(application.country, application.state)
+      const country = draft?.form?.country || application.country
+      const state = draft?.form?.state || application.state
+      if (country) {
+        fetchStates(country)
+        if (state) {
+          fetchCities(country, state)
         }
       }
     }
-  }, [isEdit, application, reset])
+  }, [isEdit, application, id, reset, fetchStates, fetchCities, showSuccess])
 
   // Sync state dropdown items
   const stateDropdownItems = useMemo(() =>
@@ -245,30 +307,17 @@ export const ManualRegistrationPage: React.FC = () => {
     cities.map(c => ({ id: c, name: c })), [cities]
   )
 
-  // Map API countries to standard dropdown format
-  const countryDropdownItems = useMemo(() =>
-    countries.map(c => ({ id: c.name, name: c.name })), [countries]
+  // Map API countries to standard dropdown format (hook already normalizes `country` → `name`)
+  const countryDropdownItems = useMemo(
+    () => countries.map((c) => ({ id: c.name, name: c.name })),
+    [countries],
   )
-
-  // Dynamic state change triggers city refetch
-  const handleCountryChange = (name: string) => {
-    setValue('country', name, { shouldValidate: true })
-    setValue('state', '')
-    setValue('city', '')
-    fetchStates(name)
-  }
-
-  const handleStateChange = (name: string) => {
-    setValue('state', name, { shouldValidate: true })
-    setValue('city', '')
-    fetchCities(getValues('country') || 'India', name)
-  }
 
   // Calculate proportional progress weights based on wizard steps
   const registrationCompleteness = useMemo(() => {
     // Bio Details (Step 1): Name, phone, email, gender, dob, full address details
     const bioFields: (keyof DriverKycFormData)[] = [
-      'fullName', 'mobileNumber', 'gender', 'dateOfBirth',
+      'fullName', 'mobileNumber', 'gender', 'dateOfBirth', 'profilePhotoUrl',
       'country', 'state', 'city', 'postcode', 'addressLine1',
       'emergencyContactName', 'emergencyContactNumber', 'preferredLanguage'
     ]
@@ -336,7 +385,7 @@ export const ManualRegistrationPage: React.FC = () => {
     let fieldsToValidate: (keyof DriverKycFormData)[] = []
 
     if (tab === 'identity') {
-      fieldsToValidate = ['fullName', 'mobileNumber', 'gender', 'dateOfBirth', 'country', 'state', 'city', 'postcode', 'addressLine1', 'emergencyContactName', 'emergencyContactNumber']
+      fieldsToValidate = ['fullName', 'mobileNumber', 'gender', 'dateOfBirth', 'profilePhotoUrl', 'preferredLanguage', 'country', 'state', 'city', 'postcode', 'addressLine1', 'emergencyContactName', 'emergencyContactNumber']
     } else if (tab === 'vehicle') {
       fieldsToValidate = ['aadhaarNumber', 'aadhaarFrontUrl', 'aadhaarBackUrl', 'panNumber', 'panUrl', 'driverSelfieUrl']
     } else if (tab === 'documents') {
@@ -360,18 +409,54 @@ export const ManualRegistrationPage: React.FC = () => {
   const onCompleteRegistration = (data: DriverKycFormData) => {
     if (isEdit) {
       updateKyc({ id: id || '', data }, {
-        onSuccess: () => navigate('/driver-management/applications')
+        onSuccess: () => {
+          clearRegistrationDraft(id)
+          navigate('/driver-management/applications')
+        },
+        onError: (err: unknown) => {
+          showError('Update failed', err instanceof Error ? err.message : 'Request failed')
+        },
       })
     } else {
       createKyc(data, {
-        onSuccess: () => navigate('/driver-management/applications')
+        onSuccess: (created) => {
+          clearRegistrationDraft()
+          showSuccess(
+            'Application created',
+            data.registrationAction === 'approve_immediately'
+              ? 'Driver and vehicle activated.'
+              : 'Submitted for review.',
+          )
+          if (data.registrationAction === 'approve_immediately') {
+            navigate('/driver-management/drivers')
+          } else {
+            navigate(`/driver-management/applications/${created.id}`)
+          }
+        },
+        onError: (err: unknown) => {
+          showError(
+            'Registration failed',
+            err instanceof Error ? err.message : 'Could not create application',
+          )
+        },
       })
     }
   }
 
-  // Save Draft stub
   const onSaveDraft = () => {
-    alert('Progress cached locally. Registration draft saved successfully.')
+    const values = getValues()
+    saveRegistrationDraft(isEdit ? id : undefined, {
+      form: values,
+      activeFormTab: activeFormTab as RegistrationDraftTab,
+      savedAt: new Date().toISOString(),
+    })
+
+    showSuccess(
+      'Draft saved',
+      isEdit
+        ? 'Your progress is saved locally. Resume from Edit on the applications list.'
+        : 'Your progress is saved. Open Manual Driver Registration again to continue.',
+    )
     navigate('/driver-management/applications')
   }
 
@@ -455,8 +540,12 @@ export const ManualRegistrationPage: React.FC = () => {
                   statesLoading={statesLoading}
                   citiesLoading={citiesLoading}
                   isPostalLoading={isPostalLoading}
-                  fetchStates={handleCountryChange}
-                  fetchCities={handleStateChange}
+                  fetchStates={(country) => {
+                    void fetchStates(country)
+                  }}
+                  fetchCities={(country, state) => {
+                    void fetchCities(country, state)
+                  }}
                   handlePostcodeBlur={handlePostcodeBlur}
                 />
               )}
@@ -464,8 +553,8 @@ export const ManualRegistrationPage: React.FC = () => {
               {activeFormTab === 'identity' && (
                 <IdentityVerificationStep
                   register={register}
+                  control={control}
                   errors={errors}
-                  watch={watch}
                 />
               )}
 

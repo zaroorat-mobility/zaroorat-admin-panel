@@ -1,6 +1,6 @@
 import * as api from '../api'
 import type { QueryParams } from '@/shared/types'
-import type { UserFormData } from '../schemas'
+import type { UserFormData, UserEditFormData } from '../schemas'
 
 export const UserService = {
   async fetchUsers(params?: QueryParams) {
@@ -15,7 +15,7 @@ export const UserService = {
     return api.createUser(data)
   },
 
-  async updateUser(id: string, data: Partial<UserFormData>) {
+  async updateUser(id: string, data: UserEditFormData) {
     return api.updateUser(id, data)
   },
 

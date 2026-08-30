@@ -6,7 +6,8 @@ import {
   useBlockDriver,
   useActivateDriver,
   useUpdateDriverBillingMode,
-  useAddDriverTimelineNote
+  useAddDriverTimelineNote,
+  useFlagVehicleForRenewal,
 } from '../../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -14,9 +15,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/sha
 import { StatusBadge } from '@/shared/components/StatusBadge'
 import { Button } from '@/shared/components/ui/Button'
 import { ImagePreviewModal } from '../../components/ImagePreviewModal'
+import { FileImage } from '@/shared/components/FileImage'
+import { getFileReadUrl } from '@/shared/services/file-upload.service'
+import { isFileId, resolveFileRef } from '@/shared/utils/file-ref'
 import { ExpiryIndicator } from '../../components/ExpiryIndicator'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
 import { DataTable } from '@/shared/components/DataTable'
+import { useToast } from '@/shared/context/toast'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 import {
   User,
   MapPin,
@@ -42,6 +49,10 @@ type DriverTab = 'overview' | 'documents' | 'vehicle' | 'ratings' | 'earnings' |
 export const DriverDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { success: showSuccess, error: showError } = useToast()
+  const user = useAuthStore((state) => state.user)
+  const canSuspend = hasPermission(user, 'drivers:write')
+  const canFlagVehicle = hasPermission(user, 'vehicles:write')
   const [activeTab, setActiveTab] = useState<DriverTab>('overview')
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [previewTitle, setPreviewTitle] = useState('')
@@ -67,10 +78,17 @@ export const DriverDetailsPage: React.FC = () => {
   const { mutate: activateDriver, isPending: isActivating } = useActivateDriver()
   const { mutate: updateBillingPlan, isPending: isUpdatingPlan } = useUpdateDriverBillingMode()
   const { mutate: addSupportNote, isPending: isAddingNote } = useAddDriverTimelineNote()
+  const { mutate: flagVehicleRenewal, isPending: isFlaggingVehicle } = useFlagVehicleForRenewal()
 
-  const openPreview = (url: string, title: string) => {
-    setPreviewImage(url)
-    setPreviewTitle(title)
+  const openPreview = async (ref: string, title: string) => {
+    if (!ref) return
+    try {
+      const url = isFileId(ref) ? await getFileReadUrl(ref) : ref
+      setPreviewImage(url)
+      setPreviewTitle(title)
+    } catch {
+      showError('Preview unavailable', 'Could not load the document image.')
+    }
   }
 
   const reviewColumns = [
@@ -137,7 +155,7 @@ export const DriverDetailsPage: React.FC = () => {
       key: 'commission',
       label: 'Commission Charged',
       align: 'right' as const,
-      render: (_, row: any) => (
+      render: (_: any, row: any) => (
         <span className="font-mono text-rose-500 font-semibold">
           {row.type === 'EARNING' ? `₹${((row.amount || 0) * 0.07).toFixed(2)}` : '—'}
         </span>
@@ -147,7 +165,7 @@ export const DriverDetailsPage: React.FC = () => {
       key: 'driverEarning',
       label: "Driver's Earning",
       align: 'right' as const,
-      render: (_, row: any) => (
+      render: (_: any, row: any) => (
         <span className="font-mono text-emerald-600 font-bold">
           {row.type === 'EARNING' ? `₹${((row.amount || 0) * 0.93).toFixed(2)}` : `₹${(row.amount || 0).toFixed(2)}`}
         </span>
@@ -183,7 +201,8 @@ export const DriverDetailsPage: React.FC = () => {
     )
   }
 
-  const isSuspendedOrBlocked = driver.driverStatus === 'suspended' || driver.driverStatus === 'blocked'
+  const isSuspendedOrBlocked =
+    driver.driverStatus === 'suspended' || driver.driverStatus === 'blocked'
 
   return (
     <PageWrapper>
@@ -202,44 +221,45 @@ export const DriverDetailsPage: React.FC = () => {
               <span>Edit Profile</span>
             </Button>
 
-            {isSuspendedOrBlocked ? (
-              <Button
-                variant="primary"
-                className="gap-2 text-xs font-semibold h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => {
-                  setStatusAction('activate')
-                  setIsStatusModalOpen(true)
-                }}
-              >
-                <ShieldCheck className="h-4 w-4" />
-                <span>Activate Partner</span>
-              </Button>
-            ) : (
-              <>
+            {canSuspend &&
+              (isSuspendedOrBlocked ? (
                 <Button
-                  variant="outline"
-                  className="gap-2 text-xs font-semibold h-9 rounded-lg border-amber-250 text-amber-600 hover:bg-amber-50"
+                  variant="primary"
+                  className="gap-2 text-xs font-semibold h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
                   onClick={() => {
-                    setStatusAction('suspend')
+                    setStatusAction('activate')
                     setIsStatusModalOpen(true)
                   }}
                 >
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>Suspend</span>
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>Activate Partner</span>
                 </Button>
-                <Button
-                  variant="outline"
-                  className="gap-2 text-xs font-semibold h-9 rounded-lg border-rose-250 text-rose-600 hover:bg-rose-50"
-                  onClick={() => {
-                    setStatusAction('block')
-                    setIsStatusModalOpen(true)
-                  }}
-                >
-                  <Ban className="h-4 w-4" />
-                  <span>Block</span>
-                </Button>
-              </>
-            )}
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    className="gap-2 text-xs font-semibold h-9 rounded-lg border-amber-250 text-amber-600 hover:bg-amber-50"
+                    onClick={() => {
+                      setStatusAction('suspend')
+                      setIsStatusModalOpen(true)
+                    }}
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>Suspend</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="gap-2 text-xs font-semibold h-9 rounded-lg border-rose-250 text-rose-600 hover:bg-rose-50"
+                    onClick={() => {
+                      setStatusAction('block')
+                      setIsStatusModalOpen(true)
+                    }}
+                  >
+                    <Ban className="h-4 w-4" />
+                    <span>Block</span>
+                  </Button>
+                </>
+              ))}
           </div>
         }
       />
@@ -286,11 +306,12 @@ export const DriverDetailsPage: React.FC = () => {
               <Card className="premium-card text-left lg:col-span-2">
                 <CardContent className="p-6 flex flex-col sm:flex-row items-center gap-6">
                   <div className="h-24 w-24 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-border flex-shrink-0 flex items-center justify-center">
-                    {driver.profilePhotoUrl ? (
-                      <img src={driver.profilePhotoUrl} alt="Driver Profile" className="h-full w-full object-cover" />
-                    ) : (
-                      <User className="h-8 w-8 text-slate-350" />
-                    )}
+                    <FileImage
+                      src={driver.profilePhotoUrl}
+                      alt="Driver Profile"
+                      className="h-full w-full object-cover"
+                      fallback={<User className="h-8 w-8 text-slate-350" />}
+                    />
                   </div>
                   <div className="space-y-1 flex-grow">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -351,7 +372,7 @@ export const DriverDetailsPage: React.FC = () => {
                         ? "text-emerald-600 bg-emerald-50 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-450 dark:border-emerald-900"
                         : "text-amber-600 bg-amber-50 border-amber-100 dark:bg-amber-950/20 dark:text-amber-450"
                     )}>
-                      {driver.bgCheckStatus.replace('_', ' ').toUpperCase()}
+                      {driver.bgCheckStatus?.replace('_', ' ').toUpperCase() || '—'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center border-b pb-2">
@@ -431,7 +452,7 @@ export const DriverDetailsPage: React.FC = () => {
         {/* TAB 2: DOCUMENTS CHECKLIST */}
         {activeTab === 'documents' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-left">
-            {driver.documents.map((doc) => (
+            {(driver.documents ?? []).map((doc) => (
               <Card key={doc.id} className="premium-card p-4 space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
@@ -441,13 +462,17 @@ export const DriverDetailsPage: React.FC = () => {
                   <StatusBadge status={doc.verifyStatus} />
                 </div>
                 <div className="h-28 w-full bg-slate-100 dark:bg-slate-900 border border-border rounded-lg overflow-hidden relative group">
-                  <img src={doc.fileUrl} alt="" className="h-full w-full object-cover" />
+                  <FileImage
+                    src={resolveFileRef(doc.fileUrl, doc.fileId)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
                   <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Button
                       type="button"
                       variant="primary"
                       size="sm"
-                      onClick={() => openPreview(doc.fileUrl, doc.docType.replace('_', ' '))}
+                      onClick={() => openPreview(resolveFileRef(doc.fileUrl, doc.fileId), doc.docType.replace('_', ' '))}
                       className="h-8 w-8 p-0 rounded-lg"
                     >
                       <Eye className="h-4 w-4" />
@@ -473,13 +498,38 @@ export const DriverDetailsPage: React.FC = () => {
                       <CardTitle>Vehicle Specifications</CardTitle>
                       <CardDescription>Associated partner vehicle specifications logs.</CardDescription>
                     </div>
-                    <Button
-                      variant="outline"
-                      className="text-xs font-semibold h-8 rounded-lg border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/20"
-                      onClick={() => alert('Vehicle documents flagged for operational renewal checks.')}
-                    >
-                      Flag for Renewal
-                    </Button>
+                    {canFlagVehicle && (
+                      <Button
+                        variant="outline"
+                        className="text-xs font-semibold h-8 rounded-lg border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/20"
+                        loading={isFlaggingVehicle}
+                        onClick={() => {
+                          if (!driver.vehicle?.id) return
+                          flagVehicleRenewal(
+                            {
+                              id: driver.vehicle.id,
+                              notes: 'Flagged commercial certifications for audit renewal.',
+                            },
+                            {
+                              onSuccess: () => {
+                                showSuccess(
+                                  'Flagged for renewal',
+                                  'Vehicle documents were reset to pending for re-verification.',
+                                )
+                              },
+                              onError: (err: unknown) => {
+                                showError(
+                                  'Could not flag vehicle',
+                                  err instanceof Error ? err.message : 'Request failed',
+                                )
+                              },
+                            },
+                          )
+                        }}
+                      >
+                        Flag for Renewal
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <p><span className="text-muted-foreground font-medium">Vehicle Class Type:</span> <strong className="uppercase">{driver.vehicle.vehicleType}</strong></p>
@@ -501,7 +551,7 @@ export const DriverDetailsPage: React.FC = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {[
-                      { label: 'Registration Certificate (RC)', docNo: driver.vehicle.rcNumber || 'RC-99812A', exp: '2030-12-31' },
+                      { label: 'Registration Certificate (RC)', docNo: driver.vehicle.rcNumber, exp: undefined as string | undefined },
                       { label: 'Insurance Policy Cover', docNo: driver.vehicle.insuranceNo, exp: driver.vehicle.insuranceExpiry },
                       { label: 'Commercial Road Permit', docNo: driver.vehicle.permitNo, exp: driver.vehicle.permitExpiry },
                       { label: 'Pollution Certificate (PUC)', docNo: driver.vehicle.pollutionNo, exp: driver.vehicle.pollutionExpiry },
@@ -792,22 +842,37 @@ export const DriverDetailsPage: React.FC = () => {
         onCancel={() => {
           setIsStatusModalOpen(false)
           setStatusNotes('')
+          setStatusAction(null)
         }}
         onConfirm={() => {
           if (!statusAction) return
-          
+
           const actionMap = {
             suspend: suspendDriver,
             block: blockDriver,
-            activate: activateDriver
+            activate: activateDriver,
           }
-          
-          actionMap[statusAction]({ id: driver.id, notes: statusNotes }, {
-            onSuccess: () => {
-              setIsStatusModalOpen(false)
-              setStatusNotes('')
-            }
-          })
+
+          actionMap[statusAction](
+            { id: driver.id, notes: statusNotes || undefined },
+            {
+              onSuccess: () => {
+                showSuccess(
+                  'Driver updated',
+                  `Account marked as ${statusAction === 'activate' ? 'active' : statusAction}.`,
+                )
+                setIsStatusModalOpen(false)
+                setStatusNotes('')
+                setStatusAction(null)
+              },
+              onError: (err: unknown) => {
+                showError(
+                  'Could not update driver',
+                  err instanceof Error ? err.message : 'Request failed',
+                )
+              },
+            },
+          )
         }}
         title={`${statusAction === 'suspend' ? 'Suspend' : statusAction === 'block' ? 'Block' : 'Activate'} Partner`}
         description={
@@ -824,7 +889,7 @@ export const DriverDetailsPage: React.FC = () => {
           </div>
         }
         confirmText="Confirm Action"
-        variant={statusAction === 'block' ? 'danger' : 'warning'}
+        variant={statusAction === 'block' ? 'danger' : statusAction === 'activate' ? 'info' : 'warning'}
         loading={isSuspending || isBlocking || isActivating}
       />
 
@@ -839,7 +904,13 @@ export const DriverDetailsPage: React.FC = () => {
             subscriptionType: selectedPlan === 'subscription' ? subscriptionType : undefined,
             notes: planNotes
           }, {
-            onSuccess: () => setIsPlanModalOpen(false)
+            onSuccess: () => setIsPlanModalOpen(false),
+            onError: (err: unknown) => {
+              showError(
+                'Billing update unavailable',
+                err instanceof Error ? err.message : 'Request failed',
+              )
+            },
           })
         }}
         title="Change Monetization Plan"
@@ -918,7 +989,13 @@ export const DriverDetailsPage: React.FC = () => {
             onSuccess: () => {
               setIsNoteModalOpen(false)
               setTimelineNote('')
-            }
+            },
+            onError: (err: unknown) => {
+              showError(
+                'Note unavailable',
+                err instanceof Error ? err.message : 'Request failed',
+              )
+            },
           })
         }}
         title="Add Timeline Support Note"
