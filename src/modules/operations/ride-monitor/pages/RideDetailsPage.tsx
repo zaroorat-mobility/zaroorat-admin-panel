@@ -7,7 +7,9 @@ import {
   useCancelRide,
   useRideAuditLogs,
   useCreateComplaint,
+  useRideDriverLocation,
 } from '../../hooks'
+import { LiveMap } from '@/shared/components/maps/LiveMap'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardHeader, CardContent } from '@/shared/components/ui/Card'
@@ -68,6 +70,20 @@ export const RideDetailsPage: React.FC = () => {
   const { mutate: createComplaint, isPending: isCreatingComplaint } = useCreateComplaint()
   const { mutate: addNote, isPending: isAddingNote } = useAddRideNote()
   const { mutate: cancelRideAction, isPending: isCancellingRide } = useCancelRide()
+
+  const isRideActiveForPolling =
+    !!ride &&
+    !['COMPLETED', 'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_DRIVER', 'CANCELLED_BY_SYSTEM'].includes(
+      ride.rawStatus || '',
+    ) &&
+    !['completed', 'cancelled-by-rider', 'cancelled-by-driver', 'no-driver-found', 'rider-no-show'].includes(
+      ride.status.toLowerCase(),
+    )
+
+  const { data: driverLocation } = useRideDriverLocation(id || '', {
+    enabled: isRideActiveForPolling,
+    refetchInterval: 10000,
+  })
 
   // Fetch linked SOS alerts
   const { data: sosAlertsRes } = useQuery({
@@ -274,17 +290,49 @@ export const RideDetailsPage: React.FC = () => {
               {/* Tab 1: Overview */}
               {activeTab === 'overview' && (
                 <div className="space-y-6 text-left text-xs">
-                  {/* Map Telemetry Simulation */}
-                  <div className="rounded-xl overflow-hidden border border-border h-48 bg-slate-100 dark:bg-slate-900 relative flex items-center justify-center">
-                    <Navigation className="h-8 w-8 text-primary absolute animate-bounce" />
-                    <div className="absolute inset-0 bg-slate-900/5 dark:bg-slate-900/40 p-4 flex flex-col justify-end text-left">
-                      <p className="font-bold text-[10px] uppercase text-slate-800 dark:text-slate-200 tracking-wider">
-                        Live Route Simulation
-                      </p>
-                      <p className="text-[9px] text-slate-500 font-mono mt-0.5">
-                        {ride.pickupLocation} ➔ {ride.dropLocation}
-                      </p>
-                    </div>
+                  {/* Live route map */}
+                  <div className="space-y-2">
+                    {ride.pickupLat != null &&
+                    ride.pickupLng != null &&
+                    ride.dropLat != null &&
+                    ride.dropLng != null ? (
+                      <LiveMap
+                        height="220px"
+                        routes={[
+                          {
+                            id: ride.id,
+                            pickup: {
+                              lat: ride.pickupLat,
+                              lng: ride.pickupLng,
+                              label: ride.pickupLocation,
+                            },
+                            drop: {
+                              lat: ride.dropLat,
+                              lng: ride.dropLng,
+                              label: ride.dropLocation,
+                            },
+                            driverLocation: driverLocation?.lat != null && driverLocation?.lng != null
+                              ? { lat: driverLocation.lat, lng: driverLocation.lng }
+                              : null,
+                          },
+                        ]}
+                      />
+                    ) : (
+                      <div className="rounded-xl overflow-hidden border border-border h-48 bg-slate-100 dark:bg-slate-900 relative flex items-center justify-center">
+                        <Navigation className="h-8 w-8 text-primary" />
+                        <p className="absolute bottom-4 left-4 text-[10px] text-muted-foreground">
+                          GPS coordinates unavailable for this ride.
+                        </p>
+                      </div>
+                    )}
+                    <p className="text-[9px] text-slate-500 font-mono">
+                      {ride.pickupLocation} ➔ {ride.dropLocation}
+                      {driverLocation?.updatedAt ? (
+                        <span className="ml-2">
+                          • Driver GPS updated {new Date(driverLocation.updatedAt).toLocaleTimeString()}
+                        </span>
+                      ) : null}
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">

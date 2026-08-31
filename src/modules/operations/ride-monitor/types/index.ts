@@ -39,6 +39,10 @@ export interface Ride extends BaseEntity {
   paymentMethod: RidePaymentMethod
   pickupLocation: string
   dropLocation: string
+  pickupLat?: number | null
+  pickupLng?: number | null
+  dropLat?: number | null
+  dropLng?: number | null
   distance: number
   duration: number
   baseFare: number

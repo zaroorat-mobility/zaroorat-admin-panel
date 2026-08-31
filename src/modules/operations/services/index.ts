@@ -971,6 +971,7 @@ export const OperationsService = {
   addRideNote: (id: string, note: string) => operationsApi.addRideNote(id, note),
   cancelRide: (id: string, data: { reasonCode?: string; reasonText?: string }) => operationsApi.cancelRide(id, data),
   getRideAuditLogs: (id: string, params?: QueryParams) => operationsApi.getRideAuditLogs(id, params),
+  getRideDriverLocation: (id: string) => operationsApi.getRideDriverLocation(id),
 
   // Live Operations
   getLiveSummary: (params?: { longWaitThresholdMin?: number }) => operationsApi.getLiveSummary(params),

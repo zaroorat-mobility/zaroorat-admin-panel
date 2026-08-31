@@ -218,7 +218,7 @@ const searchDrivers = async (query: string): Promise<{ driverId: string; driverN
   if (raw) {
     try {
       list = JSON.parse(raw)
-    } catch (e) {}
+    } catch {}
   }
   if (!list.length) {
     list = [
@@ -247,7 +247,7 @@ const getDriverBreakdown = async (
       const list = JSON.parse(raw)
       const found = list.find((d: any) => d.id === driverId)
       if (found) name = found.driverName
-    } catch (e) {}
+    } catch {}
   }
   if (name === 'Unknown Driver') {
     const fallbacks: Record<string, string> = {

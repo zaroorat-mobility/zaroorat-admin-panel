@@ -9,6 +9,7 @@ const OK = {
   ride: (id: string) => ['operations', 'ride', id] as const,
   rideNotes: (id: string) => ['operations', 'ride', id, 'notes'] as const,
   rideAudit: (id: string, params?: QueryParams) => ['operations', 'ride', id, 'audit', params || {}] as const,
+  rideDriverLocation: (id: string) => ['operations', 'ride', id, 'driver-location'] as const,
   liveSummary: (params?: { longWaitThresholdMin?: number }) => ['operations', 'live', 'summary', params || {}] as const,
   activeRides: (params?: QueryParams) => ['operations', 'live', 'activeRides', params || {}] as const,
   liveMap: (params?: { city?: string; vehicleTypeId?: string }) => ['operations', 'live', 'map', params || {}] as const,
@@ -155,6 +156,18 @@ export const useRideAuditLogs = (id: string, params?: QueryParams) => {
     queryKey: OK.rideAudit(id, params),
     queryFn: () => OperationsService.getRideAuditLogs(id, params),
     enabled: !!id,
+  })
+}
+
+export const useRideDriverLocation = (
+  id: string,
+  options?: { refetchInterval?: number | false; enabled?: boolean },
+) => {
+  return useQuery({
+    queryKey: OK.rideDriverLocation(id),
+    queryFn: () => OperationsService.getRideDriverLocation(id),
+    enabled: !!id && options?.enabled !== false,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 10000,
   })
 }
 

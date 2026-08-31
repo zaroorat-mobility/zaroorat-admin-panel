@@ -6,7 +6,6 @@ import {
   Clock,
   AlertTriangle,
   Users,
-  Navigation,
   RefreshCw,
   Search,
   CheckCircle,
@@ -23,6 +22,7 @@ import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { Card } from '@/shared/components/ui/Card'
 import { Badge } from '@/shared/components/ui/Badge'
 import { Button } from '@/shared/components/ui/Button'
+import { LiveMap } from '@/shared/components/maps/LiveMap'
 import {
   useLiveSummary,
   useActiveRides,
@@ -399,7 +399,7 @@ export const LiveDashboardPage: React.FC = () => {
         tabs={[
           { id: 'rides', label: `Active Rides (${activeRides.length})` },
           { id: 'drivers', label: `Driver Fleet (${drivers.length})` },
-          { id: 'map', label: 'Live Map Coordinates' },
+          { id: 'map', label: 'Live Map' },
           { id: 'alerts', label: `Alerts & Delays (${alerts.length})` },
         ]}
         activeTab={activeTab}
@@ -455,68 +455,34 @@ export const LiveDashboardPage: React.FC = () => {
           <Card className="p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Active Map GPS Telemetry</h3>
-                <p className="text-xs text-muted-foreground">Coordinates of active rides, pickup/drop pins, and driver telemetry.</p>
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Live Operations Map</h3>
+                <p className="text-xs text-muted-foreground">
+                  Active rides, pickup/drop pins, and online driver telemetry.
+                </p>
               </div>
-              <Badge variant="secondary">{mapData?.rides.length ?? 0} Rides • {mapData?.drivers.length ?? 0} Drivers</Badge>
+              <Badge variant="secondary">
+                {mapData?.rides.length ?? 0} Rides • {mapData?.drivers.length ?? 0} Drivers
+              </Badge>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border border-border rounded-lg p-3 bg-muted/20">
-                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-1.5">
-                  <Navigation className="h-3.5 w-3.5 text-blue-500" /> Active Ride Paths ({mapData?.rides.length ?? 0})
-                </h4>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                  {mapData?.rides.map((r) => (
-                    <div key={r.id} className="p-2.5 bg-card border border-border rounded-md text-xs space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono font-bold text-primary">{r.rideCode}</span>
-                        <Badge variant="secondary">{r.status}</Badge>
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <span className="text-emerald-500 font-bold">P:</span> {r.pickup.address} ({r.pickup.lat.toFixed(4)}, {r.pickup.lng.toFixed(4)})
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-rose-500 font-bold">D:</span> {r.drop.address} ({r.drop.lat.toFixed(4)}, {r.drop.lng.toFixed(4)})
-                        </div>
-                      </div>
-                      {r.driverLocation && (
-                        <div className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">
-                          Driver GPS: {r.driverLocation.lat.toFixed(4)}, {r.driverLocation.lng.toFixed(4)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {(!mapData?.rides || mapData.rides.length === 0) && (
-                    <div className="text-xs text-muted-foreground italic text-center py-6">No active rides on map</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border border-border rounded-lg p-3 bg-muted/20">
-                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5 text-emerald-500" /> Active Driver Pins ({mapData?.drivers.length ?? 0})
-                </h4>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                  {mapData?.drivers.map((d) => (
-                    <div key={d.id} className="p-2.5 bg-card border border-border rounded-md text-xs flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-slate-800 dark:text-white">{d.name}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono">{d.phone} • {d.vehicleType || 'Standard'}</div>
-                        <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
-                          GPS: {d.lat.toFixed(4)}, {d.lng.toFixed(4)}
-                        </div>
-                      </div>
-                      <Badge variant={d.status === 'ONLINE' ? 'success' : 'warning'}>{d.status}</Badge>
-                    </div>
-                  ))}
-                  {(!mapData?.drivers || mapData.drivers.length === 0) && (
-                    <div className="text-xs text-muted-foreground italic text-center py-6">No drivers with active GPS</div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <LiveMap
+              height="520px"
+              routes={(mapData?.rides ?? []).map((r) => ({
+                id: r.id,
+                pickup: { lat: r.pickup.lat, lng: r.pickup.lng, label: r.pickup.address },
+                drop: { lat: r.drop.lat, lng: r.drop.lng, label: r.drop.address },
+                driverLocation: r.driverLocation
+                  ? { lat: r.driverLocation.lat, lng: r.driverLocation.lng }
+                  : null,
+              }))}
+              markers={(mapData?.drivers ?? []).map((d) => ({
+                id: d.id,
+                lat: d.lat,
+                lng: d.lng,
+                label: d.name,
+                kind: 'driver' as const,
+              }))}
+            />
           </Card>
         )}
 
