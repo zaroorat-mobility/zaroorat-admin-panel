@@ -24,6 +24,8 @@ export interface ComplaintTimelineEvent {
 
 export interface Complaint extends BaseEntity {
   rideId?: string
+  driverName?: string
+  driverPhone?: string
   raisedBy: 'rider' | 'driver' | 'admin'
   raisedByName: string
   category: ComplaintCategory

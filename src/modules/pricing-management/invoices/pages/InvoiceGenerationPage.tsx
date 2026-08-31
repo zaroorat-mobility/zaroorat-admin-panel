@@ -70,8 +70,8 @@ export const InvoiceGenerationPage: React.FC = () => {
     recipientType: filterType,
     search: searchQuery || undefined,
   })
-  const { data: templates = [], isLoading: templatesLoading, refetch: refetchTemplates } = useInvoiceTemplates()
-  const { mutate: createTemplate, isPending: isCreatingTemplate } = useCreateInvoiceTemplate()
+  const { data: templates = [], refetch: refetchTemplates } = useInvoiceTemplates()
+  const { mutate: createTemplate } = useCreateInvoiceTemplate()
   const { mutate: deleteTemplate } = useDeleteInvoiceTemplate()
   const { mutate: setDefaultTemplate } = useSetDefaultInvoiceTemplate()
 

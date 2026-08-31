@@ -26,6 +26,9 @@ import {
   Globe2,
   MapPin,
   Shield,
+  Compass,
+  Radio,
+  ShieldAlert,
 } from "lucide-react";
 import { useAppStore } from "@/store/app.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -114,9 +117,10 @@ const navItems: NavItem[] = [
     icon: Activity,
     children: [
       { href: "/operations/ride-monitor", label: "Ride Monitor", icon: Navigation, permission: "operations:read" },
-      { href: "/operations/sos-monitor", label: "SOS Monitor", icon: Bell },
-      { href: "/operations/complaints", label: "Complaints", icon: LifeBuoy },
-      { href: "/operations/mishaps", label: "Mishap Reporting", icon: AlertTriangle }
+      { href: "/operations/live-dashboard", label: "Live Dashboard", icon: Radio, permission: "operations:read" },
+      { href: "/operations/dispatch", label: "Dispatch Console", icon: Compass, permission: "operations:read" },
+      { href: "/operations/complaints", label: "Complaints Queue", icon: LifeBuoy, permission: "operations:read" },
+      { href: "/operations/safety-center", label: "Safety Center", icon: ShieldAlert, permission: "operations:read" }
     ],
   },
   {
