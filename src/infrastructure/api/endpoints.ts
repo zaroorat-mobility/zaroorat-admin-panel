@@ -267,6 +267,7 @@ export const API_ENDPOINTS = {
     rideFareBreakdown: (id: string) => `/admin/operations/rides/${id}/fare-breakdown`,
     ridePayments: (id: string) => `/admin/operations/rides/${id}/payments`,
     rideDriverLocation: (id: string) => `/admin/operations/rides/${id}/driver-location`,
+    rideRoute: (id: string) => `/admin/operations/rides/${id}/route`,
     rideExport: '/admin/operations/rides/export',
     liveSummary: '/admin/operations/live/summary',
     liveActiveRides: '/admin/operations/live/active-rides',

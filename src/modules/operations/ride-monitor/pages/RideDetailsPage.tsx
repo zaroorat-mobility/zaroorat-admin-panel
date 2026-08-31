@@ -8,6 +8,7 @@ import {
   useRideAuditLogs,
   useCreateComplaint,
   useRideDriverLocation,
+  useRideRoute,
 } from '../../hooks'
 import { LiveMap } from '@/shared/components/maps/LiveMap'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
@@ -83,6 +84,16 @@ export const RideDetailsPage: React.FC = () => {
   const { data: driverLocation } = useRideDriverLocation(id || '', {
     enabled: isRideActiveForPolling,
     refetchInterval: 10000,
+  })
+
+  const hasRouteCoords =
+    ride?.pickupLat != null &&
+    ride?.pickupLng != null &&
+    ride?.dropLat != null &&
+    ride?.dropLng != null
+
+  const { data: rideRoute } = useRideRoute(id || '', {
+    enabled: !!id && !!hasRouteCoords,
   })
 
   // Fetch linked SOS alerts
@@ -314,6 +325,7 @@ export const RideDetailsPage: React.FC = () => {
                             driverLocation: driverLocation?.lat != null && driverLocation?.lng != null
                               ? { lat: driverLocation.lat, lng: driverLocation.lng }
                               : null,
+                            path: rideRoute?.path?.length ? rideRoute.path : null,
                           },
                         ]}
                       />

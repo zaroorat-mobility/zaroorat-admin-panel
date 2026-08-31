@@ -17,12 +17,20 @@ import {
 const PROVIDERS: MapProviderName[] = ['ola', 'google', 'mappls']
 
 type ProviderForm = {
-  enabled: boolean
   apiKey: string
+  restApiKey: string
   clientId: string
   clientSecret: string
   baseUrl: string
 }
+
+const emptyProvider = (): ProviderForm => ({
+  apiKey: '',
+  restApiKey: '',
+  clientId: '',
+  clientSecret: '',
+  baseUrl: '',
+})
 
 export const MapSettingsPage: React.FC = () => {
   const { data, isLoading, isError } = useMapSettings()
@@ -30,82 +38,83 @@ export const MapSettingsPage: React.FC = () => {
   const { mutate: test, isPending: isTesting } = useTestMapProvider()
   const { success, error } = useToast()
   const [primaryProvider, setPrimaryProvider] = useState<MapProviderName>('ola')
-  const [fallbackProviders, setFallbackProviders] = useState<MapProviderName[]>([])
   const [providers, setProviders] = useState<Record<MapProviderName, ProviderForm>>({
-    ola: { enabled: false, apiKey: '', clientId: '', clientSecret: '', baseUrl: '' },
-    google: { enabled: false, apiKey: '', clientId: '', clientSecret: '', baseUrl: '' },
-    mappls: { enabled: false, apiKey: '', clientId: '', clientSecret: '', baseUrl: '' },
+    ola: emptyProvider(),
+    google: emptyProvider(),
+    mappls: emptyProvider(),
   })
 
   useEffect(() => {
     if (!data) return
     setPrimaryProvider(data.primaryProvider as MapProviderName)
-    setFallbackProviders(data.fallbackProviders as MapProviderName[])
     setProviders({
       ola: {
-        enabled: data.providers.ola.enabled,
-        apiKey: data.providers.ola.apiKey ?? '',
+        apiKey: '',
+        restApiKey: '',
         clientId: '',
         clientSecret: '',
         baseUrl: data.providers.ola.baseUrl ?? '',
       },
       google: {
-        enabled: data.providers.google.enabled,
-        apiKey: data.providers.google.apiKey ?? '',
+        apiKey: '',
+        restApiKey: '',
         clientId: '',
         clientSecret: '',
         baseUrl: data.providers.google.baseUrl ?? '',
       },
       mappls: {
-        enabled: data.providers.mappls.enabled,
         apiKey: '',
-        clientId: data.providers.mappls.clientId ?? '',
-        clientSecret: data.providers.mappls.clientSecret ?? '',
+        restApiKey: '',
+        clientId: '',
+        clientSecret: '',
         baseUrl: data.providers.mappls.baseUrl ?? '',
       },
     })
   }, [data])
-
-  const toggleFallback = (name: MapProviderName) => {
-    setFallbackProviders((prev) =>
-      prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name],
-    )
-  }
 
   const updateProvider = (name: MapProviderName, patch: Partial<ProviderForm>) => {
     setProviders((prev) => ({ ...prev, [name]: { ...prev[name], ...patch } }))
   }
 
   const handleSave = () => {
+    const active = providers[primaryProvider]
+    const providersPayload =
+      primaryProvider === 'mappls'
+        ? {
+            mappls: {
+              restApiKey: secretForUpdate(active.restApiKey, ''),
+              clientId: active.clientId || undefined,
+              clientSecret: secretForUpdate(active.clientSecret, ''),
+              baseUrl: active.baseUrl || undefined,
+            },
+          }
+        : {
+            [primaryProvider]: {
+              apiKey: secretForUpdate(active.apiKey, ''),
+              baseUrl: active.baseUrl || undefined,
+            },
+          }
+
     save(
       {
         primaryProvider,
-        fallbackProviders,
         expectedVersion: data?.version,
-        providers: {
-          ola: {
-            enabled: providers.ola.enabled,
-            apiKey: secretForUpdate(providers.ola.apiKey, data?.providers.ola.apiKey ?? ''),
-            baseUrl: providers.ola.baseUrl || undefined,
-          },
-          google: {
-            enabled: providers.google.enabled,
-            apiKey: secretForUpdate(providers.google.apiKey, data?.providers.google.apiKey ?? ''),
-            baseUrl: providers.google.baseUrl || undefined,
-          },
-          mappls: {
-            enabled: providers.mappls.enabled,
-            clientId: providers.mappls.clientId || undefined,
-            clientSecret: secretForUpdate(
-              providers.mappls.clientSecret,
-              data?.providers.mappls.clientSecret ?? '',
-            ),
-            baseUrl: providers.mappls.baseUrl || undefined,
-          },
-        },
+        providers: providersPayload,
       },
       {
-        onSuccess: () => success('Settings saved', 'Map settings were updated.'),
+        onSuccess: () => {
+          setProviders((prev) => ({
+            ...prev,
+            [primaryProvider]: {
+              ...prev[primaryProvider],
+              apiKey: '',
+              restApiKey: '',
+              clientId: '',
+              clientSecret: '',
+            },
+          }))
+          success('Settings saved', `Active map provider set to ${primaryProvider}.`)
+        },
         onError: (err) =>
           error('Save failed', err instanceof Error ? err.message : 'Could not save settings'),
       },
@@ -117,10 +126,11 @@ export const MapSettingsPage: React.FC = () => {
     test(
       {
         providerName: primaryProvider,
-        apiKey: provider.apiKey || undefined,
-        clientId: provider.clientId || undefined,
-        clientSecret: provider.clientSecret || undefined,
-        baseUrl: provider.baseUrl || undefined,
+        ...(provider.apiKey ? { apiKey: provider.apiKey } : {}),
+        ...(provider.restApiKey ? { restApiKey: provider.restApiKey } : {}),
+        ...(provider.clientId ? { clientId: provider.clientId } : {}),
+        ...(provider.clientSecret ? { clientSecret: provider.clientSecret } : {}),
+        ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
       },
       {
         onSuccess: (result) =>
@@ -136,11 +146,16 @@ export const MapSettingsPage: React.FC = () => {
   if (isLoading) return <SettingsLoading />
   if (isError || !data) return <SettingsError />
 
+  const active = providers[primaryProvider]
+
   return (
     <div className="space-y-4 max-w-3xl">
       <Card className="premium-card">
         <CardContent className="p-6 space-y-4">
-          <SettingFieldRow label="Primary provider">
+          <SettingFieldRow
+            label="Active provider"
+            hint="Exactly one map provider is active. There is no fallback — pick Ola, Google, or Mappls."
+          >
             <select
               value={primaryProvider}
               onChange={(e) => setPrimaryProvider(e.target.value as MapProviderName)}
@@ -153,82 +168,69 @@ export const MapSettingsPage: React.FC = () => {
               ))}
             </select>
           </SettingFieldRow>
-          <SettingFieldRow label="Fallback providers" hint="Select providers used when primary fails">
-            <div className="flex flex-wrap gap-3">
-              {PROVIDERS.filter((p) => p !== primaryProvider).map((name) => (
-                <label key={name} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={fallbackProviders.includes(name)}
-                    onChange={() => toggleFallback(name)}
-                    className="rounded border-border"
-                  />
-                  {name}
-                </label>
-              ))}
-            </div>
-          </SettingFieldRow>
         </CardContent>
       </Card>
 
-      {PROVIDERS.map((name) => (
-        <Card key={name} className="premium-card">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold capitalize">{name}</p>
-              <ConfiguredBadge configured={data.providers[name].configured} />
-            </div>
-            <SettingFieldRow label="Enabled">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={providers[name].enabled}
-                  onChange={(e) => updateProvider(name, { enabled: e.target.checked })}
-                  className="rounded border-border"
-                />
-                Enable {name} provider
-              </label>
-            </SettingFieldRow>
-            {name === 'mappls' ? (
-              <>
-                <SettingFieldRow label="Client ID">
-                  <Input
-                    value={providers[name].clientId}
-                    onChange={(e) => updateProvider(name, { clientId: e.target.value })}
-                  />
-                </SettingFieldRow>
-                <SecretField
-                  label="Client secret"
-                  value={providers[name].clientSecret}
-                  onChange={(v) => updateProvider(name, { clientSecret: v })}
-                  configured={data.providers.mappls.configured}
-                />
-              </>
-            ) : (
+      <Card className="premium-card">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold capitalize">{primaryProvider}</p>
+            <ConfiguredBadge configured={data.providers[primaryProvider].configured} />
+          </div>
+
+          {primaryProvider === 'mappls' ? (
+            <>
               <SecretField
-                label="API key"
-                value={providers[name].apiKey}
-                onChange={(v) => updateProvider(name, { apiKey: v })}
-                configured={data.providers[name].configured}
+                label="REST API key"
+                value={active.restApiKey}
+                onChange={(v) => updateProvider('mappls', { restApiKey: v })}
+                configured={data.providers.mappls.configured}
               />
-            )}
-            <SettingFieldRow label="Base URL">
-              <Input
-                value={providers[name].baseUrl}
-                onChange={(e) => updateProvider(name, { baseUrl: e.target.value })}
-                placeholder="Optional override"
+              <SettingFieldRow label="OAuth Client ID (optional)">
+                <Input
+                  type="password"
+                  value={active.clientId}
+                  onChange={(e) => updateProvider('mappls', { clientId: e.target.value })}
+                  placeholder="Only if using OAuth instead of REST key"
+                  autoComplete="off"
+                />
+              </SettingFieldRow>
+              <SecretField
+                label="OAuth Client secret (optional)"
+                value={active.clientSecret}
+                onChange={(v) => updateProvider('mappls', { clientSecret: v })}
+                configured={data.providers.mappls.configured}
               />
-            </SettingFieldRow>
-          </CardContent>
-        </Card>
-      ))}
+              <p className="text-[11px] text-muted-foreground">
+                Use either the REST API key alone (from auth.mappls.com/console → Credentials), or OAuth Client ID + secret together.
+                Do not fill all three — mixing causes auth failures.
+              </p>
+            </>
+          ) : (
+            <SecretField
+              label="API key"
+              value={active.apiKey}
+              onChange={(v) => updateProvider(primaryProvider, { apiKey: v })}
+              configured={data.providers[primaryProvider].configured}
+            />
+          )}
+
+          <SettingFieldRow label="Base URL">
+            <Input
+              value={active.baseUrl}
+              onChange={(e) => updateProvider(primaryProvider, { baseUrl: e.target.value })}
+              placeholder="Optional override"
+            />
+          </SettingFieldRow>
+        </CardContent>
+      </Card>
 
       <SettingsFormActions
         onSave={handleSave}
         isSaving={isPending}
         onTest={handleTest}
         isTesting={isTesting}
-        testLabel="Test primary provider"
+        testLabel="Test active provider"
       />
     </div>
   )

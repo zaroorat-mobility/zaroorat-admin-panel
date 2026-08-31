@@ -474,6 +474,7 @@ export const LiveDashboardPage: React.FC = () => {
                 driverLocation: r.driverLocation
                   ? { lat: r.driverLocation.lat, lng: r.driverLocation.lng }
                   : null,
+                path: r.path?.length ? r.path : null,
               }))}
               markers={(mapData?.drivers ?? []).map((d) => ({
                 id: d.id,

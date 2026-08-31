@@ -122,6 +122,7 @@ export const useUpdateMapSettings = () => {
     mutationFn: (body: UpdateMapSettingsBody) => updateMapSettings(body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...settingsKey, 'maps'] })
+      qc.invalidateQueries({ queryKey: ['settings', 'maps', 'client-config'] })
       qc.invalidateQueries({ queryKey: [...settingsKey, 'integrations', 'status'] })
     },
   })

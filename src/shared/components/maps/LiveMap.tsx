@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -7,7 +7,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import { cn } from '@/shared/utils'
 import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
-import { resolveMapTileLayer } from '@/shared/utils/map-tiles'
+import { OSM_TILE_LAYER, resolveMapTileLayer, type MapTileLayerConfig } from '@/shared/utils/map-tiles'
 
 // @ts-expect-error leaflet icon patch
 delete L.Icon.Default.prototype._getIconUrl
@@ -32,6 +32,8 @@ export interface LiveMapRoute {
   pickup: { lat: number; lng: number; label?: string }
   drop: { lat: number; lng: number; label?: string }
   driverLocation?: { lat: number; lng: number } | null
+  /** Road-following route geometry; when absent, a straight line is drawn. */
+  path?: Array<{ lat: number; lng: number }> | null
 }
 
 export interface LiveMapProps {
@@ -77,6 +79,34 @@ function createDotIcon(color: string) {
   })
 }
 
+function FallbackTileLayer({
+  primary,
+  onFallback,
+}: {
+  primary: MapTileLayerConfig
+  onFallback: () => void
+}) {
+  const map = useMap()
+  const [useFallback, setUseFallback] = useState(false)
+  const layer = useFallback ? OSM_TILE_LAYER : primary
+
+  useEffect(() => {
+    if (useFallback) return
+
+    const handleTileError = () => {
+      setUseFallback(true)
+      onFallback()
+    }
+
+    map.on('tileerror', handleTileError)
+    return () => {
+      map.off('tileerror', handleTileError)
+    }
+  }, [map, onFallback, useFallback])
+
+  return <TileLayer attribution={layer.attribution} url={layer.url} />
+}
+
 export const LiveMap: React.FC<LiveMapProps> = ({
   markers = [],
   routes = [],
@@ -87,7 +117,9 @@ export const LiveMap: React.FC<LiveMapProps> = ({
   tileUrl,
   tileAttribution,
 }) => {
-  const { data: mapConfig } = useMapClientConfig()
+  const { data: mapConfig, isLoading: isLoadingConfig } = useMapClientConfig()
+  const [didFallback, setDidFallback] = useState(false)
+
   const tileLayer = useMemo(() => {
     if (tileUrl) {
       return {
@@ -106,7 +138,15 @@ export const LiveMap: React.FC<LiveMapProps> = ({
       }
     }
     for (const r of routes) {
-      pts.push([r.pickup.lat, r.pickup.lng], [r.drop.lat, r.drop.lng])
+      if (r.path && r.path.length > 0) {
+        for (const p of r.path) {
+          if (Number.isFinite(p.lat) && Number.isFinite(p.lng)) {
+            pts.push([p.lat, p.lng])
+          }
+        }
+      } else {
+        pts.push([r.pickup.lat, r.pickup.lng], [r.drop.lat, r.drop.lng])
+      }
       if (r.driverLocation) {
         pts.push([r.driverLocation.lat, r.driverLocation.lng])
       }
@@ -117,27 +157,61 @@ export const LiveMap: React.FC<LiveMapProps> = ({
   const mapCenter = useMemo<[number, number]>(() => {
     if (center) return center
     if (allPoints.length > 0) return allPoints[0]
-    return [20.5937, 78.9629]
+    return [34.0837, 74.7973] // Srinagar default for ops maps
   }, [allPoints, center])
 
-  const mapKey = allPoints.map((p) => p.join(',')).join('|') || 'default'
+  const mapKey = [
+    allPoints.map((p) => p.join(',')).join('|') || 'default',
+    tileLayer.url,
+    didFallback ? 'osm-fallback' : 'primary',
+    isLoadingConfig ? 'loading' : 'ready',
+  ].join('::')
+
+  const usingOsmFallback = tileLayer.url === OSM_TILE_LAYER.url || didFallback
 
   return (
-    <div className={cn('rounded-xl overflow-hidden border border-border', className)} style={{ height }}>
+    <div className={cn('rounded-xl overflow-hidden border border-border relative', className)} style={{ height }}>
+      {usingOsmFallback && mapConfig?.primaryProvider === 'ola' && !mapConfig.providers.ola.apiKey && (
+        <div className="absolute top-2 left-12 z-[1000] rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-800 shadow-sm">
+          Using OpenStreetMap — configure an Ola Maps API key under Platform → Maps.
+        </div>
+      )}
+      {usingOsmFallback && mapConfig?.primaryProvider === 'ola' && mapConfig.providers.ola.apiKey && (
+        <div className="absolute top-2 left-12 z-[1000] rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-800 shadow-sm">
+          Ola map tiles failed to load — showing OpenStreetMap fallback.
+        </div>
+      )}
       <MapContainer key={mapKey} center={mapCenter} zoom={zoom} style={{ height: '100%', width: '100%' }}>
-        <TileLayer attribution={tileLayer.attribution} url={tileLayer.url} />
+        {tileLayer.url === OSM_TILE_LAYER.url ? (
+          <TileLayer attribution={tileLayer.attribution} url={tileLayer.url} />
+        ) : (
+          <FallbackTileLayer primary={tileLayer} onFallback={() => setDidFallback(true)} />
+        )}
         <FitBounds points={allPoints} />
 
         {routes.map((route) => {
-          const line: [number, number][] = [[route.pickup.lat, route.pickup.lng]]
+          const hasRoadPath = route.path && route.path.length >= 2
+          const fallbackLine: [number, number][] = [[route.pickup.lat, route.pickup.lng]]
           if (route.driverLocation) {
-            line.push([route.driverLocation.lat, route.driverLocation.lng])
+            fallbackLine.push([route.driverLocation.lat, route.driverLocation.lng])
           }
-          line.push([route.drop.lat, route.drop.lng])
+          fallbackLine.push([route.drop.lat, route.drop.lng])
+
+          const line: [number, number][] = hasRoadPath
+            ? route.path!.map((p) => [p.lat, p.lng] as [number, number])
+            : fallbackLine
 
           return (
             <React.Fragment key={route.id}>
-              <Polyline positions={line} pathOptions={{ color: '#6366f1', weight: 3, opacity: 0.75, dashArray: '6 8' }} />
+              <Polyline
+                positions={line}
+                pathOptions={{
+                  color: '#6366f1',
+                  weight: hasRoadPath ? 4 : 3,
+                  opacity: hasRoadPath ? 0.9 : 0.75,
+                  ...(hasRoadPath ? {} : { dashArray: '6 8' }),
+                }}
+              />
               <Marker
                 position={[route.pickup.lat, route.pickup.lng]}
                 icon={createDotIcon(MARKER_COLORS.pickup)}

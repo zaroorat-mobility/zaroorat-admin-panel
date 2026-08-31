@@ -230,6 +230,7 @@ export interface BackendLiveMap {
     drop: { address: string; lat: number; lng: number }
     driverLocation: { lat: number; lng: number; heading: number | null } | null
     encodedPolyline: string | null
+    path: Array<{ lat: number; lng: number }> | null
   }>
   drivers: Array<{
     id: string
@@ -561,6 +562,19 @@ export const operationsApi = {
 
   getRideDriverLocation: async (id: string) => {
     const response = await api.get<{ data: any }>(API_ENDPOINTS.operations.rideDriverLocation(id))
+    return response.data.data
+  },
+
+  getRideRoute: async (id: string) => {
+    const response = await api.get<{
+      data: {
+        path: Array<{ lat: number; lng: number }>
+        provider: string | null
+        distanceMeters: number | null
+        durationSeconds: number | null
+        encodedPolyline?: string
+      }
+    }>(API_ENDPOINTS.operations.rideRoute(id))
     return response.data.data
   },
 

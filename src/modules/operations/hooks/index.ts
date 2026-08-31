@@ -10,6 +10,7 @@ const OK = {
   rideNotes: (id: string) => ['operations', 'ride', id, 'notes'] as const,
   rideAudit: (id: string, params?: QueryParams) => ['operations', 'ride', id, 'audit', params || {}] as const,
   rideDriverLocation: (id: string) => ['operations', 'ride', id, 'driver-location'] as const,
+  rideRoute: (id: string) => ['operations', 'ride', id, 'route'] as const,
   liveSummary: (params?: { longWaitThresholdMin?: number }) => ['operations', 'live', 'summary', params || {}] as const,
   activeRides: (params?: QueryParams) => ['operations', 'live', 'activeRides', params || {}] as const,
   liveMap: (params?: { city?: string; vehicleTypeId?: string }) => ['operations', 'live', 'map', params || {}] as const,
@@ -168,6 +169,15 @@ export const useRideDriverLocation = (
     queryFn: () => OperationsService.getRideDriverLocation(id),
     enabled: !!id && options?.enabled !== false,
     refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 10000,
+  })
+}
+
+export const useRideRoute = (id: string, options?: { enabled?: boolean }) => {
+  return useQuery({
+    queryKey: OK.rideRoute(id),
+    queryFn: () => OperationsService.getRideRoute(id),
+    enabled: !!id && options?.enabled !== false,
+    staleTime: 5 * 60 * 1000,
   })
 }
 

@@ -151,15 +151,11 @@ export interface UpdateMaintenanceSettingsBody {
 export interface MapProviderConfigView {
   enabled: boolean
   configured: boolean
-  apiKey?: string
-  clientId?: string
-  clientSecret?: string
   baseUrl?: string
 }
 
 export interface MapSettingsView {
   primaryProvider: string
-  fallbackProviders: string[]
   version: number
   providers: {
     ola: MapProviderConfigView
@@ -170,18 +166,24 @@ export interface MapSettingsView {
 
 export interface UpdateMapSettingsBody {
   primaryProvider: MapProviderName
-  fallbackProviders: MapProviderName[]
   expectedVersion?: number
   providers?: {
     ola?: { enabled?: boolean; apiKey?: string; baseUrl?: string }
     google?: { enabled?: boolean; apiKey?: string; baseUrl?: string }
-    mappls?: { enabled?: boolean; clientId?: string; clientSecret?: string; baseUrl?: string }
+    mappls?: {
+      enabled?: boolean
+      restApiKey?: string
+      clientId?: string
+      clientSecret?: string
+      baseUrl?: string
+    }
   }
 }
 
 export interface TestProviderHealthBody {
   providerName: MapProviderName
   apiKey?: string
+  restApiKey?: string
   clientId?: string
   clientSecret?: string
   baseUrl?: string

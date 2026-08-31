@@ -972,6 +972,7 @@ export const OperationsService = {
   cancelRide: (id: string, data: { reasonCode?: string; reasonText?: string }) => operationsApi.cancelRide(id, data),
   getRideAuditLogs: (id: string, params?: QueryParams) => operationsApi.getRideAuditLogs(id, params),
   getRideDriverLocation: (id: string) => operationsApi.getRideDriverLocation(id),
+  getRideRoute: (id: string) => operationsApi.getRideRoute(id),
 
   // Live Operations
   getLiveSummary: (params?: { longWaitThresholdMin?: number }) => operationsApi.getLiveSummary(params),
