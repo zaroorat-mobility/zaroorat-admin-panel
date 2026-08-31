@@ -39,6 +39,10 @@ export interface Ride extends BaseEntity {
   paymentMethod: RidePaymentMethod
   pickupLocation: string
   dropLocation: string
+  pickupLat?: number | null
+  pickupLng?: number | null
+  dropLat?: number | null
+  dropLng?: number | null
   distance: number
   duration: number
   baseFare: number
@@ -50,4 +54,23 @@ export interface Ride extends BaseEntity {
   otp: string
   sosState: 'none' | 'raised' | 'acknowledged' | 'resolved'
   timeline: RideTimelineEvent[]
+  rawStatus?: string
+  ratings?: Array<{
+    id: string
+    ratedBy: string
+    rating: number
+    tags: string[]
+    comment: string | null
+    createdAt: string
+  }>
+  opsNotes?: Array<{
+    id: string
+    note: string
+    createdAt: string
+    author: {
+      id: string
+      fullName: string
+      phoneNumber: string
+    }
+  }>
 }

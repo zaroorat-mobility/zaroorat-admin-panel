@@ -41,4 +41,5 @@ export function useMediaQuery(query: string): boolean {
 export * from './usePostalCodeLookup'
 export * from './useCountriesNow'
 export * from './useFileReadUrl'
+export * from './useMapClientConfig'
 

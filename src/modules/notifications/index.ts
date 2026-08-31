@@ -1,3 +1,2 @@
-export * from './pages/NotificationsPage'
-export * from './routes/routes'
-export { default } from './routes/routes'
+export { CommunicationsRoutes } from '@/modules/communications/routes/routes'
+export { default } from '@/modules/communications/routes/routes'

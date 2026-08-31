@@ -46,7 +46,7 @@ export const CreateUserPage: React.FC = () => {
     createUser(formData, {
       onSuccess: () => {
         showSuccess('Admin user created', 'They can now sign in to the dashboard.')
-        navigate('/users')
+        navigate('/access-control/users')
       },
       onError: (err) => {
         showError('Could not create user', err instanceof Error ? err.message : 'Request failed')
@@ -59,7 +59,7 @@ export const CreateUserPage: React.FC = () => {
       <PageHeader
         title="Add Administrative User"
         description="Provision a staff account that can sign in with email and password."
-        onBack={() => navigate('/users')}
+        onBack={() => navigate('/access-control/users')}
       />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 text-left max-w-3xl mt-4">
@@ -130,7 +130,7 @@ export const CreateUserPage: React.FC = () => {
         </Card>
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate('/users')}>
+          <Button type="button" variant="outline" onClick={() => navigate('/access-control/users')}>
             Cancel
           </Button>
           <Button type="submit" loading={isPending} className="gap-2">

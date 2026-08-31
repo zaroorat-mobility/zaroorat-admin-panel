@@ -101,7 +101,7 @@ export const usePostalCodeLookup = () => {
 
       return { city: '', state: '', success: false };
 
-    } catch (error) {
+    } catch {
       return { city: '', state: '', success: false };
     } finally {
       setLoading(false);

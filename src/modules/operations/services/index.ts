@@ -1,6 +1,8 @@
 import type { QueryParams, PaginatedResponse } from '@/shared/types'
 import type { Ride, SOSAlert, Complaint, SosResolutionType, ComplaintStatus } from '../types'
 import { logAuditAction } from '@/shared/services/auditLogger'
+import { operationsApi } from '../api'
+import { mapBackendRideToUiRide, mapBackendTicketToUiComplaint, mapBackendIncidentToUiSosAlert } from '../mappers'
 
 const RIDES_KEY = 'zaroorat_rides_db'
 const SOS_KEY = 'zaroorat_sos_db'
@@ -447,38 +449,59 @@ const checkEscalations = (alerts: SOSAlert[]): boolean => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const getRides = async (params?: QueryParams): Promise<PaginatedResponse<Ride>> => {
-  const db = getDb(RIDES_KEY, seedRides)
-  const search = ((params?.search as string) || '').toLowerCase()
-  let filtered = [...db]
+  try {
+    const res = await operationsApi.getRides(params)
+    const rides = res.data.map(mapBackendRideToUiRide)
+    return {
+      data: rides,
+      meta: {
+        currentPage: res.meta?.currentPage ?? (res.meta as any)?.page ?? 1,
+        totalPages: res.meta?.totalPages ?? 1,
+        pageSize: res.meta?.pageSize ?? (res.meta as any)?.limit ?? 50,
+        totalCount: res.meta?.totalCount ?? (res.meta as any)?.total ?? rides.length,
+      },
+    }
+  } catch (err) {
+    console.warn('[OperationsService.getRides] Backend request failed, falling back to cached db:', err)
+    const db = getDb(RIDES_KEY, seedRides)
+    const search = ((params?.search as string) || '').toLowerCase()
+    let filtered = [...db]
 
-  if (search) {
-    filtered = filtered.filter(r => 
-      r.id.toLowerCase().includes(search) ||
-      r.riderName.toLowerCase().includes(search) ||
-      (r.driverName && r.driverName.toLowerCase().includes(search)) ||
-      (r.vehiclePlate && r.vehiclePlate.toLowerCase().includes(search))
-    )
-  }
+    if (search) {
+      filtered = filtered.filter(
+        (r) =>
+          r.id.toLowerCase().includes(search) ||
+          r.riderName.toLowerCase().includes(search) ||
+          (r.driverName && r.driverName.toLowerCase().includes(search)) ||
+          (r.vehiclePlate && r.vehiclePlate.toLowerCase().includes(search)),
+      )
+    }
 
-  // Sort by createdAt descending
-  filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-  return {
-    data: filtered,
-    meta: {
-      currentPage: 1,
-      totalPages: Math.ceil(filtered.length / 10),
-      pageSize: 10,
-      totalCount: filtered.length
+    return {
+      data: filtered,
+      meta: {
+        currentPage: 1,
+        totalPages: Math.ceil(filtered.length / 10),
+        pageSize: 10,
+        totalCount: filtered.length,
+      },
     }
   }
 }
 
 const getRideById = async (id: string): Promise<Ride> => {
-  const db = getDb(RIDES_KEY, seedRides)
-  const found = db.find(r => r.id === id)
-  if (!found) throw new Error(`Ride ${id} not found`)
-  return found
+  try {
+    const res = await operationsApi.getRideById(id)
+    return mapBackendRideToUiRide(res)
+  } catch (err) {
+    console.warn(`[OperationsService.getRideById] Backend request failed for ${id}, falling back:`, err)
+    const db = getDb(RIDES_KEY, seedRides)
+    const found = db.find((r) => r.id === id)
+    if (!found) throw new Error(`Ride ${id} not found`)
+    return found
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -486,141 +509,186 @@ const getRideById = async (id: string): Promise<Ride> => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const getSOSAlerts = async (params?: QueryParams): Promise<PaginatedResponse<SOSAlert>> => {
-  const db = getDb(SOS_KEY, seedSosAlerts)
-  
-  // Run live auto-escalation check
-  const changed = checkEscalations(db)
-  if (changed) {
-    saveDb(SOS_KEY, db)
-  }
+  try {
+    const backendRes = await operationsApi.getIncidents({ ...params, type: 'SOS' })
+    const uiAlerts = (backendRes.data || []).map(mapBackendIncidentToUiSosAlert)
+    const meta = (backendRes.meta as any) || {}
+    return {
+      data: uiAlerts,
+      meta: {
+        currentPage: meta.currentPage ?? meta.page ?? 1,
+        totalPages: meta.totalPages ?? 1,
+        pageSize: meta.pageSize ?? meta.limit ?? 50,
+        totalCount: meta.totalCount ?? meta.total ?? uiAlerts.length,
+      },
+    }
+  } catch (err) {
+    console.warn('[OperationsService] Falling back to local mock SOS alerts:', err)
+    const db = getDb(SOS_KEY, seedSosAlerts)
+    
+    // Run live auto-escalation check
+    const changed = checkEscalations(db)
+    if (changed) {
+      saveDb(SOS_KEY, db)
+    }
 
-  const search = ((params?.search as string) || '').toLowerCase()
-  let filtered = [...db]
+    const search = ((params?.search as string) || '').toLowerCase()
+    let filtered = [...db]
 
-  if (search) {
-    filtered = filtered.filter(a => 
-      a.id.toLowerCase().includes(search) ||
-      a.rideId.toLowerCase().includes(search) ||
-      a.riderName.toLowerCase().includes(search) ||
-      a.driverName.toLowerCase().includes(search)
-    )
-  }
+    if (search) {
+      filtered = filtered.filter(a => 
+        a.id.toLowerCase().includes(search) ||
+        a.rideId.toLowerCase().includes(search) ||
+        a.riderName.toLowerCase().includes(search) ||
+        a.driverName.toLowerCase().includes(search)
+      )
+    }
 
-  filtered.sort((a, b) => new Date(b.timeRaised).getTime() - new Date(a.timeRaised).getTime())
+    filtered.sort((a, b) => new Date(b.timeRaised).getTime() - new Date(a.timeRaised).getTime())
 
-  return {
-    data: filtered,
-    meta: {
-      currentPage: 1,
-      totalPages: Math.ceil(filtered.length / 10),
-      pageSize: 10,
-      totalCount: filtered.length
+    return {
+      data: filtered,
+      meta: {
+        currentPage: 1,
+        totalPages: Math.ceil(filtered.length / 10),
+        pageSize: 10,
+        totalCount: filtered.length
+      }
     }
   }
 }
 
 const getSOSAlertById = async (id: string): Promise<SOSAlert> => {
-  const db = getDb(SOS_KEY, seedSosAlerts)
-  
-  const found = db.find(a => a.id === id)
-  if (!found) throw new Error(`SOS Alert ${id} not found`)
+  try {
+    const backendDetail = await operationsApi.getIncidentById(id)
+    return mapBackendIncidentToUiSosAlert(backendDetail)
+  } catch (err) {
+    console.warn(`[OperationsService] Falling back to local mock for SOS alert ${id}:`, err)
+    const db = getDb(SOS_KEY, seedSosAlerts)
+    
+    const found = db.find(a => a.id === id)
+    if (!found) throw new Error(`SOS Alert ${id} not found`)
 
-  // Check escalation
-  const list = [found]
-  if (checkEscalations(list)) {
-    // Save state back to DB
-    const fullDb = getDb(SOS_KEY, seedSosAlerts)
-    const idx = fullDb.findIndex(a => a.id === id)
-    if (idx !== -1) {
-      fullDb[idx] = found
-      saveDb(SOS_KEY, fullDb)
+    // Check escalation
+    const list = [found]
+    if (checkEscalations(list)) {
+      // Save state back to DB
+      const fullDb = getDb(SOS_KEY, seedSosAlerts)
+      const idx = fullDb.findIndex(a => a.id === id)
+      if (idx !== -1) {
+        fullDb[idx] = found
+        saveDb(SOS_KEY, fullDb)
+      }
     }
-  }
 
-  return found
+    return found
+  }
 }
 
 const acknowledgeSOS = async (id: string, notes: string): Promise<SOSAlert> => {
-  const db = getDb(SOS_KEY, seedSosAlerts)
-  const idx = db.findIndex(a => a.id === id)
-  if (idx === -1) throw new Error(`SOS Alert ${id} not found`)
+  try {
+    const updated = await operationsApi.acknowledgeIncident(id, notes)
+    return mapBackendIncidentToUiSosAlert(updated)
+  } catch (err) {
+    console.warn(`[OperationsService] Error acknowledging SOS ${id} via API:`, err)
+    const db = getDb(SOS_KEY, seedSosAlerts)
+    const idx = db.findIndex(a => a.id === id)
+    if (idx === -1) throw new Error(`SOS Alert ${id} not found`)
 
-  const alert = db[idx]
-  const now = new Date().toISOString()
+    const alert = db[idx]
+    const now = new Date().toISOString()
 
-  alert.status = 'acknowledged'
-  alert.acknowledgedBy = 'Admin Operator'
-  alert.acknowledgedAt = now
-  alert.acknowledgementNotes = notes
-  alert.updatedAt = now
+    alert.status = 'acknowledged'
+    alert.acknowledgedBy = 'Admin Operator'
+    alert.acknowledgedAt = now
+    alert.acknowledgementNotes = notes
+    alert.updatedAt = now
 
-  db[idx] = alert
-  saveDb(SOS_KEY, db)
+    db[idx] = alert
+    saveDb(SOS_KEY, db)
 
-  // Update Ride sosState
-  const rides = getDb(RIDES_KEY, seedRides)
-  const rideIdx = rides.findIndex(r => r.id === alert.rideId)
-  if (rideIdx !== -1) {
-    rides[rideIdx].sosState = 'acknowledged'
-    rides[rideIdx].updatedAt = now
-    rides[rideIdx].timeline.push({
-      stage: 'SOS_ACKNOWLEDGED',
-      timestamp: now,
-      description: `SOS alert acknowledged by agent: ${notes.substring(0, 45)}...`
-    })
-    saveDb(RIDES_KEY, rides)
+    // Update Ride sosState
+    const rides = getDb(RIDES_KEY, seedRides)
+    const rideIdx = rides.findIndex(r => r.id === alert.rideId)
+    if (rideIdx !== -1) {
+      rides[rideIdx].sosState = 'acknowledged'
+      rides[rideIdx].updatedAt = now
+      rides[rideIdx].timeline.push({
+        stage: 'SOS_ACKNOWLEDGED',
+        timestamp: now,
+        description: `SOS alert acknowledged by agent: ${notes.substring(0, 45)}...`
+      })
+      saveDb(RIDES_KEY, rides)
+    }
+
+    logAuditAction(
+      `Acknowledged SOS Alert: ${alert.id}`,
+      `Alert for Ride ID ${alert.rideId} acknowledged. Notes: ${notes}`,
+      alert.id,
+      'sos'
+    )
+
+    return alert
   }
-
-  logAuditAction(
-    `Acknowledged SOS Alert: ${alert.id}`,
-    `Alert for Ride ID ${alert.rideId} acknowledged. Notes: ${notes}`,
-    alert.id,
-    'sos'
-  )
-
-  return alert
 }
 
 const resolveSOS = async (id: string, resolutionType: SosResolutionType, notes: string): Promise<SOSAlert> => {
-  const db = getDb(SOS_KEY, seedSosAlerts)
-  const idx = db.findIndex(a => a.id === id)
-  if (idx === -1) throw new Error(`SOS Alert ${id} not found`)
-
-  const alert = db[idx]
-  const now = new Date().toISOString()
-
-  alert.status = 'resolved'
-  alert.resolvedBy = 'Admin Operator'
-  alert.resolvedAt = now
-  alert.resolutionType = resolutionType
-  alert.resolutionNotes = notes
-  alert.updatedAt = now
-
-  db[idx] = alert
-  saveDb(SOS_KEY, db)
-
-  // Update Ride sosState
-  const rides = getDb(RIDES_KEY, seedRides)
-  const rideIdx = rides.findIndex(r => r.id === alert.rideId)
-  if (rideIdx !== -1) {
-    rides[rideIdx].sosState = 'resolved'
-    rides[rideIdx].updatedAt = now
-    rides[rideIdx].timeline.push({
-      stage: 'SOS_RESOLVED',
-      timestamp: now,
-      description: `SOS resolved [Type: ${resolutionType}]: ${notes.substring(0, 45)}...`
+  try {
+    const resTypeMap: Record<string, string> = {
+      'False Alarm': 'FALSE_ALARM',
+      'Customer Safe': 'CUSTOMER_SAFE',
+      'Driver Safe': 'DRIVER_SAFE',
+      'Emergency Services Contacted': 'POLICE_ESCALATED',
+      'Unable To Reach Customer': 'UNREACHABLE',
+    }
+    const updated = await operationsApi.resolveIncident(id, {
+      resolutionType: resTypeMap[resolutionType] || 'RESOLVED',
+      resolutionNotes: notes,
+      status: 'RESOLVED',
     })
-    saveDb(RIDES_KEY, rides)
+    return mapBackendIncidentToUiSosAlert(updated)
+  } catch (err) {
+    console.warn(`[OperationsService] Error resolving SOS ${id} via API:`, err)
+    const db = getDb(SOS_KEY, seedSosAlerts)
+    const idx = db.findIndex(a => a.id === id)
+    if (idx === -1) throw new Error(`SOS Alert ${id} not found`)
+
+    const alert = db[idx]
+    const now = new Date().toISOString()
+
+    alert.status = 'resolved'
+    alert.resolvedBy = 'Admin Operator'
+    alert.resolvedAt = now
+    alert.resolutionType = resolutionType
+    alert.resolutionNotes = notes
+    alert.updatedAt = now
+
+    db[idx] = alert
+    saveDb(SOS_KEY, db)
+
+    // Update Ride sosState
+    const rides = getDb(RIDES_KEY, seedRides)
+    const rideIdx = rides.findIndex(r => r.id === alert.rideId)
+    if (rideIdx !== -1) {
+      rides[rideIdx].sosState = 'resolved'
+      rides[rideIdx].updatedAt = now
+      rides[rideIdx].timeline.push({
+        stage: 'SOS_RESOLVED',
+        timestamp: now,
+        description: `SOS resolved [Type: ${resolutionType}]: ${notes.substring(0, 45)}...`
+      })
+      saveDb(RIDES_KEY, rides)
+    }
+
+    logAuditAction(
+      `Resolved SOS Alert: ${alert.id}`,
+      `Alert resolved with status ${resolutionType}. Notes: ${notes}`,
+      alert.id,
+      'sos'
+    )
+
+    return alert
   }
-
-  logAuditAction(
-    `Resolved SOS Alert: ${alert.id}`,
-    `Alert resolved with status ${resolutionType}. Notes: ${notes}`,
-    alert.id,
-    'sos'
-  )
-
-  return alert
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -628,206 +696,311 @@ const resolveSOS = async (id: string, resolutionType: SosResolutionType, notes: 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const getComplaints = async (params?: QueryParams): Promise<PaginatedResponse<Complaint>> => {
-  const db = getDb(COMPLAINTS_KEY, seedComplaints)
-  const search = ((params?.search as string) || '').toLowerCase()
-  let filtered = [...db]
+  try {
+    const backendRes = await operationsApi.getTickets(params)
+    const uiComplaints = (backendRes.data || []).map(mapBackendTicketToUiComplaint)
+    const meta = (backendRes.meta as any) || {}
+    return {
+      data: uiComplaints,
+      meta: {
+        currentPage: meta.currentPage ?? meta.page ?? 1,
+        totalPages: meta.totalPages ?? 1,
+        pageSize: meta.pageSize ?? meta.limit ?? 50,
+        totalCount: meta.totalCount ?? meta.total ?? uiComplaints.length,
+      },
+    }
+  } catch (err) {
+    console.warn('[OperationsService] Falling back to local mock complaints:', err)
+    const db = getDb(COMPLAINTS_KEY, seedComplaints)
+    const search = ((params?.search as string) || '').toLowerCase()
+    let filtered = [...db]
 
-  if (search) {
-    filtered = filtered.filter(c => 
-      c.id.toLowerCase().includes(search) ||
-      (c.rideId && c.rideId.toLowerCase().includes(search)) ||
-      c.raisedByName.toLowerCase().includes(search) ||
-      c.category.toLowerCase().includes(search)
-    )
-  }
+    if (search) {
+      filtered = filtered.filter(c => 
+        c.id.toLowerCase().includes(search) ||
+        (c.rideId && c.rideId.toLowerCase().includes(search)) ||
+        c.raisedByName.toLowerCase().includes(search) ||
+        c.category.toLowerCase().includes(search)
+      )
+    }
 
-  filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-  return {
-    data: filtered,
-    meta: {
-      currentPage: 1,
-      totalPages: Math.ceil(filtered.length / 10),
-      pageSize: 10,
-      totalCount: filtered.length
+    return {
+      data: filtered,
+      meta: {
+        currentPage: 1,
+        totalPages: Math.ceil(filtered.length / 10),
+        pageSize: 10,
+        totalCount: filtered.length
+      }
     }
   }
 }
 
 const getComplaintById = async (id: string): Promise<Complaint> => {
-  const db = getDb(COMPLAINTS_KEY, seedComplaints)
-  const found = db.find(c => c.id === id)
-  if (!found) throw new Error(`Complaint ${id} not found`)
-  return found
+  try {
+    const backendDetail = await operationsApi.getTicketById(id)
+    return mapBackendTicketToUiComplaint(backendDetail)
+  } catch (err) {
+    console.warn(`[OperationsService] Falling back to local mock for complaint ${id}:`, err)
+    const db = getDb(COMPLAINTS_KEY, seedComplaints)
+    const found = db.find(c => c.id === id)
+    if (!found) throw new Error(`Complaint ${id} not found`)
+    return found
+  }
 }
 
 const createComplaint = async (data: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt' | 'timeline'>): Promise<Complaint> => {
-  const db = getDb(COMPLAINTS_KEY, seedComplaints)
-  const now = new Date().toISOString()
+  try {
+    const priorityMap: Record<string, string> = {
+      low: 'LOW',
+      medium: 'NORMAL',
+      high: 'HIGH',
+      critical: 'URGENT',
+    }
+    const created = await operationsApi.createTicket({
+      subject: `[${data.category}] ${data.description.slice(0, 50)}`,
+      description: data.description,
+      priority: priorityMap[data.priority] || 'NORMAL',
+      channel: 'APP',
+      rideId: data.rideId,
+    })
+    return mapBackendTicketToUiComplaint(created)
+  } catch (err) {
+    console.warn('[OperationsService] Error creating ticket via API, falling back to local:', err)
+    const db = getDb(COMPLAINTS_KEY, seedComplaints)
+    const now = new Date().toISOString()
 
-  const ticket: Complaint = {
-    ...data,
-    id: `com-${Date.now()}`,
-    createdAt: now,
-    updatedAt: now,
-    timeline: [
-      { action: 'Ticket Created', actor: 'Admin Operator', timestamp: now, notes: `Complaint created: ${data.description.substring(0, 45)}...` }
-    ]
+    const ticket: Complaint = {
+      ...data,
+      id: `com-${Date.now()}`,
+      createdAt: now,
+      updatedAt: now,
+      timeline: [
+        { action: 'Ticket Created', actor: 'Admin Operator', timestamp: now, notes: `Complaint created: ${data.description.substring(0, 45)}...` }
+      ]
+    }
+
+    db.push(ticket)
+    saveDb(COMPLAINTS_KEY, db)
+
+    logAuditAction(
+      `Created Complaint Ticket: ${ticket.id}`,
+      `Category: ${ticket.category}, Priority: ${ticket.priority}, Description: ${ticket.description}`,
+      ticket.id,
+      'complaint'
+    )
+
+    return ticket
   }
-
-  db.push(ticket)
-  saveDb(COMPLAINTS_KEY, db)
-
-  logAuditAction(
-    `Created Complaint Ticket: ${ticket.id}`,
-    `Category: ${ticket.category}, Priority: ${ticket.priority}, Description: ${ticket.description}`,
-    ticket.id,
-    'complaint'
-  )
-
-  return ticket
 }
 
 const assignComplaint = async (id: string, agentName: string): Promise<Complaint> => {
-  const db = getDb(COMPLAINTS_KEY, seedComplaints)
-  const idx = db.findIndex(c => c.id === id)
-  if (idx === -1) throw new Error(`Complaint ${id} not found`)
+  try {
+    const agents = await operationsApi.getTicketAgents()
+    const foundAgent = agents.find(a => a.displayName === agentName || a.id === agentName || a.userId === agentName)
+    const agentId = foundAgent ? foundAgent.id : (agents[0]?.id || agentName)
+    const updated = await operationsApi.assignTicket(id, { agentId, reason: `Assigned to ${agentName}` })
+    return mapBackendTicketToUiComplaint(updated)
+  } catch (err) {
+    console.warn(`[OperationsService] Error assigning ticket ${id} via API:`, err)
+    const db = getDb(COMPLAINTS_KEY, seedComplaints)
+    const idx = db.findIndex(c => c.id === id)
+    if (idx === -1) throw new Error(`Complaint ${id} not found`)
 
-  const ticket = db[idx]
-  const now = new Date().toISOString()
+    const ticket = db[idx]
+    const now = new Date().toISOString()
 
-  ticket.status = 'assigned'
-  ticket.assignedTo = agentName
-  ticket.assignedAt = now
-  ticket.updatedAt = now
-  ticket.timeline.push({
-    action: 'Ticket Assigned',
-    actor: 'Admin Operator',
-    timestamp: now,
-    notes: `Assigned to ${agentName}`
-  })
+    ticket.status = 'assigned'
+    ticket.assignedTo = agentName
+    ticket.assignedAt = now
+    ticket.updatedAt = now
+    ticket.timeline.push({
+      action: 'Ticket Assigned',
+      actor: 'Admin Operator',
+      timestamp: now,
+      notes: `Assigned to ${agentName}`
+    })
 
-  db[idx] = ticket
-  saveDb(COMPLAINTS_KEY, db)
+    db[idx] = ticket
+    saveDb(COMPLAINTS_KEY, db)
 
-  logAuditAction(
-    `Assigned Complaint: ${ticket.id}`,
-    `Ticket assigned to support agent: ${agentName}`,
-    ticket.id,
-    'complaint'
-  )
+    logAuditAction(
+      `Assigned Complaint: ${ticket.id}`,
+      `Ticket assigned to support agent: ${agentName}`,
+      ticket.id,
+      'complaint'
+    )
 
-  return ticket
+    return ticket
+  }
 }
 
 const updateComplaintStatus = async (id: string, status: ComplaintStatus, notes?: string): Promise<Complaint> => {
-  const db = getDb(COMPLAINTS_KEY, seedComplaints)
-  const idx = db.findIndex(c => c.id === id)
-  if (idx === -1) throw new Error(`Complaint ${id} not found`)
+  try {
+    const statusMap: Record<ComplaintStatus, string> = {
+      open: 'OPEN',
+      assigned: 'IN_PROGRESS',
+      investigating: 'IN_PROGRESS',
+      resolved: 'RESOLVED',
+      closed: 'CLOSED',
+    }
+    const updated = await operationsApi.updateTicketStatus(id, {
+      status: statusMap[status] || 'IN_PROGRESS',
+      notes,
+    })
+    return mapBackendTicketToUiComplaint(updated)
+  } catch (err) {
+    console.warn(`[OperationsService] Error updating status for ticket ${id}:`, err)
+    const db = getDb(COMPLAINTS_KEY, seedComplaints)
+    const idx = db.findIndex(c => c.id === id)
+    if (idx === -1) throw new Error(`Complaint ${id} not found`)
 
-  const ticket = db[idx]
-  const now = new Date().toISOString()
+    const ticket = db[idx]
+    const now = new Date().toISOString()
 
-  const oldStatus = ticket.status
-  ticket.status = status
-  ticket.updatedAt = now
-  ticket.timeline.push({
-    action: `Status Changed to ${status}`,
-    actor: 'Admin Operator',
-    timestamp: now,
-    notes: notes
-  })
+    const oldStatus = ticket.status
+    ticket.status = status
+    ticket.updatedAt = now
+    ticket.timeline.push({
+      action: `Status Changed to ${status}`,
+      actor: 'Admin Operator',
+      timestamp: now,
+      notes: notes
+    })
 
-  db[idx] = ticket
-  saveDb(COMPLAINTS_KEY, db)
+    db[idx] = ticket
+    saveDb(COMPLAINTS_KEY, db)
 
-  logAuditAction(
-    `Updated Complaint Status: ${ticket.id}`,
-    `Shifted status from ${oldStatus} to ${status}. Operator notes: ${notes || 'None'}`,
-    ticket.id,
-    'complaint'
-  )
+    logAuditAction(
+      `Updated Complaint Status: ${ticket.id}`,
+      `Shifted status from ${oldStatus} to ${status}. Operator notes: ${notes || 'None'}`,
+      ticket.id,
+      'complaint'
+    )
 
-  return ticket
+    return ticket
+  }
 }
 
 const resolveComplaint = async (id: string, resolutionNotes: string): Promise<Complaint> => {
-  const db = getDb(COMPLAINTS_KEY, seedComplaints)
-  const idx = db.findIndex(c => c.id === id)
-  if (idx === -1) throw new Error(`Complaint ${id} not found`)
+  try {
+    const updated = await operationsApi.resolveTicket(id, { resolutionNotes, status: 'RESOLVED' })
+    return mapBackendTicketToUiComplaint(updated)
+  } catch (err) {
+    console.warn(`[OperationsService] Error resolving ticket ${id} via API:`, err)
+    const db = getDb(COMPLAINTS_KEY, seedComplaints)
+    const idx = db.findIndex(c => c.id === id)
+    if (idx === -1) throw new Error(`Complaint ${id} not found`)
 
-  const ticket = db[idx]
-  const now = new Date().toISOString()
+    const ticket = db[idx]
+    const now = new Date().toISOString()
 
-  ticket.status = 'resolved'
-  ticket.resolvedBy = 'Admin Operator'
-  ticket.resolvedAt = now
-  ticket.resolutionNotes = resolutionNotes
-  ticket.updatedAt = now
-  ticket.timeline.push({
-    action: 'Ticket Resolved',
-    actor: 'Admin Operator',
-    timestamp: now,
-    notes: resolutionNotes
-  })
+    ticket.status = 'resolved'
+    ticket.resolvedBy = 'Admin Operator'
+    ticket.resolvedAt = now
+    ticket.resolutionNotes = resolutionNotes
+    ticket.updatedAt = now
+    ticket.timeline.push({
+      action: 'Ticket Resolved',
+      actor: 'Admin Operator',
+      timestamp: now,
+      notes: resolutionNotes
+    })
 
-  db[idx] = ticket
-  saveDb(COMPLAINTS_KEY, db)
+    db[idx] = ticket
+    saveDb(COMPLAINTS_KEY, db)
 
-  logAuditAction(
-    `Resolved Complaint: ${ticket.id}`,
-    `Ticket marked resolved. Notes: ${resolutionNotes}`,
-    ticket.id,
-    'complaint'
-  )
+    logAuditAction(
+      `Resolved Complaint: ${ticket.id}`,
+      `Ticket marked resolved. Notes: ${resolutionNotes}`,
+      ticket.id,
+      'complaint'
+    )
 
-  return ticket
+    return ticket
+  }
 }
 
 const closeComplaint = async (id: string, notes?: string): Promise<Complaint> => {
-  const db = getDb(COMPLAINTS_KEY, seedComplaints)
-  const idx = db.findIndex(c => c.id === id)
-  if (idx === -1) throw new Error(`Complaint ${id} not found`)
+  try {
+    const updated = await operationsApi.updateTicketStatus(id, { status: 'CLOSED', notes })
+    return mapBackendTicketToUiComplaint(updated)
+  } catch (err) {
+    console.warn(`[OperationsService] Error closing ticket ${id} via API:`, err)
+    const db = getDb(COMPLAINTS_KEY, seedComplaints)
+    const idx = db.findIndex(c => c.id === id)
+    if (idx === -1) throw new Error(`Complaint ${id} not found`)
 
-  const ticket = db[idx]
-  const now = new Date().toISOString()
+    const ticket = db[idx]
+    const now = new Date().toISOString()
 
-  ticket.status = 'closed'
-  if (!ticket.resolvedAt) {
-    ticket.resolvedAt = now
-    ticket.resolvedBy = 'Admin Operator'
+    ticket.status = 'closed'
+    if (!ticket.resolvedAt) {
+      ticket.resolvedAt = now
+      ticket.resolvedBy = 'Admin Operator'
+    }
+    ticket.updatedAt = now
+    ticket.timeline.push({
+      action: 'Ticket Closed',
+      actor: 'Admin Operator',
+      timestamp: now,
+      notes: notes || 'Ticket closed'
+    })
+
+    db[idx] = ticket
+    saveDb(COMPLAINTS_KEY, db)
+
+    logAuditAction(
+      `Closed Complaint: ${ticket.id}`,
+      `Ticket finalized and closed. Operator notes: ${notes || 'None'}`,
+      ticket.id,
+      'complaint'
+    )
+
+    return ticket
   }
-  ticket.updatedAt = now
-  ticket.timeline.push({
-    action: 'Ticket Closed',
-    actor: 'Admin Operator',
-    timestamp: now,
-    notes: notes || 'Ticket closed'
-  })
-
-  db[idx] = ticket
-  saveDb(COMPLAINTS_KEY, db)
-
-  logAuditAction(
-    `Closed Complaint: ${ticket.id}`,
-    `Ticket finalized and closed. Operator notes: ${notes || 'None'}`,
-    ticket.id,
-    'complaint'
-  )
-
-  return ticket
 }
 
 export const OperationsService = {
   // Rides
   getRides,
   getRideById,
+  getRideNotes: (id: string) => operationsApi.getRideNotes(id),
+  addRideNote: (id: string, note: string) => operationsApi.addRideNote(id, note),
+  cancelRide: (id: string, data: { reasonCode?: string; reasonText?: string }) => operationsApi.cancelRide(id, data),
+  getRideAuditLogs: (id: string, params?: QueryParams) => operationsApi.getRideAuditLogs(id, params),
+  getRideDriverLocation: (id: string) => operationsApi.getRideDriverLocation(id),
+  getRideRoute: (id: string) => operationsApi.getRideRoute(id),
 
-  // SOS
+  // Live Operations
+  getLiveSummary: (params?: { longWaitThresholdMin?: number }) => operationsApi.getLiveSummary(params),
+  getActiveRides: (params?: QueryParams) => operationsApi.getActiveRides(params),
+  getLiveMap: (params?: { city?: string; vehicleTypeId?: string }) => operationsApi.getLiveMap(params),
+  getLiveDrivers: (params?: QueryParams) => operationsApi.getLiveDrivers(params),
+  getLiveAlerts: (params?: { longWaitThresholdMin?: number }) => operationsApi.getLiveAlerts(params),
+
+  // Dispatch & Matching
+  getDispatchRequests: (params?: QueryParams) => operationsApi.getDispatchRequests(params),
+  getDispatchRequestById: (id: string) => operationsApi.getDispatchRequestById(id),
+  getDispatchCandidates: (id: string) => operationsApi.getDispatchCandidates(id),
+
+  // SOS & Safety Center
   getSOSAlerts,
   getSOSAlertById,
   acknowledgeSOS,
   resolveSOS,
+
+  // Incidents
+  getIncidents: (params?: QueryParams) => operationsApi.getIncidents(params),
+  getIncidentById: (id: string) => operationsApi.getIncidentById(id),
+  createIncident: (data: any) => operationsApi.createIncident(data),
+  acknowledgeIncident: (id: string, notes?: string) => operationsApi.acknowledgeIncident(id, notes),
+  resolveIncident: (id: string, data: { resolutionType: string; resolutionNotes: string; status?: string }) => operationsApi.resolveIncident(id, data),
+  escalateIncident: (id: string, data: { severity: string; notes: string }) => operationsApi.escalateIncident(id, data),
+  addIncidentNote: (id: string, notes: string) => operationsApi.addIncidentNote(id, notes),
+  attachIncidentEvidence: (id: string, fileId: string) => operationsApi.attachIncidentEvidence(id, fileId),
 
   // Complaints
   getComplaints,

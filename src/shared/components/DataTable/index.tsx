@@ -53,6 +53,7 @@ export interface DataTableProps<T = any> {
   };
   enableDraggableExport?: boolean;
   draggablePersistenceKey?: string;
+  hidePagination?: boolean;
 }
 
 export function DataTable<T extends Record<string, any> = any>({
@@ -78,6 +79,7 @@ export function DataTable<T extends Record<string, any> = any>({
   emptyState,
   enableDraggableExport = false,
   draggablePersistenceKey,
+  hidePagination = false,
 }: DataTableProps<T>) {
 
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string>>(new Set());
@@ -588,6 +590,7 @@ export function DataTable<T extends Record<string, any> = any>({
       </div>
 
       {/* Pagination */}
+      {!hidePagination && (
       <div className="flex items-center justify-between px-6 py-3.5 border-t border-border bg-surface text-sm text-muted-foreground">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -629,6 +632,7 @@ export function DataTable<T extends Record<string, any> = any>({
           </button>
         </div>
       </div>
+      )}
       {enableDraggableExport && filteredData.length > 0 && (
         <DraggableExportButton
           onClick={handleExportCSV}

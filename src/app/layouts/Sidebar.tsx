@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
+import { platformSections } from "@/modules/platform/platform-nav";
 import {
   LayoutDashboard,
   Users,
@@ -26,6 +27,10 @@ import {
   Globe2,
   MapPin,
   Shield,
+  Compass,
+  Radio,
+  ShieldAlert,
+  Send,
 } from "lucide-react";
 import { useAppStore } from "@/store/app.store";
 import { useAuthStore } from "@/store/auth.store";
@@ -42,17 +47,18 @@ interface NavItem {
   badge?: string | number;
   badgeVariant?: "danger" | "warning" | "info";
   children?: NavItem[];
+  matchActive?: (pathname: string) => boolean;
 }
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   {
-    label: "User Management",
-    href: "user-management",
-    icon: Users,
+    label: "Access Control & Admin Users",
+    href: "access-control",
+    icon: ShieldCheck,
     children: [
-      { href: "/users", label: "Administrators", icon: Users, permission: "staff:write" },
-      { href: "/users/roles", label: "Role access", icon: ShieldCheck, permission: "rbac:manage" },
+      { href: "/access-control/users", label: "Admin Users", icon: Users, permission: "staff:write" },
+      { href: "/access-control/roles", label: "Roles & Permissions", icon: ShieldCheck, permission: "rbac:manage" },
     ],
   },
   {
@@ -109,14 +115,26 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    label: "Communications",
+    href: "communications",
+    icon: Bell,
+    children: [
+      { href: "/communications/templates", label: "Templates", icon: FileText, permission: "communications:read" },
+      { href: "/communications/push/compose", label: "Compose Push", icon: Send, permission: "communications:write" },
+      { href: "/communications/push/history", label: "Push History", icon: History, permission: "communications:read" },
+      { href: "/communications/delivery-history", label: "Delivery History", icon: Activity, permission: "communications:read" },
+    ],
+  },
+  {
     label: "Operations",
     href: "operations",
     icon: Activity,
     children: [
       { href: "/operations/ride-monitor", label: "Ride Monitor", icon: Navigation, permission: "operations:read" },
-      { href: "/operations/sos-monitor", label: "SOS Monitor", icon: Bell },
-      { href: "/operations/complaints", label: "Complaints", icon: LifeBuoy },
-      { href: "/operations/mishaps", label: "Mishap Reporting", icon: AlertTriangle }
+      { href: "/operations/live-dashboard", label: "Live Dashboard", icon: Radio, permission: "operations:read" },
+      { href: "/operations/dispatch", label: "Dispatch Console", icon: Compass, permission: "operations:read" },
+      { href: "/operations/complaints", label: "Complaints Queue", icon: LifeBuoy, permission: "operations:read" },
+      { href: "/operations/safety-center", label: "Safety Center", icon: ShieldAlert, permission: "operations:read" }
     ],
   },
   {
@@ -173,8 +191,25 @@ const navItems: NavItem[] = [
   { href: "/document-controller", label: "Document Controller", icon: FileText, permission: "documents:read" },
   { href: "/carpooling", label: "Carpooling Rules", icon: Car, permission: "carpooling:read" },
   { href: "/audit-log", label: "Audit Log", icon: FileText, permission: "audit:read" },
-  { href: "/settings", label: "Settings", icon: Settings },
+  {
+    label: "Platform",
+    href: "platform",
+    icon: Settings,
+    children: [],
+  },
 ];
+
+function buildPlatformNavChildren(user: ReturnType<typeof useAuthStore.getState>["user"]): NavItem[] {
+  return platformSections
+    .filter((section) => hasPermission(user, section.permission))
+    .map((section) => ({
+      href: section.defaultHref,
+      label: section.label,
+      icon: section.icon,
+      permission: section.permission,
+      matchActive: section.isActive,
+    }));
+}
 
 export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
@@ -190,7 +225,14 @@ export const Sidebar: React.FC = () => {
     if (!required) return true;
     return hasPermission(user, required);
   };
-  const visibleNav = navItems
+  const navWithPlatform = useMemo(() => {
+    const platformChildren = buildPlatformNavChildren(user);
+    return navItems.map((item) =>
+      item.href === "platform" ? { ...item, children: platformChildren } : item,
+    );
+  }, [user]);
+
+  const visibleNav = navWithPlatform
     .map((item) => {
       if (!item.children) return itemVisible(item) ? item : null;
       const inherited = item.children.find((child) => child.permission)?.permission;
@@ -200,8 +242,8 @@ export const Sidebar: React.FC = () => {
     })
     .filter((item): item is NavItem => item != null);
   const [expandedSections, setExpandedSections] = useState<string[]>([
-    "user-management", "rider-management", "driver-management", "vehicle-management", "geographic-management", "pricing-management",
-    "promotions-management", "referral-management", "operations", "financial-operations", "school-mobility"
+    "access-control", "user-management", "rider-management", "driver-management", "vehicle-management", "geographic-management", "pricing-management",
+    "promotions-management", "referral-management", "communications", "operations", "financial-operations", "school-mobility", "platform"
   ]);
 
   const toggleSection = (href: string) => {
@@ -210,14 +252,16 @@ export const Sidebar: React.FC = () => {
     );
   };
 
-  const isItemActive = (href: string): boolean => {
+  const isItemActive = (item: NavItem): boolean => {
+    if (item.matchActive) return item.matchActive(location.pathname);
+    const href = item.href;
     if (href === "/dashboard") return location.pathname === "/dashboard";
     return location.pathname === href || location.pathname.startsWith(href + "/");
   };
 
   const isChildActive = (item: NavItem): boolean => {
     if (!item.children) return false;
-    return item.children.some(child => isItemActive(child.href) || location.pathname.startsWith(child.href));
+    return item.children.some((child) => isItemActive(child));
   };
 
   return (
@@ -264,7 +308,7 @@ export const Sidebar: React.FC = () => {
                       ? (hasActiveChild
                         ? "text-[#2B317A] bg-[#2B317A]/[0.06] font-semibold dark:text-[#4F5FBF] dark:bg-[#4F5FBF]/[0.15]"
                         : "text-slate-600 hover:bg-[#2B317A]/[0.06] hover:text-[#2B317A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white")
-                      : (isItemActive(item.href)
+                      : (isItemActive(item)
                         ? "bg-[#2B317A] text-white font-bold shadow-sm"
                         : "text-slate-600 hover:bg-[#2B317A]/[0.06] hover:text-[#2B317A] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white")
                   )}
@@ -276,7 +320,7 @@ export const Sidebar: React.FC = () => {
                       {item.badge && (
                         <span className={cn(
                           "text-[10px] px-1.5 py-0.5 rounded font-semibold border",
-                          isItemActive(item.href)
+                          isItemActive(item)
                             ? "bg-white/20 text-white border-white/20"
                             : "bg-[#2B317A]/[0.06] text-[#2B317A] border-[#2B317A]/15 dark:bg-[#4F5FBF]/[0.15] dark:text-[#4F5FBF] dark:border-[#4F5FBF]/30"
                         )}>
@@ -295,16 +339,17 @@ export const Sidebar: React.FC = () => {
                   <div className="ml-4 mt-1 space-y-1 border-l border-slate-200 dark:border-slate-800 pl-2">
                     {item.children!.map((child) => {
                       const ChildIcon = child.icon;
-                      const isChildActiveItem = isItemActive(child.href);
+                      const isChildActiveItem = isItemActive(child);
 
                       return (
                         <button
                           key={child.href}
+                          type="button"
                           onClick={() => navigate(child.href)}
                           className={cn(
                             "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-xs cursor-pointer",
                             isChildActiveItem
-                              ? "bg-[#2B317A] text-white font-semibold shadow-sm"
+                              ? "bg-[#2B317A] text-white font-semibold shadow-sm ring-1 ring-[#2B317A]/20"
                               : "text-slate-500 hover:bg-[#2B317A]/[0.06] hover:text-[#2B317A] dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                           )}
                         >
@@ -333,10 +378,7 @@ export const Sidebar: React.FC = () => {
 
       {/* Footer / Account card */}
       <div className="p-3 border-t border-border mt-auto">
-        <div
-          onClick={() => navigate("/settings")}
-          className="p-2 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-200/60 dark:bg-slate-800/40 dark:border-slate-800 dark:hover:bg-slate-800 transition-all cursor-pointer flex items-center gap-2"
-        >
+        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100 dark:bg-slate-800/40 dark:border-slate-800 flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-violet-500 to-fuchsia-600 flex items-center justify-center text-white text-xs font-semibold shadow-sm flex-shrink-0">
             {user?.name ? user.name.substring(0, 2).toUpperCase() : "AD"}
           </div>
