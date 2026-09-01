@@ -23,6 +23,7 @@ import { Card } from '@/shared/components/ui/Card'
 import { Badge } from '@/shared/components/ui/Badge'
 import { Button } from '@/shared/components/ui/Button'
 import { LiveMap } from '@/shared/components/maps/LiveMap'
+import { resolveRoutePath } from '@/shared/utils/polyline'
 import {
   useLiveSummary,
   useActiveRides,
@@ -474,7 +475,7 @@ export const LiveDashboardPage: React.FC = () => {
                 driverLocation: r.driverLocation
                   ? { lat: r.driverLocation.lat, lng: r.driverLocation.lng }
                   : null,
-                path: r.path?.length ? r.path : null,
+                path: resolveRoutePath({ path: r.path, encodedPolyline: r.encodedPolyline }),
               }))}
               markers={(mapData?.drivers ?? []).map((d) => ({
                 id: d.id,

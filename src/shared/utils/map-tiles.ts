@@ -28,6 +28,9 @@ export const OSM_TILE_LAYER: MapTileLayerConfig = {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }
 
+const MAPPLS_TILES_BASE = 'https://apis.mappls.com/advancedmaps/v1'
+const MAPPLS_DEFAULT_TILE_LAYER = 'bhuvan_imagery'
+
 function appendQueryParam(url: string, key: string, value: string): string {
   const separator = url.includes('?') ? '&' : '?'
   return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`
@@ -40,9 +43,11 @@ function buildProviderTileLayer(
   if (!provider.enabled) return null
 
   if (provider.tileUrl?.trim()) {
-    const url = provider.apiKey?.trim()
-      ? appendQueryParam(provider.tileUrl.trim(), 'api_key', provider.apiKey.trim())
-      : provider.tileUrl.trim()
+    // Ola authenticates tiles via api_key query param; Mappls embeds the license key in the path.
+    let url = provider.tileUrl.trim()
+    if (provider.apiKey?.trim() && providerKey === 'ola') {
+      url = appendQueryParam(url, 'api_key', provider.apiKey.trim())
+    }
     return {
       url,
       attribution:
@@ -58,13 +63,14 @@ function buildProviderTileLayer(
   if (!base) return null
 
   switch (providerKey) {
-    case 'mappls':
+    case 'mappls': {
+      if (!provider.apiKey?.trim()) return null
+      const tilesBase = base.includes('route.mappls.com') ? MAPPLS_TILES_BASE : base
       return {
-        url: provider.apiKey?.trim()
-          ? appendQueryParam(`${base}/map/{z}/{x}/{y}.png`, 'api_key', provider.apiKey.trim())
-          : `${base}/map/{z}/{x}/{y}.png`,
+        url: `${tilesBase}/${provider.apiKey.trim()}/${MAPPLS_DEFAULT_TILE_LAYER}/{z}/{x}/{y}.png`,
         attribution: '&copy; MapmyIndia',
       }
+    }
     case 'ola': {
       if (!provider.apiKey?.trim()) return null
       const stylePath =
