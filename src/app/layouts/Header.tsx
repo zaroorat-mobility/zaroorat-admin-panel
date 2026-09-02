@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Bell, ChevronDown, Globe, LogOut, Sun, Moon, Menu } from "lucide-react";
+import React, { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { Bell, ChevronDown, Globe, LogOut, Sun, Moon, Menu } from 'lucide-react'
 import { useAuthStore } from "@/store/auth.store";
 import { useThemeStore } from "@/store/theme.store";
 import { useAppStore } from "@/store/app.store";
@@ -8,8 +9,9 @@ import { AuthService } from "@/modules/auth/services";
 import { Breadcrumbs } from "./Breadcrumbs";
 
 export const Header: React.FC = () => {
-  const navigate = useNavigate();
-  const { user, clearCredentials } = useAuthStore();
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { user, clearCredentials } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore();
   const { toggleSidebar } = useAppStore();
   
@@ -33,8 +35,9 @@ export const Header: React.FC = () => {
     } catch {
       // Session may already be gone; still clear local credentials.
     }
+    queryClient.clear()
     clearCredentials()
-    navigate("/login")
+    navigate('/login')
   }
 
   return (

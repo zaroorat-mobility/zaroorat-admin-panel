@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   useRide,
@@ -11,6 +11,7 @@ import {
   useRideRoute,
 } from '../../hooks'
 import { LiveMap } from '@/shared/components/maps/LiveMap'
+import { resolveRoutePath } from '@/shared/utils/polyline'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardHeader, CardContent } from '@/shared/components/ui/Card'
@@ -95,6 +96,8 @@ export const RideDetailsPage: React.FC = () => {
   const { data: rideRoute } = useRideRoute(id || '', {
     enabled: !!id && !!hasRouteCoords,
   })
+
+  const routePath = useMemo(() => resolveRoutePath(rideRoute), [rideRoute])
 
   // Fetch linked SOS alerts
   const { data: sosAlertsRes } = useQuery({
@@ -325,7 +328,7 @@ export const RideDetailsPage: React.FC = () => {
                             driverLocation: driverLocation?.lat != null && driverLocation?.lng != null
                               ? { lat: driverLocation.lat, lng: driverLocation.lng }
                               : null,
-                            path: rideRoute?.path?.length ? rideRoute.path : null,
+                            path: routePath,
                           },
                         ]}
                       />
@@ -337,6 +340,15 @@ export const RideDetailsPage: React.FC = () => {
                         </p>
                       </div>
                     )}
+                    {rideRoute?.routingError && !routePath ? (
+                      <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                        Road route unavailable — showing direct line.
+                        {rideRoute.routingError.includes('configured') ||
+                        rideRoute.routingError.includes('Unavailable')
+                          ? ' Check Platform → Maps provider settings.'
+                          : ` (${rideRoute.routingError})`}
+                      </p>
+                    ) : null}
                     <p className="text-[9px] text-slate-500 font-mono">
                       {ride.pickupLocation} ➔ {ride.dropLocation}
                       {driverLocation?.updatedAt ? (

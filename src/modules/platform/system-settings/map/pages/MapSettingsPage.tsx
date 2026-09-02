@@ -6,6 +6,7 @@ import { useMapSettings, useTestMapProvider, useUpdateMapSettings } from '@/modu
 import type { MapProviderName } from '@/modules/platform/system-settings/types'
 import {
   ConfiguredBadge,
+  MASKED_SECRET,
   SecretField,
   SettingFieldRow,
   SettingsError,
@@ -49,14 +50,14 @@ export const MapSettingsPage: React.FC = () => {
     setPrimaryProvider(data.primaryProvider as MapProviderName)
     setProviders({
       ola: {
-        apiKey: '',
+        apiKey: data.providers.ola.configured ? MASKED_SECRET : '',
         restApiKey: '',
         clientId: '',
         clientSecret: '',
         baseUrl: data.providers.ola.baseUrl ?? '',
       },
       google: {
-        apiKey: '',
+        apiKey: data.providers.google.configured ? MASKED_SECRET : '',
         restApiKey: '',
         clientId: '',
         clientSecret: '',
@@ -64,7 +65,7 @@ export const MapSettingsPage: React.FC = () => {
       },
       mappls: {
         apiKey: '',
-        restApiKey: '',
+        restApiKey: data.providers.mappls.configured ? MASKED_SECRET : '',
         clientId: '',
         clientSecret: '',
         baseUrl: data.providers.mappls.baseUrl ?? '',
@@ -82,15 +83,24 @@ export const MapSettingsPage: React.FC = () => {
       primaryProvider === 'mappls'
         ? {
             mappls: {
-              restApiKey: secretForUpdate(active.restApiKey, ''),
+              restApiKey: secretForUpdate(
+                active.restApiKey,
+                data?.providers.mappls.configured ? MASKED_SECRET : '',
+              ),
               clientId: active.clientId || undefined,
-              clientSecret: secretForUpdate(active.clientSecret, ''),
+              clientSecret: secretForUpdate(
+                active.clientSecret,
+                data?.providers.mappls.configured ? MASKED_SECRET : '',
+              ),
               baseUrl: active.baseUrl || undefined,
             },
           }
         : {
             [primaryProvider]: {
-              apiKey: secretForUpdate(active.apiKey, ''),
+              apiKey: secretForUpdate(
+                active.apiKey,
+                data?.providers[primaryProvider].configured ? MASKED_SECRET : '',
+              ),
               baseUrl: active.baseUrl || undefined,
             },
           }
@@ -107,10 +117,19 @@ export const MapSettingsPage: React.FC = () => {
             ...prev,
             [primaryProvider]: {
               ...prev[primaryProvider],
-              apiKey: '',
-              restApiKey: '',
+              apiKey:
+                primaryProvider !== 'mappls' && data?.providers[primaryProvider].configured
+                  ? MASKED_SECRET
+                  : '',
+              restApiKey:
+                primaryProvider === 'mappls' && data?.providers.mappls.configured
+                  ? MASKED_SECRET
+                  : '',
               clientId: '',
-              clientSecret: '',
+              clientSecret:
+                primaryProvider === 'mappls' && data?.providers.mappls.configured
+                  ? MASKED_SECRET
+                  : '',
             },
           }))
           success('Settings saved', `Active map provider set to ${primaryProvider}.`)
