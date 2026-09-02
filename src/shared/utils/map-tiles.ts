@@ -101,12 +101,5 @@ export function resolveMapTileLayer(config?: MapClientConfig | null): MapTileLay
   const primaryLayer = primary ? buildProviderTileLayer(providerKey, primary) : null
   if (primaryLayer) return primaryLayer
 
-  // Try fallback providers in order
-  for (const key of ['ola', 'mappls', 'google'] as const) {
-    if (key === providerKey) continue
-    const layer = buildProviderTileLayer(key, config.providers[key])
-    if (layer) return layer
-  }
-
   return OSM_TILE_LAYER
 }

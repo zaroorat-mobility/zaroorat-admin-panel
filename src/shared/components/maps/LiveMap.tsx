@@ -181,7 +181,12 @@ export const LiveMap: React.FC<LiveMapProps> = ({
           Ola map tiles failed to load — showing OpenStreetMap fallback.
         </div>
       )}
-      {usingOsmFallback && mapConfig?.primaryProvider === 'mappls' && (
+      {usingOsmFallback && mapConfig?.primaryProvider === 'mappls' && !mapConfig.providers.mappls.apiKey && (
+        <div className="absolute top-2 left-12 z-[1000] rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-800 shadow-sm">
+          Using OpenStreetMap — configure a Mappls REST API key under Platform → Maps.
+        </div>
+      )}
+      {usingOsmFallback && mapConfig?.primaryProvider === 'mappls' && mapConfig.providers.mappls.apiKey && (
         <div className="absolute top-2 left-12 z-[1000] rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-800 shadow-sm">
           Mappls tiles failed to load — showing OpenStreetMap fallback.
         </div>
