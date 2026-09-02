@@ -7,10 +7,96 @@ import type { SosResolutionType, ComplaintStatus, Complaint } from '../types'
 const OK = {
   rides: (params?: QueryParams) => ['operations', 'rides', params || {}] as const,
   ride: (id: string) => ['operations', 'ride', id] as const,
+  rideNotes: (id: string) => ['operations', 'ride', id, 'notes'] as const,
+  rideAudit: (id: string, params?: QueryParams) => ['operations', 'ride', id, 'audit', params || {}] as const,
+  rideDriverLocation: (id: string) => ['operations', 'ride', id, 'driver-location'] as const,
+  rideRoute: (id: string) => ['operations', 'ride', id, 'route'] as const,
+  liveSummary: (params?: { longWaitThresholdMin?: number }) => ['operations', 'live', 'summary', params || {}] as const,
+  activeRides: (params?: QueryParams) => ['operations', 'live', 'activeRides', params || {}] as const,
+  liveMap: (params?: { city?: string; vehicleTypeId?: string }) => ['operations', 'live', 'map', params || {}] as const,
+  liveDrivers: (params?: QueryParams) => ['operations', 'live', 'drivers', params || {}] as const,
+  liveAlerts: (params?: { longWaitThresholdMin?: number }) => ['operations', 'live', 'alerts', params || {}] as const,
+  dispatchRequests: (params?: QueryParams) => ['operations', 'dispatch', 'requests', params || {}] as const,
+  dispatchRequest: (id: string) => ['operations', 'dispatch', 'request', id] as const,
+  dispatchCandidates: (id: string) => ['operations', 'dispatch', 'candidates', id] as const,
   sosAlerts: (params?: QueryParams) => ['operations', 'sosAlerts', params || {}] as const,
   sosAlert: (id: string) => ['operations', 'sosAlert', id] as const,
+  incidents: (params?: QueryParams) => ['operations', 'incidents', params || {}] as const,
+  incident: (id: string) => ['operations', 'incident', id] as const,
   complaints: (params?: QueryParams) => ['operations', 'complaints', params || {}] as const,
   complaint: (id: string) => ['operations', 'complaint', id] as const
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE OPERATIONS HOOKS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const useLiveSummary = (params?: { longWaitThresholdMin?: number }, options?: { refetchInterval?: number | false }) => {
+  return useQuery({
+    queryKey: OK.liveSummary(params),
+    queryFn: () => OperationsService.getLiveSummary(params),
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15000,
+  })
+}
+
+export const useActiveRides = (params?: QueryParams, options?: { refetchInterval?: number | false }) => {
+  return useQuery({
+    queryKey: OK.activeRides(params),
+    queryFn: () => OperationsService.getActiveRides(params),
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15000,
+  })
+}
+
+export const useLiveMap = (params?: { city?: string; vehicleTypeId?: string }, options?: { refetchInterval?: number | false }) => {
+  return useQuery({
+    queryKey: OK.liveMap(params),
+    queryFn: () => OperationsService.getLiveMap(params),
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15000,
+  })
+}
+
+export const useLiveDrivers = (params?: QueryParams, options?: { refetchInterval?: number | false }) => {
+  return useQuery({
+    queryKey: OK.liveDrivers(params),
+    queryFn: () => OperationsService.getLiveDrivers(params),
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15000,
+  })
+}
+
+export const useLiveAlerts = (params?: { longWaitThresholdMin?: number }, options?: { refetchInterval?: number | false }) => {
+  return useQuery({
+    queryKey: OK.liveAlerts(params),
+    queryFn: () => OperationsService.getLiveAlerts(params),
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15000,
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DISPATCH & MATCHING HOOKS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const useDispatchRequests = (params?: QueryParams, options?: { refetchInterval?: number | false }) => {
+  return useQuery({
+    queryKey: OK.dispatchRequests(params),
+    queryFn: () => OperationsService.getDispatchRequests(params),
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15000,
+  })
+}
+
+export const useDispatchRequest = (id: string) => {
+  return useQuery({
+    queryKey: OK.dispatchRequest(id),
+    queryFn: () => OperationsService.getDispatchRequestById(id),
+    enabled: !!id,
+  })
+}
+
+export const useDispatchCandidates = (id: string) => {
+  return useQuery({
+    queryKey: OK.dispatchCandidates(id),
+    queryFn: () => OperationsService.getDispatchCandidates(id),
+    enabled: !!id,
+  })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,7 +114,70 @@ export const useRide = (id: string) => {
   return useQuery({
     queryKey: OK.ride(id),
     queryFn: () => OperationsService.getRideById(id),
-    enabled: !!id
+    enabled: !!id,
+  })
+}
+
+export const useRideNotes = (id: string) => {
+  return useQuery({
+    queryKey: OK.rideNotes(id),
+    queryFn: () => OperationsService.getRideNotes(id),
+    enabled: !!id,
+  })
+}
+
+export const useAddRideNote = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string }) =>
+      OperationsService.addRideNote(id, note),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: OK.rideNotes(id) })
+      queryClient.invalidateQueries({ queryKey: OK.ride(id) })
+      queryClient.invalidateQueries({ queryKey: ['operations', 'ride', id, 'audit'] })
+    },
+  })
+}
+
+export const useCancelRide = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reasonCode, reasonText }: { id: string; reasonCode?: string; reasonText?: string }) =>
+      OperationsService.cancelRide(id, { reasonCode, reasonText }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: OK.ride(id) })
+      queryClient.invalidateQueries({ queryKey: OK.rides() })
+      queryClient.invalidateQueries({ queryKey: ['operations', 'ride', id, 'audit'] })
+    },
+  })
+}
+
+export const useRideAuditLogs = (id: string, params?: QueryParams) => {
+  return useQuery({
+    queryKey: OK.rideAudit(id, params),
+    queryFn: () => OperationsService.getRideAuditLogs(id, params),
+    enabled: !!id,
+  })
+}
+
+export const useRideDriverLocation = (
+  id: string,
+  options?: { refetchInterval?: number | false; enabled?: boolean },
+) => {
+  return useQuery({
+    queryKey: OK.rideDriverLocation(id),
+    queryFn: () => OperationsService.getRideDriverLocation(id),
+    enabled: !!id && options?.enabled !== false,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 10000,
+  })
+}
+
+export const useRideRoute = (id: string, options?: { enabled?: boolean }) => {
+  return useQuery({
+    queryKey: OK.rideRoute(id),
+    queryFn: () => OperationsService.getRideRoute(id),
+    enabled: !!id && options?.enabled !== false,
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -71,6 +220,79 @@ export const useResolveSOS = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['operations'] })
     }
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SAFETY CENTER & INCIDENT HOOKS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const useIncidents = (params?: QueryParams, options?: { refetchInterval?: number | false }) => {
+  return useQuery({
+    queryKey: OK.incidents(params),
+    queryFn: () => OperationsService.getIncidents(params),
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 10000,
+  })
+}
+
+export const useIncident = (id: string) => {
+  return useQuery({
+    queryKey: OK.incident(id),
+    queryFn: () => OperationsService.getIncidentById(id),
+    enabled: !!id,
+  })
+}
+
+export const useAcknowledgeIncident = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, notes }: { id: string; notes?: string }) =>
+      OperationsService.acknowledgeIncident(id, notes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operations'] })
+    },
+  })
+}
+
+export const useResolveIncident = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      id,
+      resolutionType,
+      resolutionNotes,
+      status,
+    }: {
+      id: string
+      resolutionType: string
+      resolutionNotes: string
+      status?: string
+    }) => OperationsService.resolveIncident(id, { resolutionType, resolutionNotes, status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operations'] })
+    },
+  })
+}
+
+export const useEscalateIncident = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, severity, notes }: { id: string; severity: string; notes: string }) =>
+      OperationsService.escalateIncident(id, { severity, notes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operations'] })
+    },
+  })
+}
+
+export const useAddIncidentNote = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, notes }: { id: string; notes: string }) =>
+      OperationsService.addIncidentNote(id, notes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operations'] })
+    },
   })
 }
 

@@ -5,6 +5,8 @@ import '@geoman-io/leaflet-geoman-free'
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css'
 import 'leaflet/dist/leaflet.css'
 
+import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
+import { resolveMapTileLayer } from '@/shared/utils/map-tiles'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
@@ -260,6 +262,8 @@ export const ZoneMapEditor: React.FC<ZoneMapEditorProps> = ({
 }) => {
   const [jsonText, setJsonText] = useState('')
   const [showJson, setShowJson] = useState(false)
+  const { data: mapConfig } = useMapClientConfig()
+  const tileLayer = useMemo(() => resolveMapTileLayer(mapConfig), [mapConfig])
 
   useEffect(() => {
     if (coordinates?.[0]?.length) {
@@ -325,10 +329,7 @@ export const ZoneMapEditor: React.FC<ZoneMapEditorProps> = ({
       </div>
       <div className="rounded-xl overflow-hidden border border-border" style={{ height }}>
         <MapContainer key={mapKey} center={mapCenter} zoom={11} style={{ height: '100%', width: '100%' }}>
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          <TileLayer attribution={tileLayer.attribution} url={tileLayer.url} />
           <GeomanEditor
             coordinates={coordinates}
             referenceCoordinates={referenceCoordinates}

@@ -61,7 +61,7 @@ export const EditUserPage: React.FC = () => {
     updateUser(formData, {
       onSuccess: () => {
         showSuccess('User updated', 'Administrative user details were saved.')
-        navigate('/users')
+        navigate('/access-control/users')
       },
       onError: (err) => {
         showError('Could not update user', err instanceof Error ? err.message : 'Request failed')
@@ -90,7 +90,7 @@ export const EditUserPage: React.FC = () => {
       <PageHeader
         title={`Edit User: ${user.name}`}
         description="Update staff account details, role, or password."
-        onBack={() => navigate('/users')}
+        onBack={() => navigate('/access-control/users')}
       />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 text-left max-w-3xl mt-4">
@@ -161,7 +161,7 @@ export const EditUserPage: React.FC = () => {
         </Card>
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate('/users')}>
+          <Button type="button" variant="outline" onClick={() => navigate('/access-control/users')}>
             Cancel
           </Button>
           <Button type="submit" loading={isPending} className="gap-2">

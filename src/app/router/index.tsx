@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { AuthLayout, DashboardLayout } from '../layouts'
 import { AuthGuard, GuestGuard, RequirePermission } from '../guards'
 import { ForbiddenPage } from '../pages/ForbiddenPage'
@@ -7,7 +7,6 @@ import { ForbiddenPage } from '../pages/ForbiddenPage'
 // Module Descendant Route Elements
 import { AuthRoutes } from '@/modules/auth'
 import { DashboardPage } from '@/modules/dashboard'
-import { UserRoutes } from '@/modules/users'
 import { RiderRoutes } from '@/modules/riders'
 import { DriverManagementRoutes, VehicleManagementRoutes } from '@/modules/driver-management'
 import { AuditLogRoutes } from '@/modules/audit-log'
@@ -23,7 +22,13 @@ import { DocumentControllerRoutes } from '@/modules/document-controller'
 import { MapSettingsPage } from '@/modules/system-settings'
 =======
 import { GeographicManagementRoutes } from '@/modules/geographic-management'
+<<<<<<< HEAD
 >>>>>>> 9b709dcc78978d4b4b83e1b67acd402f0760b8af
+=======
+import { CommunicationsRoutes } from '@/modules/communications'
+import { PlatformLayoutPage, platformChildRoutes } from '@/modules/platform'
+import { accessControlChildRoutes } from '@/modules/access-control'
+>>>>>>> 3ebba32dc928d6685aacb415130b2d21b66b13df
 
 /**
  * Main Application Routing Declarations for Zaroorat Mobility
@@ -56,8 +61,15 @@ export const AppRouter: React.FC = () => {
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
 
-        {/* User Management */}
-        <Route path="users/*" element={<UserRoutes />} />
+        {/* Access Control & Admin Users */}
+        <Route path="access-control" element={<Outlet />}>
+          {accessControlChildRoutes}
+        </Route>
+
+        {/* Platform */}
+        <Route path="platform" element={<PlatformLayoutPage />}>
+          {platformChildRoutes}
+        </Route>
 
         {/* Rider Management */}
         <Route
@@ -159,6 +171,16 @@ export const AppRouter: React.FC = () => {
           }
         />
 
+        {/* Communications */}
+        <Route
+          path="communications/*"
+          element={
+            <RequirePermission requiredPermission="communications:read">
+              <CommunicationsRoutes />
+            </RequirePermission>
+          }
+        />
+
         {/* Operations Domain */}
         <Route
           path="operations/*"
@@ -188,6 +210,7 @@ export const AppRouter: React.FC = () => {
             </RequirePermission>
           }
         />
+<<<<<<< HEAD
 
         {/* System & Map Provider Settings */}
         <Route path="settings/maps" element={<MapSettingsPage />} />
@@ -196,6 +219,8 @@ export const AppRouter: React.FC = () => {
         {/* Legacy redirect routes */}
         <Route path="drivers/*" element={<Navigate to="/driver-management/drivers" replace />} />
         <Route path="verification/*" element={<Navigate to="/driver-management/applications" replace />} />
+=======
+>>>>>>> 3ebba32dc928d6685aacb415130b2d21b66b13df
       </Route>
 
       {/* Catch-all Redirect */}

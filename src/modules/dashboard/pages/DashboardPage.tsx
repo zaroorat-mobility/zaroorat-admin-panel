@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { 
-  Car, CheckCircle2, XCircle, UserPlus, MapPin 
+  Car, CheckCircle2, XCircle, UserPlus, MapPin, Users, Activity, ShieldCheck
 } from 'lucide-react'
 import { useDashboardData } from '../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
@@ -26,7 +26,40 @@ interface TelemetryDriver {
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate()
-  useDashboardData()
+  const { data: dashboardData, isLoading: isDashboardLoading } = useDashboardData()
+  const stats = dashboardData?.stats
+  const earningTrend = dashboardData?.earningTrend ?? []
+
+  const statCards = [
+    {
+      label: 'Active Drivers',
+      value: stats?.activeDrivers ?? 0,
+      icon: Car,
+      border: 'border-l-emerald-500',
+      iconColor: 'text-emerald-500',
+    },
+    {
+      label: 'Active Riders',
+      value: stats?.activeRiders ?? 0,
+      icon: Users,
+      border: 'border-l-indigo-500',
+      iconColor: 'text-indigo-500',
+    },
+    {
+      label: 'Ongoing Rides',
+      value: stats?.ongoingRides ?? 0,
+      icon: Activity,
+      border: 'border-l-blue-500',
+      iconColor: 'text-blue-500',
+    },
+    {
+      label: 'Pending Verifications',
+      value: stats?.pendingVerifications ?? 0,
+      icon: ShieldCheck,
+      border: 'border-l-amber-500',
+      iconColor: 'text-amber-500',
+    },
+  ]
 
   // High-fidelity Live Telemetry Feed simulation state
   const [telemetryDrivers, setTelemetryDrivers] = useState<TelemetryDriver[]>([
@@ -101,9 +134,34 @@ export const DashboardPage: React.FC = () => {
       />
 
       <div className="space-y-6 text-left">
-        {/* ANALYTICS SECTION - FULL WIDTH RIDE BOOKING WEEKLY */}
+        {/* Live stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {statCards.map((card) => {
+            const Icon = card.icon
+            return (
+              <Card key={card.label} className={`p-3.5 flex flex-col justify-between border-l-4 ${card.border}`}>
+                <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+                  <span>{card.label}</span>
+                  <Icon className={`h-4 w-4 ${card.iconColor}`} />
+                </div>
+                <div className="text-2xl font-bold mt-2 text-slate-900 dark:text-white">
+                  {isDashboardLoading ? '—' : card.value.toLocaleString()}
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+
+        {/* ANALYTICS SECTION - FULL WIDTH EARNINGS TREND */}
         <div className="w-full">
-          <ChartPlaceholder title="Ride Booking Trends (Weekly)" height="h-72" />
+          <ChartPlaceholder
+            title="Earnings Trend (Last 7 Days)"
+            height="h-72"
+            bars={earningTrend.map((point) => ({
+              label: point.date,
+              value: point.earnings,
+            }))}
+          />
         </div>
 
         {/* TELEMETRY & TIMELINE SECTION */}

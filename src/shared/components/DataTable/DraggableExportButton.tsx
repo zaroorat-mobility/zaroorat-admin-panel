@@ -26,7 +26,7 @@ export const DraggableExportButton: React.FC<DraggableExportButtonProps> = ({
       try {
         const parsed = JSON.parse(savedPos);
         setPosition(parsed);
-      } catch (e) {
+      } catch {
         // Fallback to default
         setDefaultPosition();
       }

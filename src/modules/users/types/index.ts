@@ -8,6 +8,7 @@ export interface UserEntity extends BaseEntity {
   phone: string
   role: StaffRole
   status: 'active' | 'inactive'
+  lastLogin?: string | null
 }
 
 export interface UserDetails extends UserEntity {
