@@ -573,6 +573,7 @@ export const operationsApi = {
         distanceMeters: number | null
         durationSeconds: number | null
         encodedPolyline?: string
+        routingError?: string
       }
     }>(API_ENDPOINTS.operations.rideRoute(id))
     return response.data.data

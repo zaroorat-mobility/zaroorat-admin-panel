@@ -11,5 +11,6 @@ export const useMapClientConfig = () =>
       )
       return response.data.data
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
+    refetchOnMount: 'always',
   })
