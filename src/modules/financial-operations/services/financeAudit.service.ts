@@ -12,8 +12,25 @@ const getFinanceAuditLogs = async (
   return response.data
 }
 
+/** Audit writes are owned by the backend; kept as a no-op for call-site compatibility. */
+const writeFinanceAudit = (
+  _correlationId: string,
+  _user: string,
+  _action: string,
+  _module: FinanceAuditLog['module'],
+  _entityType: FinanceAuditLog['entityType'],
+  _entityId: string,
+  _severity: FinanceAuditLog['severity'],
+  _notes?: string,
+  _oldValue?: string,
+  _newValue?: string,
+) => {
+  // no-op
+}
+
 export const FinanceAuditService = {
   getFinanceAuditLogs,
+  writeFinanceAudit,
 }
 
 export default FinanceAuditService

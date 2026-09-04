@@ -1,1 +1,2 @@
-export { SettlementService as default, SettlementService } from '../services'
+export { SettlementService } from '../services'
+export { default } from '../services'

@@ -1,5 +1,5 @@
-import { api, API_ENDPOINTS } from '@/infrastructure/api'
-import type { Transaction } from '../transactions/types'
+import { FinanceAnalyticsService } from './financeAnalytics.service'
+import { TransactionLedgerService } from './transactionLedger.service'
 
 export interface FailureReasonCount {
   reason: string
@@ -31,83 +31,71 @@ export interface FailedTransactionsMetrics {
   bankDeclines: number
 }
 
-const getFailedTransactionsMetrics = async (): Promise<FailedTransactionsMetrics> => {
-  const response = await api.get<{ data: Transaction[]; meta: { totalCount: number } }>(
-    API_ENDPOINTS.finance.transactions,
-    { params: { status: 'failed', limit: 100 } },
-  )
-  const failedTxns = response.data.data.filter((t) => t.status === 'failed')
+const REASON_LABELS: Record<string, string> = {
+  GATEWAY_TIMEOUT: 'Gateway Timeout',
+  OTP_EXPIRED: 'OTP Expired/Invalid',
+  BANK_DECLINED: 'Bank Decline',
+  INSUFFICIENT_FUNDS: 'Insufficient Funds',
+  USER_CANCELLED: 'User Cancelled Tab',
+}
 
+const getFailedTransactionsMetrics = async (): Promise<FailedTransactionsMetrics> => {
+  const [dashboard, failedRes] = await Promise.all([
+    FinanceAnalyticsService.getDashboardStats(),
+    TransactionLedgerService.getTransactions({ status: 'failed', limit: 100, page: 1 }),
+  ])
+
+  const failedTxns = failedRes.data
   const totalFailedToday = failedTxns.filter((t) => {
     const diff = Date.now() - new Date(t.createdAt).getTime()
     return diff <= 86400000
   }).length
 
-  const gatewayTimeouts = failedTxns.filter((t) => t.gatewayErrorCode === 'GATEWAY_TIMEOUT').length
-  const bankDeclines = failedTxns.filter((t) => t.gatewayErrorCode === 'BANK_DECLINED').length
-  const otpFailures = failedTxns.filter((t) => t.gatewayErrorCode === 'OTP_EXPIRED').length
-  const insufficientFunds = failedTxns.filter(
-    (t) => t.gatewayErrorCode === 'INSUFFICIENT_FUNDS',
-  ).length
-  const userCancelled = failedTxns.filter((t) => t.gatewayErrorCode === 'USER_CANCELLED').length
+  const countByCode = (code: string) =>
+    failedTxns.filter((t) => t.gatewayErrorCode === code).length
+
+  const gatewayTimeouts = countByCode('GATEWAY_TIMEOUT')
+  const bankDeclines = countByCode('BANK_DECLINED')
+  const otpFailures = countByCode('OTP_EXPIRED')
+  const insufficientFunds = countByCode('INSUFFICIENT_FUNDS')
+  const userCancelled = countByCode('USER_CANCELLED')
 
   const totalFailed = failedTxns.length || 1
-  const reasons: FailureReasonCount[] = [
-    {
-      reason: 'Gateway Timeout',
-      code: 'GATEWAY_TIMEOUT',
-      count: gatewayTimeouts,
-      percent: Math.round((gatewayTimeouts / totalFailed) * 100),
-    },
-    {
-      reason: 'OTP Expired/Invalid',
-      code: 'OTP_EXPIRED',
-      count: otpFailures,
-      percent: Math.round((otpFailures / totalFailed) * 100),
-    },
-    {
-      reason: 'Bank Decline',
-      code: 'BANK_DECLINED',
-      count: bankDeclines,
-      percent: Math.round((bankDeclines / totalFailed) * 100),
-    },
-    {
-      reason: 'Insufficient Funds',
-      code: 'INSUFFICIENT_FUNDS',
-      count: insufficientFunds,
-      percent: Math.round((insufficientFunds / totalFailed) * 100),
-    },
-    {
-      reason: 'User Cancelled Tab',
-      code: 'USER_CANCELLED',
-      count: userCancelled,
-      percent: Math.round((userCancelled / totalFailed) * 100),
-    },
-  ].sort((a, b) => b.count - a.count)
+  const reasonCodes = [
+    ['GATEWAY_TIMEOUT', gatewayTimeouts],
+    ['OTP_EXPIRED', otpFailures],
+    ['BANK_DECLINED', bankDeclines],
+    ['INSUFFICIENT_FUNDS', insufficientFunds],
+    ['USER_CANCELLED', userCancelled],
+  ] as const
 
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-  const trends: FailedTrend[] = days.map((label, idx) => ({
-    label,
-    count: failedTxns.filter((t) => new Date(t.createdAt).getDay() === ((idx + 1) % 7)).length,
-  }))
+  const reasons: FailureReasonCount[] = reasonCodes
+    .map(([code, count]) => ({
+      reason: REASON_LABELS[code] ?? code,
+      code,
+      count,
+      percent: Math.round((count / totalFailed) * 100),
+    }))
+    .sort((a, b) => b.count - a.count)
 
-  const allTxnsResponse = await api.get<{ data: Transaction[] }>(API_ENDPOINTS.finance.transactions, {
-    params: { limit: 100 },
-  })
-  const allTxns = allTxnsResponse.data.data
-  const gateways = ['razorpay', 'phonepe', 'cashfree', 'paytm'] as const
-  const matrix: GatewayMatrixRow[] = gateways.map((gateway) => {
-    const rows = allTxns.filter((t) => t.paymentGateway === gateway)
-    const failedAttempts = rows.filter((t) => t.status === 'failed').length
-    const totalAttempts = rows.length
+  const trends: FailedTrend[] = [
+    { label: 'Today', count: totalFailedToday },
+    { label: 'Last page', count: failedTxns.length },
+    { label: 'Dashboard total', count: dashboard.actions.failedTransactions },
+  ]
+
+  const matrix: GatewayMatrixRow[] = dashboard.gateways.map((g) => {
+    const failedAttempts = g.failedCount
+    const successRate = g.successRate
+    const totalAttempts =
+      successRate < 100 && failedAttempts > 0
+        ? Math.round(failedAttempts / (1 - successRate / 100))
+        : failedAttempts + Math.round((failedAttempts * successRate) / Math.max(1, 100 - successRate))
     return {
-      gateway: gateway.toUpperCase(),
-      totalAttempts,
+      gateway: g.gateway,
+      totalAttempts: totalAttempts || failedAttempts,
       failedAttempts,
-      successRate:
-        totalAttempts > 0
-          ? Math.round(((totalAttempts - failedAttempts) / totalAttempts) * 1000) / 10
-          : 100,
+      successRate,
     }
   })
 

@@ -1,6 +1,6 @@
-import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import type { QueryParams } from '@/shared/types'
 import type { Transaction } from '../transactions/types'
+import { TransactionLedgerService } from './transactionLedger.service'
 
 export interface ReconciliationSummary {
   totalRecords: number
@@ -11,24 +11,25 @@ export interface ReconciliationSummary {
 
 const getReconciliationRecords = async (
   params?: QueryParams,
-): Promise<{ data: Transaction[]; summary: ReconciliationSummary }> => {
-  const response = await api.get<{ data: Transaction[]; meta: { totalCount: number } }>(
-    API_ENDPOINTS.finance.transactions,
-    {
-      params: {
-        ...params,
-        limit: params?.limit ?? 100,
-        ...(params?.varianceOnly === 'true' || params?.varianceOnly === true
-          ? { varianceStatus: 'variance_found' }
-          : {}),
-      },
-    },
-  )
+): Promise<{
+  data: Transaction[]
+  summary: ReconciliationSummary
+}> => {
+  const varianceOnly = params?.varianceOnly === 'true' || params?.varianceOnly === true
+  const { varianceOnly: _v, gateway, ...rest } = params || {}
 
-  let filtered = response.data.data.filter((t) => t.type === 'ride_payment')
-  const gatewayFilter = params?.gateway as string | undefined
-  if (gatewayFilter && gatewayFilter !== 'all') {
-    filtered = filtered.filter((t) => t.paymentGateway === gatewayFilter)
+  const res = await TransactionLedgerService.getTransactions({
+    ...rest,
+    type: rest.type ?? 'ride_payment',
+    gateway,
+    limit: rest.limit ?? 100,
+    page: rest.page ?? 1,
+    ...(varianceOnly ? { varianceStatus: rest.varianceStatus ?? 'variance_found' } : {}),
+  })
+
+  let filtered = res.data
+  if (varianceOnly && !rest.varianceStatus) {
+    filtered = filtered.filter((t) => t.variance !== 0)
   }
 
   const totalRecords = filtered.length
@@ -38,7 +39,12 @@ const getReconciliationRecords = async (
 
   return {
     data: filtered,
-    summary: { totalRecords, matchedRecords, varianceRecords, varianceAmount },
+    summary: {
+      totalRecords,
+      matchedRecords,
+      varianceRecords,
+      varianceAmount,
+    },
   }
 }
 

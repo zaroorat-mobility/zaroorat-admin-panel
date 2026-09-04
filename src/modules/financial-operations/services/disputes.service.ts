@@ -1,10 +1,6 @@
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import type { QueryParams, PaginatedResponse } from '@/shared/types'
-import type {
-  PaymentDispute,
-  DisputeStatus,
-  DisputeResolutionType,
-} from '../types'
+import type { PaymentDispute, DisputeStatus, DisputeResolutionType } from '../types'
 
 const getDisputes = async (params?: QueryParams): Promise<PaginatedResponse<PaymentDispute>> => {
   const response = await api.get<PaginatedResponse<PaymentDispute>>(API_ENDPOINTS.finance.disputes, {
@@ -37,10 +33,9 @@ const createDispute = async (
 }
 
 const assignDispute = async (id: string, agentName: string): Promise<PaymentDispute> => {
-  const response = await api.post<{ data: PaymentDispute }>(
-    API_ENDPOINTS.finance.disputeAssign(id),
-    { agentName },
-  )
+  const response = await api.post<{ data: PaymentDispute }>(API_ENDPOINTS.finance.disputeAssign(id), {
+    agentName,
+  })
   return response.data.data
 }
 
@@ -49,9 +44,9 @@ const updateDisputeStatus = async (
   status: DisputeStatus,
   notes?: string,
 ): Promise<PaymentDispute> => {
-  const response = await api.post<{ data: PaymentDispute }>(
+  const response = await api.patch<{ data: PaymentDispute }>(
     API_ENDPOINTS.finance.disputeStatus(id),
-    { status, ...(notes ? { notes } : {}) },
+    { status, notes },
   )
   return response.data.data
 }
@@ -67,7 +62,7 @@ const resolveDispute = async (
     {
       resolutionType,
       resolutionNotes: notes,
-      ...(adjustmentAmount !== undefined ? { adjustmentAmount } : {}),
+      adjustmentAmount,
     },
   )
   return response.data.data
@@ -75,7 +70,7 @@ const resolveDispute = async (
 
 const closeDispute = async (id: string, notes?: string): Promise<PaymentDispute> => {
   const response = await api.post<{ data: PaymentDispute }>(API_ENDPOINTS.finance.disputeClose(id), {
-    ...(notes ? { notes } : {}),
+    notes,
   })
   return response.data.data
 }
