@@ -1,4 +1,4 @@
-import { TransactionLedgerService } from './transactionLedger.service'
+import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import type { QueryParams } from '@/shared/types'
 import type { Transaction } from '../transactions/types'
 
@@ -9,58 +9,41 @@ export interface ReconciliationSummary {
   varianceAmount: number
 }
 
-const getReconciliationRecords = async (params?: QueryParams): Promise<{
-  data: Transaction[]
-  summary: ReconciliationSummary
-}> => {
-  const transactions = TransactionLedgerService.getDb()
-  const search = ((params?.search as string) || '').toLowerCase()
-  const gatewayFilter = params?.gateway as string
-  const varianceOnly = params?.varianceOnly === 'true' || params?.varianceOnly === true
+const getReconciliationRecords = async (
+  params?: QueryParams,
+): Promise<{ data: Transaction[]; summary: ReconciliationSummary }> => {
+  const response = await api.get<{ data: Transaction[]; meta: { totalCount: number } }>(
+    API_ENDPOINTS.finance.transactions,
+    {
+      params: {
+        ...params,
+        limit: params?.limit ?? 100,
+        ...(params?.varianceOnly === 'true' || params?.varianceOnly === true
+          ? { varianceStatus: 'variance_found' }
+          : {}),
+      },
+    },
+  )
 
-  let filtered = [...transactions]
-
-  // Filter out non-payment/adjustment entries if we want to reconciliate fares
-  filtered = filtered.filter(t => t.type === 'ride_payment')
-
-  if (search) {
-    filtered = filtered.filter(t =>
-      t.transactionId.toLowerCase().includes(search) ||
-      (t.gatewayReference && t.gatewayReference.toLowerCase().includes(search)) ||
-      (t.rideId && t.rideId.toLowerCase().includes(search))
-    )
-  }
-
+  let filtered = response.data.data.filter((t) => t.type === 'ride_payment')
+  const gatewayFilter = params?.gateway as string | undefined
   if (gatewayFilter && gatewayFilter !== 'all') {
-    filtered = filtered.filter(t => t.paymentGateway === gatewayFilter)
+    filtered = filtered.filter((t) => t.paymentGateway === gatewayFilter)
   }
 
-  if (varianceOnly) {
-    filtered = filtered.filter(t => t.variance !== 0)
-  }
-
-  // Calculate top-level reconciliation metrics
   const totalRecords = filtered.length
-  const matchedRecords = filtered.filter(t => t.variance === 0).length
-  const varianceRecords = filtered.filter(t => t.variance !== 0).length
+  const matchedRecords = filtered.filter((t) => t.variance === 0).length
+  const varianceRecords = filtered.filter((t) => t.variance !== 0).length
   const varianceAmount = filtered.reduce((sum, t) => sum + Math.abs(t.variance), 0)
-
-  // Sort desc by date
-  filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   return {
     data: filtered,
-    summary: {
-      totalRecords,
-      matchedRecords,
-      varianceRecords,
-      varianceAmount
-    }
+    summary: { totalRecords, matchedRecords, varianceRecords, varianceAmount },
   }
 }
 
 export const ReconciliationService = {
-  getReconciliationRecords
+  getReconciliationRecords,
 }
 
 export default ReconciliationService
