@@ -1,5 +1,4 @@
-kimport { apiClient } from '@/infrastructure/api/axios';
-import { API_ENDPOINTS } from '@/infrastructure/api/endpoints';
+import { api as apiClient, API_ENDPOINTS } from '@/infrastructure/api';
 
 export type MapProviderName = 'ola' | 'google' | 'mappls';
 

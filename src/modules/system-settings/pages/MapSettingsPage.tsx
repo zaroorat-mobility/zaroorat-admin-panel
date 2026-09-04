@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   mapSettingsService,
-  MapProviderName,
-  MapSettingsView,
-  TestProviderHealthResult,
+  type MapProviderName,
+  type MapSettingsView,
+  type TestProviderHealthResult,
 } from '../services/map-settings.service';
 
 export const MapSettingsPage: React.FC = () => {

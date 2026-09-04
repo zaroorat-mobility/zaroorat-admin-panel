@@ -18,17 +18,11 @@ import { FinancialOperationsRoutes } from '@/modules/financial-operations'
 import { SchoolMobilityRoutes } from '@/modules/school-mobility'
 import { CarpoolingRoutes } from '@/modules/carpooling'
 import { DocumentControllerRoutes } from '@/modules/document-controller'
-<<<<<<< HEAD
 import { MapSettingsPage } from '@/modules/system-settings'
-=======
 import { GeographicManagementRoutes } from '@/modules/geographic-management'
-<<<<<<< HEAD
->>>>>>> 9b709dcc78978d4b4b83e1b67acd402f0760b8af
-=======
 import { CommunicationsRoutes } from '@/modules/communications'
 import { PlatformLayoutPage, platformChildRoutes } from '@/modules/platform'
 import { accessControlChildRoutes } from '@/modules/access-control'
->>>>>>> 3ebba32dc928d6685aacb415130b2d21b66b13df
 
 /**
  * Main Application Routing Declarations for Zaroorat Mobility
@@ -210,8 +204,6 @@ export const AppRouter: React.FC = () => {
             </RequirePermission>
           }
         />
-<<<<<<< HEAD
-
         {/* System & Map Provider Settings */}
         <Route path="settings/maps" element={<MapSettingsPage />} />
         <Route path="settings" element={<Navigate to="/settings/maps" replace />} />
@@ -219,8 +211,6 @@ export const AppRouter: React.FC = () => {
         {/* Legacy redirect routes */}
         <Route path="drivers/*" element={<Navigate to="/driver-management/drivers" replace />} />
         <Route path="verification/*" element={<Navigate to="/driver-management/applications" replace />} />
-=======
->>>>>>> 3ebba32dc928d6685aacb415130b2d21b66b13df
       </Route>
 
       {/* Catch-all Redirect */}
