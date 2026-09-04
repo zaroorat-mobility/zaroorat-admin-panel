@@ -1,3 +1,4 @@
+import { FinanceAnalyticsService } from './financeAnalytics.service'
 import { TransactionLedgerService } from './transactionLedger.service'
 
 export interface FailureReasonCount {
@@ -30,52 +31,71 @@ export interface FailedTransactionsMetrics {
   bankDeclines: number
 }
 
+const REASON_LABELS: Record<string, string> = {
+  GATEWAY_TIMEOUT: 'Gateway Timeout',
+  OTP_EXPIRED: 'OTP Expired/Invalid',
+  BANK_DECLINED: 'Bank Decline',
+  INSUFFICIENT_FUNDS: 'Insufficient Funds',
+  USER_CANCELLED: 'User Cancelled Tab',
+}
+
 const getFailedTransactionsMetrics = async (): Promise<FailedTransactionsMetrics> => {
-  const transactions = TransactionLedgerService.getDb()
-  const failedTxns = transactions.filter(t => t.status === 'failed')
-  
-  // Total failed today estimate
-  const totalFailedToday = failedTxns.filter(t => {
+  const [dashboard, failedRes] = await Promise.all([
+    FinanceAnalyticsService.getDashboardStats(),
+    TransactionLedgerService.getTransactions({ status: 'failed', limit: 100, page: 1 }),
+  ])
+
+  const failedTxns = failedRes.data
+  const totalFailedToday = failedTxns.filter((t) => {
     const diff = Date.now() - new Date(t.createdAt).getTime()
     return diff <= 86400000
   }).length
 
-  // Counts by error code
-  const gatewayTimeouts = failedTxns.filter(t => t.gatewayErrorCode === 'GATEWAY_TIMEOUT').length
-  const bankDeclines = failedTxns.filter(t => t.gatewayErrorCode === 'BANK_DECLINED').length
-  const otpFailures = failedTxns.filter(t => t.gatewayErrorCode === 'OTP_EXPIRED').length
-  const insufficientFunds = failedTxns.filter(t => t.gatewayErrorCode === 'INSUFFICIENT_FUNDS').length
-  const userCancelled = failedTxns.filter(t => t.gatewayErrorCode === 'USER_CANCELLED').length
+  const countByCode = (code: string) =>
+    failedTxns.filter((t) => t.gatewayErrorCode === code).length
 
-  const totalFailed = failedTxns.length || 1 // Avoid divide by zero
-  const reasons: FailureReasonCount[] = [
-    { reason: 'Gateway Timeout', code: 'GATEWAY_TIMEOUT', count: gatewayTimeouts, percent: Math.round((gatewayTimeouts / totalFailed) * 100) },
-    { reason: 'OTP Expired/Invalid', code: 'OTP_EXPIRED', count: otpFailures, percent: Math.round((otpFailures / totalFailed) * 100) },
-    { reason: 'Bank Decline', code: 'BANK_DECLINED', count: bankDeclines, percent: Math.round((bankDeclines / totalFailed) * 100) },
-    { reason: 'Insufficient Funds', code: 'INSUFFICIENT_FUNDS', count: insufficientFunds, percent: Math.round((insufficientFunds / totalFailed) * 100) },
-    { reason: 'User Cancelled Tab', code: 'USER_CANCELLED', count: userCancelled, percent: Math.round((userCancelled / totalFailed) * 100) }
-  ].sort((a, b) => b.count - a.count)
+  const gatewayTimeouts = countByCode('GATEWAY_TIMEOUT')
+  const bankDeclines = countByCode('BANK_DECLINED')
+  const otpFailures = countByCode('OTP_EXPIRED')
+  const insufficientFunds = countByCode('INSUFFICIENT_FUNDS')
+  const userCancelled = countByCode('USER_CANCELLED')
 
-  // Trends
+  const totalFailed = failedTxns.length || 1
+  const reasonCodes = [
+    ['GATEWAY_TIMEOUT', gatewayTimeouts],
+    ['OTP_EXPIRED', otpFailures],
+    ['BANK_DECLINED', bankDeclines],
+    ['INSUFFICIENT_FUNDS', insufficientFunds],
+    ['USER_CANCELLED', userCancelled],
+  ] as const
+
+  const reasons: FailureReasonCount[] = reasonCodes
+    .map(([code, count]) => ({
+      reason: REASON_LABELS[code] ?? code,
+      code,
+      count,
+      percent: Math.round((count / totalFailed) * 100),
+    }))
+    .sort((a, b) => b.count - a.count)
+
   const trends: FailedTrend[] = [
     { label: 'Today', count: totalFailedToday },
-    { label: 'Yesterday', count: Math.round(totalFailedToday * 1.2) + 2 },
-    { label: 'Last 7 Days', count: failedTxns.length }
+    { label: 'Last page', count: failedTxns.length },
+    { label: 'Dashboard total', count: dashboard.actions.failedTransactions },
   ]
 
-  // PG Matrix
-  const pgs = ['razorpay', 'phonepe', 'cashfree', 'paytm'] as const
-  const matrix: GatewayMatrixRow[] = pgs.map(pg => {
-    const pgTxns = transactions.filter(t => t.paymentGateway === pg)
-    const total = pgTxns.length
-    const failed = pgTxns.filter(t => t.status === 'failed').length
-    const rate = total > 0 ? Math.round(((total - failed) / total) * 1000) / 10 : 100
-    
+  const matrix: GatewayMatrixRow[] = dashboard.gateways.map((g) => {
+    const failedAttempts = g.failedCount
+    const successRate = g.successRate
+    const totalAttempts =
+      successRate < 100 && failedAttempts > 0
+        ? Math.round(failedAttempts / (1 - successRate / 100))
+        : failedAttempts + Math.round((failedAttempts * successRate) / Math.max(1, 100 - successRate))
     return {
-      gateway: pg.toUpperCase(),
-      totalAttempts: total,
-      failedAttempts: failed,
-      successRate: rate
+      gateway: g.gateway,
+      totalAttempts: totalAttempts || failedAttempts,
+      failedAttempts,
+      successRate,
     }
   })
 
@@ -87,12 +107,12 @@ const getFailedTransactionsMetrics = async (): Promise<FailedTransactionsMetrics
     gatewayTimeouts,
     otpFailures,
     insufficientFunds,
-    bankDeclines
+    bankDeclines,
   }
 }
 
 export const GatewayMetricsService = {
-  getFailedTransactionsMetrics
+  getFailedTransactionsMetrics,
 }
 
 export default GatewayMetricsService

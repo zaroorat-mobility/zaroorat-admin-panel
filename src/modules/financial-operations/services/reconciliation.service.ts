@@ -1,6 +1,6 @@
-import { TransactionLedgerService } from './transactionLedger.service'
 import type { QueryParams } from '@/shared/types'
 import type { Transaction } from '../transactions/types'
+import { TransactionLedgerService } from './transactionLedger.service'
 
 export interface ReconciliationSummary {
   totalRecords: number
@@ -9,44 +9,33 @@ export interface ReconciliationSummary {
   varianceAmount: number
 }
 
-const getReconciliationRecords = async (params?: QueryParams): Promise<{
+const getReconciliationRecords = async (
+  params?: QueryParams,
+): Promise<{
   data: Transaction[]
   summary: ReconciliationSummary
 }> => {
-  const transactions = TransactionLedgerService.getDb()
-  const search = ((params?.search as string) || '').toLowerCase()
-  const gatewayFilter = params?.gateway as string
   const varianceOnly = params?.varianceOnly === 'true' || params?.varianceOnly === true
+  const { varianceOnly: _v, gateway, ...rest } = params || {}
 
-  let filtered = [...transactions]
+  const res = await TransactionLedgerService.getTransactions({
+    ...rest,
+    type: rest.type ?? 'ride_payment',
+    gateway,
+    limit: rest.limit ?? 100,
+    page: rest.page ?? 1,
+    ...(varianceOnly ? { varianceStatus: rest.varianceStatus ?? 'variance_found' } : {}),
+  })
 
-  // Filter out non-payment/adjustment entries if we want to reconciliate fares
-  filtered = filtered.filter(t => t.type === 'ride_payment')
-
-  if (search) {
-    filtered = filtered.filter(t =>
-      t.transactionId.toLowerCase().includes(search) ||
-      (t.gatewayReference && t.gatewayReference.toLowerCase().includes(search)) ||
-      (t.rideId && t.rideId.toLowerCase().includes(search))
-    )
+  let filtered = res.data
+  if (varianceOnly && !rest.varianceStatus) {
+    filtered = filtered.filter((t) => t.variance !== 0)
   }
 
-  if (gatewayFilter && gatewayFilter !== 'all') {
-    filtered = filtered.filter(t => t.paymentGateway === gatewayFilter)
-  }
-
-  if (varianceOnly) {
-    filtered = filtered.filter(t => t.variance !== 0)
-  }
-
-  // Calculate top-level reconciliation metrics
   const totalRecords = filtered.length
-  const matchedRecords = filtered.filter(t => t.variance === 0).length
-  const varianceRecords = filtered.filter(t => t.variance !== 0).length
+  const matchedRecords = filtered.filter((t) => t.variance === 0).length
+  const varianceRecords = filtered.filter((t) => t.variance !== 0).length
   const varianceAmount = filtered.reduce((sum, t) => sum + Math.abs(t.variance), 0)
-
-  // Sort desc by date
-  filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   return {
     data: filtered,
@@ -54,13 +43,13 @@ const getReconciliationRecords = async (params?: QueryParams): Promise<{
       totalRecords,
       matchedRecords,
       varianceRecords,
-      varianceAmount
-    }
+      varianceAmount,
+    },
   }
 }
 
 export const ReconciliationService = {
-  getReconciliationRecords
+  getReconciliationRecords,
 }
 
 export default ReconciliationService

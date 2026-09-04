@@ -1,3 +1,2 @@
-// Placeholder API contract for Zaroorat Settlements
-export const SettlementsApi = {}
-export default SettlementsApi
+export { SettlementService } from '../services'
+export { default } from '../services'

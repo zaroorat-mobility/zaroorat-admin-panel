@@ -1,3 +1,3 @@
-// Placeholder API contract for Zaroorat Financial Operations Refunds
-export const RefundsApi = {}
-export default RefundsApi
+export { RefundService } from '../services'
+export type { CreateRefundInput } from '../services'
+export { default } from '../services'
