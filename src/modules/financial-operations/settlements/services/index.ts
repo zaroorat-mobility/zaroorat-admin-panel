@@ -44,13 +44,6 @@ const getDriverBreakdown = async (
   return response.data.data
 }
 
-const getDriverLedger = async (driverId: string): Promise<DriverLedgerEntry[]> => {
-  const response = await api.get<{ data: DriverLedgerEntry[] }>(
-    API_ENDPOINTS.finance.driverLedger(driverId),
-  )
-  return response.data.data
-}
-
 const generateSettlementBatch = async (
   periodStart: string,
   periodEnd: string,
@@ -69,9 +62,16 @@ const updateSettlementStatus = async (
   status: SettlementStatus,
   _actor?: string,
 ): Promise<SettlementBatch> => {
-  const response = await api.post<{ data: SettlementBatch }>(
+  const response = await api.patch<{ data: SettlementBatch }>(
     API_ENDPOINTS.finance.settlementStatus(id),
     { status },
+  )
+  return response.data.data
+}
+
+const getDriverLedger = async (driverId: string): Promise<DriverLedgerEntry[]> => {
+  const response = await api.get<{ data: DriverLedgerEntry[] }>(
+    API_ENDPOINTS.finance.driverLedger(driverId),
   )
   return response.data.data
 }
@@ -79,11 +79,11 @@ const updateSettlementStatus = async (
 export const SettlementService = {
   getSettlements,
   getSettlementById,
-  searchDrivers,
-  getDriverBreakdown,
-  getDriverLedger,
   generateSettlementBatch,
   updateSettlementStatus,
+  getDriverLedger,
+  searchDrivers,
+  getDriverBreakdown,
 }
 
 export default SettlementService

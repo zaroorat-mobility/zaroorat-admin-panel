@@ -1,6 +1,19 @@
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import type { QueryParams, PaginatedResponse } from '@/shared/types'
-import type { RefundRequest } from '../types'
+import type { RefundRequest, RefundType, RefundSource } from '../types'
+
+export type CreateRefundInput = {
+  transactionId: string
+  rideId?: string
+  disputeId?: string
+  riderId?: string
+  riderName?: string
+  refundType: RefundType
+  requestedAmount: number
+  reason: string
+  refundSource: RefundSource
+  notes?: string
+}
 
 const getRefunds = async (params?: QueryParams): Promise<PaginatedResponse<RefundRequest>> => {
   const response = await api.get<PaginatedResponse<RefundRequest>>(API_ENDPOINTS.finance.refunds, {
@@ -14,21 +27,9 @@ const getRefundById = async (id: string): Promise<RefundRequest> => {
   return response.data.data
 }
 
-const createRefund = async (
-  data: Omit<
-    RefundRequest,
-    | 'id'
-    | 'refundId'
-    | 'createdAt'
-    | 'updatedAt'
-    | 'timeline'
-    | 'requestedAt'
-    | 'status'
-    | 'approvalLevel'
-  >,
-): Promise<RefundRequest> => {
+const createRefund = async (data: CreateRefundInput): Promise<RefundRequest> => {
   const response = await api.post<{ data: RefundRequest }>(API_ENDPOINTS.finance.refunds, {
-    transactionId: (data as { transactionId?: string }).transactionId,
+    transactionId: data.transactionId,
     rideId: data.rideId,
     disputeId: data.disputeId,
     riderId: data.riderId,
@@ -68,14 +69,17 @@ const rejectRefund = async (
   reason: string,
   reviewerName: string,
 ): Promise<RefundRequest> => {
-  const response = await api.post<{ data: RefundRequest }>(API_ENDPOINTS.finance.refundReject(id), {
-    reason,
-    reviewerName,
-  })
+  const response = await api.post<{ data: RefundRequest }>(
+    API_ENDPOINTS.finance.refundReject(id),
+    { reason, reviewerName },
+  )
   return response.data.data
 }
 
-const markRefundProcessing = async (id: string, processorName: string): Promise<RefundRequest> => {
+const markRefundProcessing = async (
+  id: string,
+  processorName: string,
+): Promise<RefundRequest> => {
   const response = await api.post<{ data: RefundRequest }>(
     API_ENDPOINTS.finance.refundMarkProcessing(id),
     { actorName: processorName },
@@ -83,7 +87,10 @@ const markRefundProcessing = async (id: string, processorName: string): Promise<
   return response.data.data
 }
 
-const markRefundCompleted = async (id: string, processorName: string): Promise<RefundRequest> => {
+const markRefundCompleted = async (
+  id: string,
+  processorName: string,
+): Promise<RefundRequest> => {
   const response = await api.post<{ data: RefundRequest }>(
     API_ENDPOINTS.finance.refundMarkCompleted(id),
     { actorName: processorName },
