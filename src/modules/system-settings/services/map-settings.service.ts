@@ -28,13 +28,13 @@ export interface MapProviderConfigView {
   lastHealthAt?: string;
 }
 
+/// Exactly one provider is active; there is no fallback chain. The backend used
+/// to return a `fallback` policy here, but it could never be populated — the
+/// admin validator refused to enable any provider but the primary — so the
+/// mechanism it described did not exist. Removed on both sides.
 export interface MapSettingsView {
   primaryProvider: MapProviderName;
   version: number;
-  fallback: {
-    enabled: boolean;
-    byCapability: Partial<Record<MapCapability, MapProviderName[]>>;
-  };
   providers: {
     ola: MapProviderConfigView;
     google: MapProviderConfigView;
