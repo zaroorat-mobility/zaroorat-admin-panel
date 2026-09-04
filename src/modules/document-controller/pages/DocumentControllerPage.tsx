@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardContent } from '@/shared/components/ui/Card'
@@ -8,38 +8,18 @@ import {
   FileText, Eye, Check, X, ShieldAlert, Calendar, Settings,
   CheckCircle2, Plus, ArrowLeft, Upload, AlertCircle
 } from 'lucide-react'
+import {
+  useDocumentCompliance,
+  useDocumentSettings,
+  useUpdateDocumentSettings,
+  useReviewDocument,
+} from '../hooks'
+import type { DriverDocumentDto, DriverDocSummary, ComplianceState, DriverVerifStatus } from '../services'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface DriverDocument {
-  id: string
-  driverId: string
-  driverName: string
-  docType: 'licence' | 'rc' | 'insurance' | 'permit' | 'kyc' | 'puc' | 'police_verification' | 'id_proof'
-  fileName: string
-  uploadDate: string
-  issueDate: string
-  expiryDate: string
-  status: 'valid' | 'expiring_soon' | 'expired'
-  expiryThresholdDays: number
-  verificationStatus: 'verified' | 'pending' | 'rejected'
-}
+type DriverDocument = DriverDocumentDto
 
-type ComplianceState = 'compliant' | 'expiring_soon' | 'non_compliant' | 'incomplete'
-type DriverVerifStatus = 'all_verified' | 'pending' | 'has_rejected'
-
-interface DriverDocSummary {
-  driverId: string
-  driverName: string
-  mobile: string
-  onboardedOn: string
-  totalDocs: number
-  uploadedDocs: number
-  complianceState: ComplianceState
-  nearestExpiry: string
-  verificationStatus: DriverVerifStatus
-  documents: DriverDocument[]
-}
 
 // ─── Phone normalisation helper (CR-02) ──────────────────────────────────────
 
@@ -49,56 +29,6 @@ const normalisePhone = (raw: string): string => {
   if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2)
   if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1)
   return digits
-}
-
-// ─── Derivation helpers ───────────────────────────────────────────────────────
-
-const getComplianceState = (docs: DriverDocument[], uploaded: number, expected: number): ComplianceState => {
-  if (uploaded < expected) return 'incomplete'
-  if (docs.some(d => d.status === 'expired')) return 'non_compliant'
-  if (docs.some(d => d.status === 'expiring_soon')) return 'expiring_soon'
-  return 'compliant'
-}
-
-const getVerifStatus = (docs: DriverDocument[]): DriverVerifStatus => {
-  if (docs.some(d => d.verificationStatus === 'rejected')) return 'has_rejected'
-  if (docs.some(d => d.verificationStatus === 'pending')) return 'pending'
-  return 'all_verified'
-}
-
-const getNearestExpiry = (docs: DriverDocument[]): string => {
-  if (!docs.length) return '—'
-  return docs.reduce((n, d) => (!n || d.expiryDate < n ? d.expiryDate : n), '')
-}
-
-const DRIVER_META: Record<string, { name: string; mobile: string; onboardedOn: string }> = {
-  'DRV-102': { name: 'Rajesh Kumar',  mobile: '9765432101', onboardedOn: '2025-07-13' },
-  'DRV-205': { name: 'Sunil Verma',   mobile: '9876543210', onboardedOn: '2026-05-12' },
-  'DRV-110': { name: 'Devendra Pal',  mobile: '9812345678', onboardedOn: '2025-12-01' },
-  'DRV-118': { name: 'Amit Verma',    mobile: '9900112233', onboardedOn: '2025-08-20' },
-  'DRV-304': { name: 'Vikram Pal',    mobile: '9988776655', onboardedOn: '2026-01-10' },
-}
-
-const EXPECTED_DOCS = 6
-
-const deriveDriverSummaries = (docs: DriverDocument[]): DriverDocSummary[] => {
-  const grouped: Record<string, DriverDocument[]> = {}
-  docs.forEach(d => { grouped[d.driverId] = [...(grouped[d.driverId] || []), d] })
-  return Object.entries(grouped).map(([driverId, driverDocs]) => {
-    const meta = DRIVER_META[driverId] || { name: 'Unknown', mobile: '—', onboardedOn: '—' }
-    return {
-      driverId,
-      driverName: meta.name,
-      mobile: meta.mobile,
-      onboardedOn: meta.onboardedOn,
-      totalDocs: EXPECTED_DOCS,
-      uploadedDocs: driverDocs.length,
-      complianceState: getComplianceState(driverDocs, driverDocs.length, EXPECTED_DOCS),
-      nearestExpiry: getNearestExpiry(driverDocs),
-      verificationStatus: getVerifStatus(driverDocs),
-      documents: driverDocs,
-    }
-  })
 }
 
 // ─── Doc slots config ─────────────────────────────────────────────────────────
@@ -112,8 +42,6 @@ const DOC_SLOTS = [
   { key: 'police_verification',label: 'Police Verification',          mandatory: false, schoolOnly: true  },
   { key: 'id_proof',           label: 'ID Proof (Aadhaar / PAN)',     mandatory: true,  schoolOnly: false },
 ]
-
-const EXISTING_MOBILES = ['9765432101', '9876543210', '9812345678', '9900112233', '9988776655']
 
 type SlotState = { file: File | null; issueDate: string; expiryDate: string; threshold: number }
 
@@ -176,7 +104,7 @@ export const DocumentControllerPage: React.FC = () => {
   // Document review modal
   const [selectedDoc, setSelectedDoc] = useState<DriverDocument | null>(null)
 
-  // Add Driver modal
+  // Add Driver modal (UI retained; creation still goes through applications flow)
   const [showAddDriver, setShowAddDriver] = useState(false)
   const [addStep, setAddStep] = useState<1 | 2>(1)
 
@@ -192,19 +120,23 @@ export const DocumentControllerPage: React.FC = () => {
     Object.fromEntries(DOC_SLOTS.map(s => [s.key, { file: null, issueDate: '', expiryDate: '', threshold: 30 }]))
   )
 
-  // ─── Mock data ──────────────────────────────────────────────────────────────
+  const { data: compliancePage, isLoading: isLoadingCompliance } = useDocumentCompliance({
+    search: level1Search || undefined,
+    limit: 100,
+    alertThresholdDays: alertThreshold,
+  })
+  const { data: settings } = useDocumentSettings()
+  const { mutate: saveSettings, isPending: isSavingSettings } = useUpdateDocumentSettings()
+  const { mutate: reviewDocument } = useReviewDocument()
 
-  const [documents, setDocuments] = useState<DriverDocument[]>([
-    { id: 'DOC-101', driverId: 'DRV-102', driverName: 'Rajesh Kumar',  docType: 'licence',   fileName: 'driving_license_rajesh.pdf',         uploadDate: '2025-07-24', issueDate: '2020-08-11', expiryDate: '2026-08-10', status: 'expiring_soon', expiryThresholdDays: 30, verificationStatus: 'verified' },
-    { id: 'DOC-102', driverId: 'DRV-205', driverName: 'Sunil Verma',   docType: 'rc',        fileName: 'registration_certificate_sunil.pdf',  uploadDate: '2026-05-12', issueDate: '2021-05-12', expiryDate: '2031-05-11', status: 'valid',         expiryThresholdDays: 30, verificationStatus: 'pending' },
-    { id: 'DOC-103', driverId: 'DRV-110', driverName: 'Devendra Pal',  docType: 'puc',       fileName: 'puc_certificate_devendra.pdf',        uploadDate: '2026-02-01', issueDate: '2026-02-01', expiryDate: '2026-08-02', status: 'expired',       expiryThresholdDays: 7,  verificationStatus: 'rejected' },
-    { id: 'DOC-104', driverId: 'DRV-118', driverName: 'Amit Verma',    docType: 'insurance', fileName: 'vehicle_insurance_amit.pdf',          uploadDate: '2025-08-20', issueDate: '2025-08-20', expiryDate: '2026-08-19', status: 'valid',         expiryThresholdDays: 15, verificationStatus: 'verified' },
-    { id: 'DOC-105', driverId: 'DRV-304', driverName: 'Vikram Pal',    docType: 'permit',    fileName: 'national_permit_vikram.pdf',          uploadDate: '2026-01-10', issueDate: '2022-01-10', expiryDate: '2027-01-09', status: 'valid',         expiryThresholdDays: 30, verificationStatus: 'verified' },
-  ])
+  useEffect(() => {
+    if (!settings) return
+    setAlertThreshold(settings.alertThresholdDays)
+    setNotifyByEmail(settings.notifyEmail)
+    setNotifyByPush(settings.notifyPush)
+  }, [settings])
 
-  // ─── Derived data ───────────────────────────────────────────────────────────
-
-  const allSummaries = useMemo(() => deriveDriverSummaries(documents), [documents])
+  const allSummaries: DriverDocSummary[] = compliancePage?.data ?? []
 
   const filteredSummaries = useMemo(() => {
     if (!level1Search.trim()) return allSummaries
@@ -213,6 +145,7 @@ export const DocumentControllerPage: React.FC = () => {
     return allSummaries.filter(d =>
       d.driverName.toLowerCase().includes(lowerQ) ||
       d.driverId.toLowerCase().includes(lowerQ) ||
+      (d.driverCode ?? '').toLowerCase().includes(lowerQ) ||
       normalisePhone(d.mobile).includes(normQ)
     )
   }, [allSummaries, level1Search])
@@ -225,7 +158,11 @@ export const DocumentControllerPage: React.FC = () => {
   // ─── Handlers ───────────────────────────────────────────────────────────────
 
   const handleVerify = (id: string, decision: 'verified' | 'rejected') => {
-    setDocuments(prev => prev.map(d => d.id === id ? { ...d, verificationStatus: decision } : d))
+    reviewDocument({
+      documentId: id,
+      status: decision === 'verified' ? 'VERIFIED' : 'REJECTED',
+      ...(decision === 'rejected' ? { rejectionReason: 'Rejected from document controller' } : {}),
+    })
     setSelectedDoc(null)
   }
 
@@ -241,7 +178,7 @@ export const DocumentControllerPage: React.FC = () => {
 
   const handleExportCSV = () => {
     const rows = filteredSummaries.map(d => [
-      d.driverId, d.driverName, d.mobile, d.onboardedOn,
+      d.driverCode ?? d.driverId, d.driverName, d.mobile, d.onboardedOn,
       `${d.uploadedDocs}/${d.totalDocs}`, d.complianceState, d.nearestExpiry, d.verificationStatus,
     ])
     const header = 'Driver ID,Driver Name,Mobile,Onboarded On,Documents,Compliance State,Nearest Expiry,Verification Status'
@@ -260,39 +197,25 @@ export const DocumentControllerPage: React.FC = () => {
   }
 
   const handleSaveDriver = () => {
-    const hasSchool = newDriver.mode.includes('school') || newDriver.mode.includes('both')
-    const requiredSlots = DOC_SLOTS.filter(s => s.mandatory || (s.schoolOnly && hasSchool))
-    const isComplete = requiredSlots.every(s => docSlots[s.key]?.file !== null)
-    const newId = `DRV-${Math.floor(300 + Math.random() * 700)}`
-    const today = new Date().toISOString().split('T')[0]
-
-    const newDocs: DriverDocument[] = DOC_SLOTS.filter(s => docSlots[s.key]?.file).map(slot => ({
-      id: `DOC-${Date.now()}-${slot.key}`,
-      driverId: newId,
-      driverName: newDriver.fullName,
-      docType: slot.key as DriverDocument['docType'],
-      fileName: docSlots[slot.key].file!.name,
-      uploadDate: today,
-      issueDate: docSlots[slot.key].issueDate || today,
-      expiryDate: docSlots[slot.key].expiryDate || today,
-      status: 'valid' as const,
-      expiryThresholdDays: docSlots[slot.key].threshold,
-      verificationStatus: 'pending' as const, // must not auto-verify
-    }))
-
-    // Register new driver metadata so Level 1 shows their name/mobile
-    DRIVER_META[newId] = { name: newDriver.fullName, mobile: normalisePhone(newDriver.mobile) || newDriver.mobile || '—', onboardedOn: today }
-    setDocuments(prev => [...prev, ...newDocs])
+    // Driver onboarding with documents is handled via Applications; keep UX feedback here.
     setShowAddDriver(false)
     resetAddForm()
-    if (!isComplete) alert(`Driver "${newDriver.fullName}" saved as Incomplete — some documents are missing.`)
+    window.alert('Use Driver Applications to onboard a new driver with documents. Compliance list refreshes from live driver records.')
+  }
+
+  const handleSaveSettings = () => {
+    saveSettings({
+      alertThresholdDays: alertThreshold,
+      notifyEmail: notifyByEmail,
+      notifyPush: notifyByPush,
+    })
   }
 
   // ─── Computed ────────────────────────────────────────────────────────────────
 
   const hasSchoolMode = newDriver.mode.includes('school') || newDriver.mode.includes('both')
   const visibleSlots = DOC_SLOTS.filter(s => !s.schoolOnly || hasSchoolMode)
-  const isDuplicateMobile = newDriver.mobile.length >= 10 && EXISTING_MOBILES.includes(normalisePhone(newDriver.mobile))
+  const isDuplicateMobile = false
 
   const step1Valid = newDriver.fullName.trim() !== '' && !isDuplicateMobile
 
@@ -300,9 +223,13 @@ export const DocumentControllerPage: React.FC = () => {
 
   const level1Cols = [
     {
-      key: 'driverId',
+      key: 'driverCode',
       label: 'Driver ID',
-      render: (val: string) => <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{val}</span>,
+      render: (_: string, row: DriverDocSummary) => (
+        <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+          {row.driverCode ?? row.driverId.slice(0, 8)}
+        </span>
+      ),
     },
     {
       key: 'driverName',
@@ -544,7 +471,13 @@ export const DocumentControllerPage: React.FC = () => {
                 </Button>
               </div>
             </div>
-            <DataTable columns={level1Cols} data={filteredSummaries} selectable={false} resultLabel="drivers" />
+            <DataTable
+              columns={level1Cols}
+              data={filteredSummaries}
+              selectable={false}
+              resultLabel="drivers"
+              isLoading={isLoadingCompliance}
+            />
           </div>
 
         ) : (
@@ -595,6 +528,15 @@ export const DocumentControllerPage: React.FC = () => {
                 <div className="flex items-center gap-1.5 text-emerald-650 font-bold text-[9px] border-t border-border pt-4">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Changes apply to all future uploaded driver credentials automatically.
                 </div>
+
+                <Button
+                  type="button"
+                  onClick={handleSaveSettings}
+                  disabled={isSavingSettings}
+                  className="w-full h-9 rounded-lg bg-[#1F2B6D] text-white text-xs font-semibold"
+                >
+                  {isSavingSettings ? 'Saving…' : 'Save Settings'}
+                </Button>
               </CardContent>
             </Card>
           </div>
