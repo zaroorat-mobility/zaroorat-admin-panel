@@ -168,13 +168,17 @@ export interface UpdateMapSettingsBody {
   primaryProvider: MapProviderName
   expectedVersion?: number
   providers?: {
-    ola?: { enabled?: boolean; apiKey?: string; baseUrl?: string }
-    google?: { enabled?: boolean; apiKey?: string; baseUrl?: string }
+    // `clientSdkKey` is the publishable browser key, not a server credential.
+    // It is write-only here on purpose: the backend accepts it but never returns
+    // it on `MapSettingsView`, so it has no place on that type.
+    ola?: { enabled?: boolean; apiKey?: string; clientSdkKey?: string; baseUrl?: string }
+    google?: { enabled?: boolean; apiKey?: string; clientSdkKey?: string; baseUrl?: string }
     mappls?: {
       enabled?: boolean
       restApiKey?: string
       clientId?: string
       clientSecret?: string
+      clientSdkKey?: string
       baseUrl?: string
     }
   }

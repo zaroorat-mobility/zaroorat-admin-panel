@@ -324,6 +324,11 @@ export const API_ENDPOINTS = {
     disputeClose: (id: string) => `/admin/finance/disputes/${id}/close`,
     auditLogs: '/admin/finance/audit-logs',
   },
+  // Shared map services, served by the configured provider (not admin-scoped).
+  maps: {
+    geocode: '/maps/geocode',
+    route: '/maps/routes',
+  },
   documents: {
     compliance: '/admin/documents/compliance',
     complianceDetail: (driverId: string) => `/admin/documents/compliance/${driverId}`,
