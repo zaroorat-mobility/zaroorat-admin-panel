@@ -3,8 +3,8 @@ export interface MapProviderClientConfig {
   baseUrl: string
   /** Full tile URL template when backend provides a ready-to-use layer. */
   tileUrl?: string
-  /** Scoped client key for tile requests (when exposed by backend). */
-  apiKey?: string
+  /** Browser-publishable client SDK key for tile requests (never a server key). */
+  clientSdkKey?: string
 }
 
 export interface MapClientConfig {
@@ -45,8 +45,8 @@ function buildProviderTileLayer(
   if (provider.tileUrl?.trim()) {
     // Ola authenticates tiles via api_key query param; Mappls embeds the license key in the path.
     let url = provider.tileUrl.trim()
-    if (provider.apiKey?.trim() && providerKey === 'ola') {
-      url = appendQueryParam(url, 'api_key', provider.apiKey.trim())
+    if (provider.clientSdkKey?.trim() && providerKey === 'ola') {
+      url = appendQueryParam(url, 'api_key', provider.clientSdkKey.trim())
     }
     return {
       url,
@@ -64,20 +64,20 @@ function buildProviderTileLayer(
 
   switch (providerKey) {
     case 'mappls': {
-      if (!provider.apiKey?.trim()) return null
+      if (!provider.clientSdkKey?.trim()) return null
       const tilesBase = base.includes('route.mappls.com') ? MAPPLS_TILES_BASE : base
       return {
-        url: `${tilesBase}/${provider.apiKey.trim()}/${MAPPLS_DEFAULT_TILE_LAYER}/{z}/{x}/{y}.png`,
+        url: `${tilesBase}/${provider.clientSdkKey.trim()}/${MAPPLS_DEFAULT_TILE_LAYER}/{z}/{x}/{y}.png`,
         attribution: '&copy; MapmyIndia',
       }
     }
     case 'ola': {
-      if (!provider.apiKey?.trim()) return null
+      if (!provider.clientSdkKey?.trim()) return null
       const stylePath =
         provider.tileUrl?.trim() ||
         `${base}/tiles/v1/styles/default-light-standard/{z}/{x}/{y}.png`
       return {
-        url: appendQueryParam(stylePath, 'api_key', provider.apiKey.trim()),
+        url: appendQueryParam(stylePath, 'api_key', provider.clientSdkKey.trim()),
         attribution: '&copy; Ola Maps',
       }
     }
