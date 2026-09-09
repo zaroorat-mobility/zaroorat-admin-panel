@@ -98,7 +98,7 @@ export const FinancialDashboardPage: React.FC = () => {
           <Button
             variant="primary"
             onClick={() => navigate('/financial-operations/audit-logs')}
-            className="gap-2 text-xs font-semibold h-9 rounded-lg bg-[#1F2B6D] hover:bg-[#1F2B6D]/90 text-white shadow-sm"
+            className="gap-2 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary-hover text-white shadow-sm"
           >
             <FileText className="h-4 w-4" />
             <span>View Finance Audit Trail</span>
