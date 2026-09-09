@@ -5,11 +5,13 @@ import {
   MapPin,
   Plug,
   SlidersHorizontal,
+  Palette,
   type LucideIcon,
 } from 'lucide-react'
 
 export type PlatformSectionId =
   | 'configuration'
+  | 'app-config'
   | 'integrations'
   | 'maps'
   | 'monitoring'
@@ -36,6 +38,7 @@ export interface PlatformSection {
 }
 
 const configurationPaths = /^\/platform\/settings\/(general|ride|otp|onboarding|feature-flags|maintenance)(\/|$)/
+const appConfigPaths = /^\/platform\/settings\/app-config(\/|$)/
 const integrationsPaths = /^\/platform\/settings\/integrations(\/|$)/
 const mapPaths = /^\/platform\/settings\/map(\/|$)/
 const monitoringPaths = /^\/platform\/monitoring(\/|$)/
@@ -57,6 +60,46 @@ export const platformSections: PlatformSection[] = [
       { to: '/platform/settings/onboarding', label: 'Onboarding', permission: 'settings:read' },
       { to: '/platform/settings/feature-flags', label: 'Feature Flags', permission: 'settings:read' },
       { to: '/platform/settings/maintenance', label: 'Maintenance', permission: 'settings:read' },
+    ],
+  },
+  {
+    id: 'app-config',
+    label: 'App Configuration',
+    icon: Palette,
+    permission: 'settings:read',
+    defaultHref: '/platform/settings/app-config/theme',
+    isActive: (pathname) => appConfigPaths.test(pathname),
+    items: [
+      {
+        to: '/platform/settings/app-config/theme',
+        label: 'Theme',
+        permission: 'settings:read',
+        description: 'Edit brand, surface, and semantic color tokens per app and light/dark scheme.',
+      },
+      {
+        to: '/platform/settings/app-config/components',
+        label: 'Components',
+        permission: 'settings:read',
+        description: 'Configure button variant styles stored with each theme bundle.',
+      },
+      {
+        to: '/platform/settings/app-config/fonts',
+        label: 'Fonts',
+        permission: 'settings:read',
+        description: 'Manage bundled, Google, and remote font families per client app.',
+      },
+      {
+        to: '/platform/settings/app-config/locales',
+        label: 'Locales',
+        permission: 'settings:read',
+        description: 'Activate locales, RTL flags, and default language ordering.',
+      },
+      {
+        to: '/platform/settings/app-config/translations',
+        label: 'Translations',
+        permission: 'settings:read',
+        description: 'Edit string keys across locales for driver, rider, and admin apps.',
+      },
     ],
   },
   {
@@ -185,6 +228,7 @@ export function isPlatformNavItemActive(pathname: string, to: string): boolean {
 
 const sectionDescriptions: Record<PlatformSectionId, string> = {
   configuration: 'Core platform behaviour, ride rules, OTP, onboarding, and feature flags.',
+  'app-config': 'Remote theme tokens, fonts, locales, and translations for driver, rider, and admin apps.',
   integrations: 'Payment, SMS, push, and email provider configuration.',
   maps: 'Map provider keys, routing, and geocoding settings.',
   monitoring: 'System health, performance metrics, errors, and alerts.',

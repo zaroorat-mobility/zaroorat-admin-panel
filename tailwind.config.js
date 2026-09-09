@@ -45,6 +45,14 @@ export default {
         border: 'var(--border)',
         input: 'var(--input)',
         ring: 'var(--ring)',
+        brand: {
+          border: 'var(--border)',
+          surface: 'var(--card)',
+        },
+        text: {
+          primary: 'var(--foreground)',
+          secondary: 'var(--muted-foreground)',
+        },
         sidebar: {
           DEFAULT: 'var(--sidebar)',
           foreground: 'var(--sidebar-foreground)',

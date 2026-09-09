@@ -1,0 +1,7 @@
+export { ThemeSettingsPage } from './pages/ThemeSettingsPage'
+export { ComponentStylesPage } from './pages/ComponentStylesPage'
+export { FontsSettingsPage } from './pages/FontsSettingsPage'
+export { LocalesSettingsPage } from './pages/LocalesSettingsPage'
+export { TranslationsPage } from './pages/TranslationsPage'
+export * from './hooks'
+export type * from './types'

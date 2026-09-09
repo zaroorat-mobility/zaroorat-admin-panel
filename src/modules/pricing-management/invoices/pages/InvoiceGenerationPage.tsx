@@ -366,7 +366,7 @@ export const InvoiceGenerationPage: React.FC = () => {
           activeTab === 'templates' ? (
             <Button
               onClick={() => setShowUploadTemplateModal(true)}
-              className="gap-1.5 bg-[#1F2B6D] text-white hover:bg-[#1F2B6D]/90 text-xs font-semibold h-9 rounded-lg"
+              className="gap-1.5 bg-primary text-white hover:bg-primary-hover text-xs font-semibold h-9 rounded-lg"
             >
               <Upload className="h-4 w-4" /> Upload Template
             </Button>
@@ -614,7 +614,7 @@ export const InvoiceGenerationPage: React.FC = () => {
                                 tpl.isActive
                                   ? 'bg-emerald-600 text-white'
                                   : canActivate
-                                  ? 'bg-[#1F2B6D] text-white hover:bg-[#1F2B6D]/90'
+                                  ? 'bg-primary text-white hover:bg-primary-hover'
                                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                               }`}
                               title={!canActivate ? 'Resolve placeholder errors and approve preview first. Activation restricted to Superadmin / Finance.' : ''}
@@ -1032,7 +1032,7 @@ export const InvoiceGenerationPage: React.FC = () => {
                 <Button
                   disabled={!uploadForm.name || !uploadForm.effectiveFrom}
                   onClick={handleUploadTemplate}
-                  className="bg-[#1F2B6D] text-white hover:bg-[#1F2B6D]/90 text-xs font-semibold h-9 rounded-lg px-4"
+                  className="bg-primary text-white hover:bg-primary-hover text-xs font-semibold h-9 rounded-lg px-4"
                 >
                   Upload & Validate
                 </Button>
