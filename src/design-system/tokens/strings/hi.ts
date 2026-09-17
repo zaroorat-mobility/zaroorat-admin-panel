@@ -19,8 +19,11 @@ export const stringsHi: TranslationMap = {
   'auth.otp.resend': 'फिर से भेजें',
   'tabs.home': 'होम',
   'tabs.earnings': 'कमाई',
+  'tabs.security': 'सुरक्षा',
   'tabs.activity': 'गतिविधि',
   'tabs.account': 'खाता',
+  'security.placeholder':
+    'आपातकालीन SOS और सुरक्षा टूल यहाँ दिखेंगे। हर यात्रा में सुरक्षित रहें।',
   'home.online': 'आप ऑनलाइन हैं',
   'home.offline': 'आप ऑफ़लाइन हैं',
   'common.continue': 'जारी रखें',

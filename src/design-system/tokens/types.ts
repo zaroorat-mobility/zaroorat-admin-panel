@@ -229,6 +229,56 @@ export interface ThemeBundle {
   components: ComponentSpecs;
 }
 
+/** Client-safe OTP platform settings (admin System Settings → OTP). */
+export interface AppOtpSettings {
+  enabled: boolean;
+  codeLength: number;
+  ttlSeconds: number;
+  maxVerifyAttempts: number;
+  lockoutSeconds: number;
+  resendIntervalSeconds: number;
+}
+
+export interface AppGeneralSettings {
+  platformName: string;
+  logoUrl: string;
+  supportPhone: string;
+  supportEmail: string;
+  defaultLanguage: string;
+  timezone: string;
+  currency: string;
+}
+
+export interface AppRideSettings {
+  requestExpiryMinutes: number;
+  dispatchTimeoutSeconds: number;
+  dispatchBatchSize: number;
+  searchRadiusMeters: number;
+  maxSearchRadiusMeters: number;
+  cancellationGraceMinutes: number;
+  defaultCancellationFee: number;
+}
+
+export interface AppOnboardingSettings {
+  driverRequiredDocuments: string[];
+  vehicleRequiredDocuments: string[];
+  driverDocExpiryWarningDays: number;
+  requireApprovedDocuments: boolean;
+}
+
+export interface AppMaintenanceSettings {
+  enabled: boolean;
+  message: string;
+}
+
+export interface AppConfigSettings {
+  general: AppGeneralSettings;
+  ride: AppRideSettings;
+  otp: AppOtpSettings;
+  onboarding: AppOnboardingSettings;
+  maintenance: AppMaintenanceSettings;
+}
+
 export interface AppConfigBundle {
   version: number;
   app: AppClient;
@@ -240,7 +290,13 @@ export interface AppConfigBundle {
   fonts: AppFontSpec[];
   locales: AppLocaleSpec[];
   strings: TranslationMap;
+  /** Resolved feature flags from admin `/admin/settings/feature-flags`. */
   featureFlags: Record<string, boolean>;
+  /**
+   * Platform settings from admin:
+   * general | ride | otp | onboarding | maintenance
+   */
+  settings: AppConfigSettings;
 }
 
 export type PartialDeep<T> = {
