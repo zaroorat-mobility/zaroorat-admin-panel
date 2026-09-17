@@ -66,8 +66,12 @@ export const stringsEn = {
 
   'tabs.home': 'Home',
   'tabs.earnings': 'Earnings',
+  'tabs.security': 'Security',
   'tabs.activity': 'Activity',
   'tabs.account': 'Account',
+
+  'security.placeholder':
+    'Emergency SOS and safety tools will appear here. Stay safe on every trip.',
 
   'home.online': 'You are Online',
   'home.offline': 'You are Offline',

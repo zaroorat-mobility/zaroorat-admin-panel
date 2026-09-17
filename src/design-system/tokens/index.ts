@@ -76,6 +76,45 @@ export const defaultLocales: AppLocaleSpec[] = [
   },
 ];
 
+export const defaultPlatformSettings: AppConfigBundle['settings'] = {
+  general: {
+    platformName: 'Zaroorat',
+    logoUrl: '',
+    supportPhone: '',
+    supportEmail: '',
+    defaultLanguage: 'en',
+    timezone: 'Asia/Kolkata',
+    currency: 'INR',
+  },
+  ride: {
+    requestExpiryMinutes: 5,
+    dispatchTimeoutSeconds: 10,
+    dispatchBatchSize: 3,
+    searchRadiusMeters: 3000,
+    maxSearchRadiusMeters: 10000,
+    cancellationGraceMinutes: 2,
+    defaultCancellationFee: 50,
+  },
+  otp: {
+    enabled: true,
+    codeLength: 6,
+    ttlSeconds: 300,
+    maxVerifyAttempts: 5,
+    lockoutSeconds: 900,
+    resendIntervalSeconds: 60,
+  },
+  onboarding: {
+    driverRequiredDocuments: [],
+    vehicleRequiredDocuments: [],
+    driverDocExpiryWarningDays: 30,
+    requireApprovedDocuments: true,
+  },
+  maintenance: {
+    enabled: false,
+    message: 'The platform is under maintenance. Please try again later.',
+  },
+};
+
 export function createDefaultBundle(
   app: AppConfigBundle['app'] = 'driver',
   locale = 'en',
@@ -92,5 +131,6 @@ export function createDefaultBundle(
     locales: defaultLocales,
     strings: { ...stringsEn },
     featureFlags: {},
+    settings: structuredClone(defaultPlatformSettings),
   };
 }
