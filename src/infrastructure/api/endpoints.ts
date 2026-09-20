@@ -251,6 +251,15 @@ export const API_ENDPOINTS = {
       emailTest: '/admin/settings/integrations/email/test',
     },
   },
+  appConfig: {
+    public: '/app-config',
+    themes: '/admin/app-config/themes',
+    fonts: '/admin/app-config/fonts',
+    locales: '/admin/app-config/locales',
+    translations: '/admin/app-config/translations',
+    publish: '/admin/app-config/publish',
+    reset: '/admin/app-config/reset',
+  },
   communications: {
     templates: '/admin/communications/templates',
     template: (id: string) => `/admin/communications/templates/${id}`,

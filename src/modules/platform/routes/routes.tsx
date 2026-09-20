@@ -12,6 +12,13 @@ import { SmsIntegrationPage } from '../system-settings/integrations/pages/SmsInt
 import { PushIntegrationPage } from '../system-settings/integrations/pages/PushIntegrationPage'
 import { EmailIntegrationPage } from '../system-settings/integrations/pages/EmailIntegrationPage'
 import { MapSettingsPage } from '../system-settings/map/pages/MapSettingsPage'
+import {
+  ComponentStylesPage,
+  FontsSettingsPage,
+  LocalesSettingsPage,
+  ThemeSettingsPage,
+  TranslationsPage,
+} from '../app-config'
 import { HealthPage } from '../monitoring/pages/HealthPage'
 import { PerformancePage } from '../monitoring/pages/PerformancePage'
 import { ErrorsPage } from '../monitoring/pages/ErrorsPage'
@@ -124,6 +131,51 @@ export const platformChildRoutes = (
       element={
         <RequirePermission requiredPermission="settings:read">
           <MapSettingsPage />
+        </RequirePermission>
+      }
+    />
+
+    <Route
+      path="settings/app-config"
+      element={<Navigate to="/platform/settings/app-config/theme" replace />}
+    />
+    <Route
+      path="settings/app-config/theme"
+      element={
+        <RequirePermission requiredPermission="settings:read">
+          <ThemeSettingsPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="settings/app-config/components"
+      element={
+        <RequirePermission requiredPermission="settings:read">
+          <ComponentStylesPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="settings/app-config/fonts"
+      element={
+        <RequirePermission requiredPermission="settings:read">
+          <FontsSettingsPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="settings/app-config/locales"
+      element={
+        <RequirePermission requiredPermission="settings:read">
+          <LocalesSettingsPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="settings/app-config/translations"
+      element={
+        <RequirePermission requiredPermission="settings:read">
+          <TranslationsPage />
         </RequirePermission>
       }
     />

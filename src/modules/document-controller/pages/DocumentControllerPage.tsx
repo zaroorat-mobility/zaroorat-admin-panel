@@ -387,7 +387,7 @@ export const DocumentControllerPage: React.FC = () => {
         }
         actions={
           !selectedDriverId ? (
-            <Button onClick={() => { setShowAddDriver(true); setAddStep(1) }} className="gap-1.5 bg-[#1F2B6D] text-white hover:bg-[#1F2B6D]/90 text-xs font-semibold h-9 rounded-lg">
+            <Button onClick={() => { setShowAddDriver(true); setAddStep(1) }} className="gap-1.5 bg-primary text-white hover:bg-primary-hover text-xs font-semibold h-9 rounded-lg">
               <Plus className="h-4 w-4" /> Add Driver
             </Button>
           ) : undefined
@@ -533,7 +533,7 @@ export const DocumentControllerPage: React.FC = () => {
                   type="button"
                   onClick={handleSaveSettings}
                   disabled={isSavingSettings}
-                  className="w-full h-9 rounded-lg bg-[#1F2B6D] text-white text-xs font-semibold"
+                  className="w-full h-9 rounded-lg bg-primary text-white text-xs font-semibold"
                 >
                   {isSavingSettings ? 'Saving…' : 'Save Settings'}
                 </Button>
@@ -591,8 +591,8 @@ export const DocumentControllerPage: React.FC = () => {
                 <p className="text-[10px] text-slate-400 mt-0.5">Step {addStep} of 2 — {addStep === 1 ? 'Driver & Vehicle Info' : 'Document Upload'}</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className={`h-1.5 w-10 rounded-full transition-colors ${addStep >= 1 ? 'bg-[#1F2B6D]' : 'bg-slate-200'}`} />
-                <div className={`h-1.5 w-10 rounded-full transition-colors ${addStep >= 2 ? 'bg-[#1F2B6D]' : 'bg-slate-200'}`} />
+                <div className={`h-1.5 w-10 rounded-full transition-colors ${addStep >= 1 ? 'bg-primary' : 'bg-slate-200'}`} />
+                <div className={`h-1.5 w-10 rounded-full transition-colors ${addStep >= 2 ? 'bg-primary' : 'bg-slate-200'}`} />
                 <button onClick={() => { setShowAddDriver(false); resetAddForm() }} className="text-slate-400 hover:text-slate-600 ml-1"><X className="h-5 w-5" /></button>
               </div>
             </div>
@@ -663,7 +663,7 @@ export const DocumentControllerPage: React.FC = () => {
                         { value: 'daily',      label: '₹89 / Day',       sub: 'Subscription — daily' },
                       ].map(opt => (
                         <label key={opt.value}
-                          className={`flex items-start gap-2.5 cursor-pointer p-3 rounded-xl border transition-all ${newDriver.monetisation === opt.value ? 'border-[#1F2B6D] bg-[#1F2B6D]/5' : 'border-border hover:bg-slate-50'}`}>
+                          className={`flex items-start gap-2.5 cursor-pointer p-3 rounded-xl border transition-all ${newDriver.monetisation === opt.value ? 'border-primary bg-primary/5' : 'border-border hover:bg-slate-50'}`}>
                           <input type="radio" name="monetisation" value={opt.value} className="mt-0.5 accent-primary"
                             checked={newDriver.monetisation === opt.value}
                             onChange={() => setNewDriver({ ...newDriver, monetisation: opt.value as any })}
@@ -679,7 +679,7 @@ export const DocumentControllerPage: React.FC = () => {
 
                   <div className="flex justify-end gap-2 border-t border-border pt-4">
                     <Button variant="outline" size="sm" onClick={() => { setShowAddDriver(false); resetAddForm() }} className="h-9 border-border">Cancel</Button>
-                    <Button disabled={!step1Valid} onClick={() => setAddStep(2)} className="bg-[#1F2B6D] text-white hover:bg-[#1F2B6D]/90 text-xs font-semibold h-9 rounded-lg px-5">
+                    <Button disabled={!step1Valid} onClick={() => setAddStep(2)} className="bg-primary text-white hover:bg-primary-hover text-xs font-semibold h-9 rounded-lg px-5">
                       Next: Upload Documents →
                     </Button>
                   </div>
@@ -751,7 +751,7 @@ export const DocumentControllerPage: React.FC = () => {
                     <Button variant="outline" size="sm" onClick={() => setAddStep(1)} className="h-9 border-border">← Back</Button>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => { setShowAddDriver(false); resetAddForm() }} className="h-9 border-border">Cancel</Button>
-                      <Button disabled={!newDriver.fullName.trim()} onClick={handleSaveDriver} className="bg-[#1F2B6D] text-white hover:bg-[#1F2B6D]/90 text-xs font-semibold h-9 rounded-lg px-5">
+                      <Button disabled={!newDriver.fullName.trim()} onClick={handleSaveDriver} className="bg-primary text-white hover:bg-primary-hover text-xs font-semibold h-9 rounded-lg px-5">
                         Save Driver
                       </Button>
                     </div>

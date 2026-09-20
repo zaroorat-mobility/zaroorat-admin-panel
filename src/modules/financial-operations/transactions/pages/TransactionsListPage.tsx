@@ -257,7 +257,7 @@ export const TransactionsListPage: React.FC = () => {
             <Button
               variant="primary"
               onClick={() => handleExport('csv')}
-              className="gap-1.5 text-xs font-semibold h-9 rounded-lg bg-[#1F2B6D] hover:bg-[#1F2B6D]/90 text-white shadow-sm"
+              className="gap-1.5 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary-hover text-white shadow-sm"
             >
               <Download className="h-4 w-4" />
               <span>Export CSV</span>
@@ -265,7 +265,7 @@ export const TransactionsListPage: React.FC = () => {
             <Button
               variant="primary"
               onClick={() => handleExport('xlsx')}
-              className="gap-1.5 text-xs font-semibold h-9 rounded-lg bg-[#1F2B6D] hover:bg-[#1F2B6D]/90 text-white shadow-sm"
+              className="gap-1.5 text-xs font-semibold h-9 rounded-lg bg-primary hover:bg-primary-hover text-white shadow-sm"
             >
               <Download className="h-4 w-4" />
               <span>Export Excel</span>

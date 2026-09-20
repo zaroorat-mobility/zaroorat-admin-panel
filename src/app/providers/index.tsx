@@ -5,6 +5,7 @@ import { AppRouter } from '../router'
 import { useThemeStore } from '@/store/theme.store'
 import { useAuthSessionRefresh } from '@/modules/auth/hooks/useAuthSessionRefresh'
 import { ToastProvider, ToastContainer } from '@/shared/context/toast'
+import { AppThemeRuntime } from '@/design-system/web/AppThemeRuntime'
 
 function AuthSessionManager() {
   useAuthSessionRefresh()
@@ -45,6 +46,7 @@ export const AppProviders: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AppThemeRuntime />
       <ToastProvider>
         <BrowserRouter>
           <AuthSessionManager />
