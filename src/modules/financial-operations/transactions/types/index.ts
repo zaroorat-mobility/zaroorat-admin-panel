@@ -31,7 +31,7 @@ export type TransactionDirection = 'credit' | 'debit'
 
 export type PaymentMethod = 'cash' | 'upi' | 'card' | 'wallet'
 
-export type PaymentGateway = 'razorpay' | 'cashfree' | 'phonepe' | 'paytm'
+export type PaymentGateway = 'razorpay' | 'stripe'
 
 export type VarianceStatus = 'matched' | 'variance_found' | 'under_review' | 'resolved'
 

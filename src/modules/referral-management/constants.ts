@@ -9,6 +9,9 @@ export interface ReferralSegmentConfig {
   codesTitle: string
   historyTitle: string
   newUserLabel: string
+  /// False for riders: customer wallets are retired, so rider referrals pay no
+  /// money and the backend rejects a reward wallet, amounts or milestone bonus.
+  monetary: boolean
   description: {
     programs: string
     codes: string
@@ -30,14 +33,15 @@ export const REFERRAL_SEGMENTS: Record<ReferralSegment, ReferralSegmentConfig> =
     codesTitle: 'Rider codes',
     historyTitle: 'Rider referral history',
     newUserLabel: 'New rider reward',
+    monetary: false,
     description: {
-      programs: 'Riders invite friends; both earn wallet credit when the friend completes a qualifying ride.',
+      programs: 'Riders invite friends; the referral is tracked until the friend completes a qualifying ride. Rider referrals are non-monetary.',
       codes: 'Invite codes issued to riders for rider referral programs.',
-      history: 'Rider invite lifecycle from signup through reward.',
-      form: 'Set rewards, eligibility, caps, and active window for a rider referral program.',
+      history: 'Rider invite lifecycle from signup through qualification.',
+      form: 'Set eligibility, caps, and active window for a rider referral program.',
     },
-    defaultReferrerReward: 50,
-    defaultRefereeReward: 50,
+    defaultReferrerReward: 0,
+    defaultRefereeReward: 0,
     defaultQualifyingEvent: 'FIRST_RIDE',
     qualifyingOptions: [
       { value: 'FIRST_RIDE', label: 'First completed ride' },
@@ -53,6 +57,7 @@ export const REFERRAL_SEGMENTS: Record<ReferralSegment, ReferralSegmentConfig> =
     codesTitle: 'Driver codes',
     historyTitle: 'Driver recruitment history',
     newUserLabel: 'New driver reward',
+    monetary: true,
     description: {
       programs: 'Verified drivers refer new applicants; rewards credit driver wallets when recruits qualify.',
       codes: 'Recruitment codes issued to verified drivers.',

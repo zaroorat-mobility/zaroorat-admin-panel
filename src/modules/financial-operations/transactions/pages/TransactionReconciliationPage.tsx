@@ -212,9 +212,7 @@ export const TransactionReconciliationPage: React.FC = () => {
             >
               <option value="all">All Gateways</option>
               <option value="razorpay">Razorpay</option>
-              <option value="phonepe">PhonePe</option>
-              <option value="cashfree">Cashfree</option>
-              <option value="paytm">Paytm</option>
+              <option value="stripe">Stripe</option>
             </select>
             <div className="relative w-full sm:w-60">
               <input

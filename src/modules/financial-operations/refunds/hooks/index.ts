@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { QueryParams } from '@/shared/types'
-import { RefundService } from '../services'
-import type { RefundRequest } from '../types'
+import { RefundService, type CreateRefundInput } from '../services'
 
 const QK = {
   refunds: (params?: QueryParams) => ['financial', 'refunds', params || {}] as const,
@@ -26,9 +25,7 @@ export const useRefund = (id: string) => {
 export const useCreateRefund = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (
-      data: Omit<RefundRequest, 'id' | 'refundId' | 'createdAt' | 'updatedAt' | 'timeline' | 'requestedAt' | 'status' | 'approvalLevel'>
-    ) => RefundService.createRefund(data),
+    mutationFn: (data: CreateRefundInput) => RefundService.createRefund(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial'] })
     }

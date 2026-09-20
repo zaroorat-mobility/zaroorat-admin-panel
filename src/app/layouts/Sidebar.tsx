@@ -110,7 +110,6 @@ const navItems: NavItem[] = [
       { href: "/pricing-management/cancellation-rules", label: "Cancellation Rules", icon: ShieldCheck },
       { href: "/pricing-management/pricing-history", label: "Pricing History", icon: FileText },
       { href: "/pricing-management/gst", label: "GST & Taxation", icon: Landmark },
-      { href: "/pricing-management/razorpay", label: "Razorpay Commission", icon: CreditCard },
       { href: "/pricing-management/invoices", label: "Invoices Console", icon: FileText }
     ],
   },

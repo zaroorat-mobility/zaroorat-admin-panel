@@ -13,17 +13,9 @@ export interface FailedTrend {
   count: number
 }
 
-export interface GatewayMatrixRow {
-  gateway: string
-  totalAttempts: number
-  failedAttempts: number
-  successRate: number
-}
-
 export interface FailedTransactionsMetrics {
   reasons: FailureReasonCount[]
   trends: FailedTrend[]
-  matrix: GatewayMatrixRow[]
   totalFailedToday: number
   gatewayTimeouts: number
   otpFailures: number
@@ -84,25 +76,9 @@ const getFailedTransactionsMetrics = async (): Promise<FailedTransactionsMetrics
     { label: 'Dashboard total', count: dashboard.actions.failedTransactions },
   ]
 
-  const matrix: GatewayMatrixRow[] = dashboard.gateways.map((g) => {
-    const failedAttempts = g.failedCount
-    const successRate = g.successRate
-    const totalAttempts =
-      successRate < 100 && failedAttempts > 0
-        ? Math.round(failedAttempts / (1 - successRate / 100))
-        : failedAttempts + Math.round((failedAttempts * successRate) / Math.max(1, 100 - successRate))
-    return {
-      gateway: g.gateway,
-      totalAttempts: totalAttempts || failedAttempts,
-      failedAttempts,
-      successRate,
-    }
-  })
-
   return {
     reasons,
     trends,
-    matrix,
     totalFailedToday,
     gatewayTimeouts,
     otpFailures,

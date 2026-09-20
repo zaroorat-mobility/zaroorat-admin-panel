@@ -56,7 +56,6 @@ export const ProgramFormPage: React.FC = () => {
     referrerReward: segment.defaultReferrerReward,
     refereeReward: segment.defaultRefereeReward,
     rewardType: 'WALLET',
-    rewardWallet: segment.audience === 'DRIVER' ? 'DRIVER' : 'CUSTOMER',
     qualifyingEvent: segment.defaultQualifyingEvent,
     qualifyingThreshold: 1,
     maxReferralsPerUser: null,
@@ -87,7 +86,6 @@ export const ProgramFormPage: React.FC = () => {
       referrerReward: existing.referrerReward,
       refereeReward: existing.refereeReward,
       rewardType: existing.rewardType,
-      rewardWallet: existing.rewardWallet,
       qualifyingEvent: existing.qualifyingEvent,
       qualifyingThreshold: existing.qualifyingThreshold,
       maxReferralsPerUser: existing.maxReferralsPerUser,
@@ -111,10 +109,10 @@ export const ProgramFormPage: React.FC = () => {
     const payload: ReferralProgramInput = {
       audience: segment.audience,
       name: form.name || null,
-      referrerReward: Number(form.referrerReward) || 0,
-      refereeReward: Number(form.refereeReward) || 0,
+      referrerReward: segment.monetary ? Number(form.referrerReward) || 0 : 0,
+      refereeReward: segment.monetary ? Number(form.refereeReward) || 0 : 0,
       rewardType: 'WALLET',
-      rewardWallet: segment.audience === 'DRIVER' ? 'DRIVER' : 'CUSTOMER',
+      ...(segment.monetary ? { rewardWallet: 'DRIVER' as const } : {}),
       qualifyingEvent: form.qualifyingEvent,
       qualifyingThreshold: needsThreshold(form.qualifyingEvent ?? '')
         ? Number(form.qualifyingThreshold) || 1
@@ -166,30 +164,37 @@ export const ProgramFormPage: React.FC = () => {
               />
             </label>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="block text-sm">
-                <span className="font-medium">Referrer reward (₹)</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className="mt-1 w-full rounded border px-3 py-2"
-                  value={form.referrerReward ?? 0}
-                  onChange={(e) => set('referrerReward', Number(e.target.value))}
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium">{segment.newUserLabel} (₹)</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className="mt-1 w-full rounded border px-3 py-2"
-                  value={form.refereeReward ?? 0}
-                  onChange={(e) => set('refereeReward', Number(e.target.value))}
-                />
-              </label>
-            </div>
+            {segment.monetary ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="block text-sm">
+                  <span className="font-medium">Referrer reward (₹)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="mt-1 w-full rounded border px-3 py-2"
+                    value={form.referrerReward ?? 0}
+                    onChange={(e) => set('referrerReward', Number(e.target.value))}
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-medium">{segment.newUserLabel} (₹)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="mt-1 w-full rounded border px-3 py-2"
+                    value={form.refereeReward ?? 0}
+                    onChange={(e) => set('refereeReward', Number(e.target.value))}
+                  />
+                </label>
+              </div>
+            ) : (
+              <p className="rounded border px-3 py-2 text-xs text-muted-foreground">
+                Rider referrals are non-monetary: there is no customer wallet, so no referrer,
+                new-rider or milestone reward is paid.
+              </p>
+            )}
 
             <div className={`grid grid-cols-1 gap-4 ${showThreshold ? 'md:grid-cols-2' : ''}`}>
               <label className="block text-sm">
@@ -291,7 +296,7 @@ export const ProgramFormPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {isEdit && id && existing && (
+      {isEdit && id && existing && segment.monetary && (
         <Card className="mt-4 max-w-3xl">
           <CardContent className="pt-6 space-y-3">
             <p className="text-sm font-semibold">Bonus milestones</p>

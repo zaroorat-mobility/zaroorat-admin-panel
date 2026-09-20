@@ -22,24 +22,15 @@ export interface ActionRequiredMetrics {
 
 export interface TransactionHealth {
   successRate: number
-  avgGatewayResponseTime: number
   refundRatio: number
   disputeRatio: number
   settlementSuccessRate: number
-}
-
-export interface GatewayPerformance {
-  gateway: string
-  successRate: number
-  failedCount: number
-  avgResponseTime: number
 }
 
 export interface FinancialDashboardStats {
   revenue: RevenueOverview
   actions: ActionRequiredMetrics
   health: TransactionHealth
-  gateways: GatewayPerformance[]
 }
 
 const getDashboardStats = async (): Promise<FinancialDashboardStats> => {
