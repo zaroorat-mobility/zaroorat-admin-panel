@@ -25,7 +25,6 @@ import {
   User,
   Zap,
   Landmark,
-  CreditCard,
   FileText,
   MapPin
 } from 'lucide-react'
@@ -395,15 +394,6 @@ export const PricingDashboardPage: React.FC = () => {
               <Landmark className="h-4 w-4 text-primary mb-2" />
               <p className="font-bold text-sm">GST & Taxation</p>
               <p className="text-xs text-muted-foreground mt-1">CGST, SGST, IGST rates and corporate GSTIN</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('razorpay')}
-              className="p-4 rounded-xl border text-left hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
-            >
-              <CreditCard className="h-4 w-4 text-[#2B317A] mb-2" />
-              <p className="font-bold text-sm">Razorpay Commission</p>
-              <p className="text-xs text-muted-foreground mt-1">Payment gateway fee schedule and MDR breakdown</p>
             </button>
             <button
               type="button"

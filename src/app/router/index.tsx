@@ -18,6 +18,7 @@ import { FinancialOperationsRoutes } from '@/modules/financial-operations'
 import { SchoolMobilityRoutes } from '@/modules/school-mobility'
 import { CarpoolingRoutes } from '@/modules/carpooling'
 import { DocumentControllerRoutes } from '@/modules/document-controller'
+import { MapSettingsPage } from '@/modules/system-settings'
 import { GeographicManagementRoutes } from '@/modules/geographic-management'
 import { CommunicationsRoutes } from '@/modules/communications'
 import { PlatformLayoutPage, platformChildRoutes } from '@/modules/platform'
@@ -203,6 +204,13 @@ export const AppRouter: React.FC = () => {
             </RequirePermission>
           }
         />
+        {/* System & Map Provider Settings */}
+        <Route path="settings/maps" element={<MapSettingsPage />} />
+        <Route path="settings" element={<Navigate to="/settings/maps" replace />} />
+
+        {/* Legacy redirect routes */}
+        <Route path="drivers/*" element={<Navigate to="/driver-management/drivers" replace />} />
+        <Route path="verification/*" element={<Navigate to="/driver-management/applications" replace />} />
       </Route>
 
       {/* Catch-all Redirect */}

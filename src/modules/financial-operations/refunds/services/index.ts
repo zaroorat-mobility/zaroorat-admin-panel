@@ -3,7 +3,7 @@ import type { QueryParams, PaginatedResponse } from '@/shared/types'
 import type { RefundRequest, RefundType, RefundSource } from '../types'
 
 export type CreateRefundInput = {
-  transactionId: string
+  transactionId?: string
   rideId?: string
   disputeId?: string
   riderId?: string

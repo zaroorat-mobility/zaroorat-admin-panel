@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
 import { PageLoader } from '@/shared/components/loaders'
 import {
-  ArrowLeft, Clock, ShieldAlert, AlertTriangle, CreditCard, Ban, Activity, Landmark
+  ArrowLeft, Clock, ShieldAlert, AlertTriangle, CreditCard, Ban, Activity
 } from 'lucide-react'
 
 export const FailedTransactionsPage: React.FC = () => {
@@ -26,7 +26,6 @@ export const FailedTransactionsPage: React.FC = () => {
 
   const reasons = metrics?.reasons || []
   const trends = metrics?.trends || []
-  const matrix = metrics?.matrix || []
 
   return (
     <PageWrapper>
@@ -102,36 +101,6 @@ export const FailedTransactionsPage: React.FC = () => {
               <p className="text-[10px] text-slate-455 font-medium italic mt-2">PG timeout rates have reduced by 14% this week.</p>
             </Card>
           </div>
-        </div>
-
-        {/* Gateway Failure success rate Matrix table */}
-        <div className="space-y-3 text-left">
-          <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-            <Landmark className="h-4 w-4" /> Gateway Failure success rate Matrix
-          </h3>
-          <Card className="premium-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-slate-50 dark:bg-slate-800/60 text-left">
-                    {['Payment Gateway Name', 'Total Checkout Attempts', 'Failed Attempts count', 'PG Success Rate'].map(h => (
-                      <th key={h} className="px-4 py-3.5 font-black text-slate-500 uppercase tracking-wide text-[9px]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {matrix.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-55 transition-colors">
-                      <td className="px-4 py-3.5 font-bold text-slate-800 dark:text-white">{row.gateway}</td>
-                      <td className="px-4 py-3.5 font-mono text-slate-550">{row.totalAttempts} attempts</td>
-                      <td className="px-4 py-3.5 font-mono text-rose-600 font-bold">{row.failedAttempts} failed</td>
-                      <td className="px-4 py-3.5 font-mono text-emerald-600 font-black">{row.successRate}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
         </div>
       </div>
     </PageWrapper>

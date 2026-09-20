@@ -13,7 +13,7 @@ export type MapProviderName = 'ola' | 'google' | 'mappls'
 
 export type PaymentGatewayName = 'mock' | 'razorpay' | 'stripe'
 
-export type SmsProviderName = 'mock' | 'msg91'
+export type SmsProviderName = 'mock' | 'airtel'
 
 export type PushProviderName = 'mock'
 
@@ -168,13 +168,17 @@ export interface UpdateMapSettingsBody {
   primaryProvider: MapProviderName
   expectedVersion?: number
   providers?: {
-    ola?: { enabled?: boolean; apiKey?: string; baseUrl?: string }
-    google?: { enabled?: boolean; apiKey?: string; baseUrl?: string }
+    // `clientSdkKey` is the publishable browser key, not a server credential.
+    // It is write-only here on purpose: the backend accepts it but never returns
+    // it on `MapSettingsView`, so it has no place on that type.
+    ola?: { enabled?: boolean; apiKey?: string; clientSdkKey?: string; baseUrl?: string }
+    google?: { enabled?: boolean; apiKey?: string; clientSdkKey?: string; baseUrl?: string }
     mappls?: {
       enabled?: boolean
       restApiKey?: string
       clientId?: string
       clientSecret?: string
+      clientSdkKey?: string
       baseUrl?: string
     }
   }
@@ -220,9 +224,13 @@ export interface SmsSettingsView {
   provider: SmsProviderName
   configured: boolean
   version: number
-  msg91: {
-    authKey: MaskedSecret
+  airtel: {
+    apiKey: MaskedSecret
+    username: string
+    password: MaskedSecret
+    customerId: string
     senderId: string
+    entityId: string
     otpTemplateId: string
     timeoutMs: number
     configured: boolean
@@ -231,9 +239,13 @@ export interface SmsSettingsView {
 
 export interface UpdateSmsSettingsBody {
   provider?: SmsProviderName
-  msg91AuthKey?: string
-  msg91SenderId?: string
-  msg91OtpTemplateId?: string
+  airtelApiKey?: string
+  airtelUsername?: string
+  airtelPassword?: string
+  airtelCustomerId?: string
+  airtelSenderId?: string
+  airtelEntityId?: string
+  airtelOtpTemplateId?: string
   timeoutMs?: number
   expectedVersion?: number
 }

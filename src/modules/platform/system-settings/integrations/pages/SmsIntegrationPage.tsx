@@ -20,8 +20,12 @@ export const SmsIntegrationPage: React.FC = () => {
   const { mutate: test, isPending: isTesting } = useTestSmsIntegration()
   const { success, error } = useToast()
   const [provider, setProvider] = useState<SmsProviderName>('mock')
-  const [authKey, setAuthKey] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [customerId, setCustomerId] = useState('')
   const [senderId, setSenderId] = useState('')
+  const [entityId, setEntityId] = useState('')
   const [otpTemplateId, setOtpTemplateId] = useState('')
   const [timeoutMs, setTimeoutMs] = useState(5000)
   const [testPhone, setTestPhone] = useState('')
@@ -29,19 +33,27 @@ export const SmsIntegrationPage: React.FC = () => {
   useEffect(() => {
     if (!data) return
     setProvider(data.provider)
-    setAuthKey(data.msg91.authKey)
-    setSenderId(data.msg91.senderId)
-    setOtpTemplateId(data.msg91.otpTemplateId)
-    setTimeoutMs(data.msg91.timeoutMs)
+    setApiKey(data.airtel?.apiKey ?? '')
+    setUsername(data.airtel?.username ?? '')
+    setPassword(data.airtel?.password ?? '')
+    setCustomerId(data.airtel?.customerId ?? '')
+    setSenderId(data.airtel?.senderId ?? '')
+    setEntityId(data.airtel?.entityId ?? '')
+    setOtpTemplateId(data.airtel?.otpTemplateId ?? '')
+    setTimeoutMs(data.airtel?.timeoutMs ?? 5000)
   }, [data])
 
   const handleSave = () => {
     save(
       {
         provider,
-        msg91AuthKey: secretForUpdate(authKey, data?.msg91.authKey ?? ''),
-        msg91SenderId: senderId,
-        msg91OtpTemplateId: otpTemplateId,
+        airtelApiKey: secretForUpdate(apiKey, data?.airtel?.apiKey ?? ''),
+        airtelUsername: username,
+        airtelPassword: secretForUpdate(password, data?.airtel?.password ?? ''),
+        airtelCustomerId: customerId,
+        airtelSenderId: senderId,
+        airtelEntityId: entityId,
+        airtelOtpTemplateId: otpTemplateId,
         timeoutMs,
         expectedVersion: data?.version,
       },
@@ -79,20 +91,35 @@ export const SmsIntegrationPage: React.FC = () => {
             className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm dark:bg-slate-900"
           >
             <option value="mock">mock</option>
-            <option value="msg91">msg91</option>
+            <option value="airtel">airtel</option>
           </select>
         </SettingFieldRow>
-        <SecretField
-          label="MSG91 auth key"
-          value={authKey}
-          onChange={setAuthKey}
-          configured={data.msg91.configured}
-        />
-        <SettingFieldRow label="Sender ID">
-          <Input value={senderId} onChange={(e) => setSenderId(e.target.value)} maxLength={12} />
+        <SettingFieldRow label="Airtel Username (Basic Auth)">
+          <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username for Airtel IQ Basic Auth" />
         </SettingFieldRow>
-        <SettingFieldRow label="OTP template ID">
-          <Input value={otpTemplateId} onChange={(e) => setOtpTemplateId(e.target.value)} />
+        <SecretField
+          label="Airtel Password (Basic Auth)"
+          value={password}
+          onChange={setPassword}
+          configured={data.airtel?.configured}
+        />
+        <SecretField
+          label="Airtel API Key (Bearer / Token Auth - Alternative)"
+          value={apiKey}
+          onChange={setApiKey}
+          configured={data.airtel?.configured}
+        />
+        <SettingFieldRow label="Customer / Account ID">
+          <Input value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="Optional customer ID" />
+        </SettingFieldRow>
+        <SettingFieldRow label="Sender / Header">
+          <Input value={senderId} onChange={(e) => setSenderId(e.target.value)} maxLength={12} placeholder="DLT Header (e.g. ZARORT)" />
+        </SettingFieldRow>
+        <SettingFieldRow label="DLT Entity ID">
+          <Input value={entityId} onChange={(e) => setEntityId(e.target.value)} placeholder="DLT PE Entity ID" />
+        </SettingFieldRow>
+        <SettingFieldRow label="OTP Template ID">
+          <Input value={otpTemplateId} onChange={(e) => setOtpTemplateId(e.target.value)} placeholder="DLT Content Template ID" />
         </SettingFieldRow>
         <SettingFieldRow label="Timeout (ms)">
           <Input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value) || 0)} />

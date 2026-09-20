@@ -17,7 +17,8 @@ export interface ReferralProgram {
   referrerReward: number
   refereeReward: number
   rewardType: string
-  rewardWallet: 'CUSTOMER' | 'DRIVER'
+  /// Null for RIDER programs: rider referrals are non-monetary.
+  rewardWallet: 'CUSTOMER' | 'DRIVER' | null
   qualifyingEvent: string
   qualifyingThreshold: number
   maxReferralsPerUser: number | null
@@ -39,7 +40,8 @@ export type ReferralProgramInput = {
   referrerReward?: number
   refereeReward?: number
   rewardType?: string
-  rewardWallet?: 'CUSTOMER' | 'DRIVER'
+  /// DRIVER programs only; the backend rejects any wallet on a RIDER program.
+  rewardWallet?: 'DRIVER'
   qualifyingEvent?: string
   qualifyingThreshold?: number
   maxReferralsPerUser?: number | null
