@@ -11,20 +11,22 @@ export const useDashboardData = () => {
     queryFn: () => DashboardService.getDashboardData(),
     placeholderData: {
       stats: {
-        activeDrivers: 142,
-        activeRiders: 980,
-        ongoingRides: 87,
-        pendingVerifications: 12,
+        activeDrivers: 0,
+        activeRiders: 0,
+        inFlightRiders: 0,
+        ongoingRides: 0,
+        pendingVerifications: 0,
       },
       earningTrend: [
-        { date: 'Mon', earnings: 12000, ridesCount: 150 },
-        { date: 'Tue', earnings: 15000, ridesCount: 180 },
-        { date: 'Wed', earnings: 14000, ridesCount: 170 },
-        { date: 'Thu', earnings: 18000, ridesCount: 210 },
-        { date: 'Fri', earnings: 22000, ridesCount: 260 },
-        { date: 'Sat', earnings: 25000, ridesCount: 300 },
-        { date: 'Sun', earnings: 20000, ridesCount: 240 },
+        { date: 'Mon', platformRevenue: 0, earnings: 0, rideCommission: 0, subscriptionRevenue: 0, platformFees: 0, grossRideValue: 0, ridesCount: 0 },
+        { date: 'Tue', platformRevenue: 0, earnings: 0, rideCommission: 0, subscriptionRevenue: 0, platformFees: 0, grossRideValue: 0, ridesCount: 0 },
+        { date: 'Wed', platformRevenue: 0, earnings: 0, rideCommission: 0, subscriptionRevenue: 0, platformFees: 0, grossRideValue: 0, ridesCount: 0 },
+        { date: 'Thu', platformRevenue: 0, earnings: 0, rideCommission: 0, subscriptionRevenue: 0, platformFees: 0, grossRideValue: 0, ridesCount: 0 },
+        { date: 'Fri', platformRevenue: 0, earnings: 0, rideCommission: 0, subscriptionRevenue: 0, platformFees: 0, grossRideValue: 0, ridesCount: 0 },
+        { date: 'Sat', platformRevenue: 0, earnings: 0, rideCommission: 0, subscriptionRevenue: 0, platformFees: 0, grossRideValue: 0, ridesCount: 0 },
+        { date: 'Sun', platformRevenue: 0, earnings: 0, rideCommission: 0, subscriptionRevenue: 0, platformFees: 0, grossRideValue: 0, ridesCount: 0 },
       ],
     },
   })
 }
+

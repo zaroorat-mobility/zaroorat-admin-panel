@@ -34,13 +34,15 @@ export const DashboardPage: React.FC = () => {
     {
       label: 'Active Drivers',
       value: stats?.activeDrivers ?? 0,
+      description: 'Drivers currently online, on-trip, or on duty.',
       icon: Car,
       border: 'border-l-emerald-500',
       iconColor: 'text-emerald-500',
     },
     {
-      label: 'Active Riders',
-      value: stats?.activeRiders ?? 0,
+      label: 'In-Flight Riders',
+      value: stats?.inFlightRiders ?? stats?.activeRiders ?? 0,
+      description: 'Riders currently searching for a ride or participating in an ongoing trip.',
       icon: Users,
       border: 'border-l-indigo-500',
       iconColor: 'text-indigo-500',
@@ -48,6 +50,7 @@ export const DashboardPage: React.FC = () => {
     {
       label: 'Ongoing Rides',
       value: stats?.ongoingRides ?? 0,
+      description: 'Total active rides in progress or driver arriving.',
       icon: Activity,
       border: 'border-l-blue-500',
       iconColor: 'text-blue-500',
@@ -55,6 +58,7 @@ export const DashboardPage: React.FC = () => {
     {
       label: 'Pending Verifications',
       value: stats?.pendingVerifications ?? 0,
+      description: 'Driver document applications awaiting review.',
       icon: ShieldCheck,
       border: 'border-l-amber-500',
       iconColor: 'text-amber-500',
@@ -139,30 +143,48 @@ export const DashboardPage: React.FC = () => {
           {statCards.map((card) => {
             const Icon = card.icon
             return (
-              <Card key={card.label} className={`p-3.5 flex flex-col justify-between border-l-4 ${card.border}`}>
+              <Card
+                key={card.label}
+                className={`p-3.5 flex flex-col justify-between border-l-4 ${card.border}`}
+                title={card.description}
+              >
                 <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-                  <span>{card.label}</span>
+                  <span title={card.description}>{card.label}</span>
                   <Icon className={`h-4 w-4 ${card.iconColor}`} />
                 </div>
                 <div className="text-2xl font-bold mt-2 text-slate-900 dark:text-white">
                   {isDashboardLoading ? '—' : card.value.toLocaleString()}
                 </div>
+                {card.description && (
+                  <p className="text-[10px] text-muted-foreground mt-1 truncate" title={card.description}>
+                    {card.description}
+                  </p>
+                )}
               </Card>
             )
           })}
         </div>
 
-        {/* ANALYTICS SECTION - FULL WIDTH EARNINGS TREND */}
-        <div className="w-full">
+        {/* ANALYTICS SECTION - PLATFORM REVENUE & GROSS RIDE VALUE */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
           <ChartPlaceholder
-            title="Earnings Trend (Last 7 Days)"
+            title="Platform Revenue (Last 7 Days)"
             height="h-72"
             bars={earningTrend.map((point) => ({
               label: point.date,
-              value: point.earnings,
+              value: point.platformRevenue ?? point.earnings,
+            }))}
+          />
+          <ChartPlaceholder
+            title="Gross Ride Value — Direct Driver Payments (Last 7 Days)"
+            height="h-72"
+            bars={earningTrend.map((point) => ({
+              label: point.date,
+              value: point.grossRideValue ?? 0,
             }))}
           />
         </div>
+
 
         {/* TELEMETRY & TIMELINE SECTION */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
