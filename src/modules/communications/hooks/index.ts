@@ -65,7 +65,8 @@ export const useSendPush = () => {
 export const useSchedulePush = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: SchedulePushInput) => CommunicationsService.schedulePush(data),
+    mutationFn: ({ data, idempotencyKey }: { data: SchedulePushInput; idempotencyKey: string }) =>
+      CommunicationsService.schedulePush(data, idempotencyKey),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['communications', 'push-history'] }),
   })
 }

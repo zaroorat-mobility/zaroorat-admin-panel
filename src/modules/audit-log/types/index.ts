@@ -5,6 +5,6 @@ export interface AuditLogItem extends BaseEntity {
   actor: string
   action: string
   entityId?: string
-  entityType?: 'driver' | 'rider' | 'vehicle' | 'fare_config' | 'payment' | 'sos'
+  entityType?: 'driver' | 'rider' | 'vehicle' | 'fare_config' | 'payment' | 'sos' | 'staff_user' | string
   notes?: string
 }

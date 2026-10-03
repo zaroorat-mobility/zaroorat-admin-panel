@@ -69,9 +69,10 @@ export const AuditLogPage: React.FC = () => {
               row.entityType === 'vehicle' && "bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-950/20 dark:text-blue-450",
               row.entityType === 'fare_config' && "bg-amber-50 border-amber-100 text-amber-700 dark:bg-amber-950/20 dark:text-amber-450",
               row.entityType === 'sos' && "bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-950/20 dark:text-rose-450",
-              row.entityType === 'payment' && "bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-950/20 dark:text-purple-450"
+              row.entityType === 'payment' && "bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-950/20 dark:text-purple-450",
+              row.entityType === 'staff_user' && "bg-violet-50 border-violet-100 text-violet-700 dark:bg-violet-950/20 dark:text-violet-450"
             )}>
-              {row.entityType}
+              {row.entityType === 'staff_user' ? 'Staff User' : row.entityType}
             </span>
           )}
         </div>
@@ -91,10 +92,12 @@ export const AuditLogPage: React.FC = () => {
             navigate(`/riders/${val}`)
           } else if (row.entityType === 'vehicle') {
             navigate(`/vehicle-management/vehicles`)
+          } else if (row.entityType === 'staff_user') {
+            navigate(`/access-control/users?view=${val}`)
           }
         }
 
-        const isLinkable = ['driver', 'rider', 'vehicle'].includes(row.entityType || '')
+        const isLinkable = ['driver', 'rider', 'vehicle', 'staff_user'].includes(row.entityType || '')
 
         return (
           <button
@@ -168,6 +171,7 @@ export const AuditLogPage: React.FC = () => {
                 className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
               >
                 <option value="all">All Logs</option>
+                <option value="staff_user">Staff & Admin Users</option>
                 <option value="driver">Driver Ops</option>
                 <option value="rider">Rider Ops</option>
                 <option value="vehicle">Vehicle Docs</option>

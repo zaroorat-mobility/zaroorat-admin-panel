@@ -17,11 +17,15 @@ export function useCityMapContext(cityCode: string, cities: CityListItem[]) {
 
     const city = cities.find((c) => c.code === cityCode && c.code !== 'GLOBAL')
     if (!city) {
+      setReferenceBoundary(null)
+      setCityCenter(null)
       setMapReady(false)
       return
     }
 
     let cancelled = false
+    setReferenceBoundary(null)
+    setCityCenter(null)
     setMapReady(false)
     void getCity(city.id)
       .then((detail) => {

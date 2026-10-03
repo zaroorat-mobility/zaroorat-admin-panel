@@ -32,6 +32,25 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
   ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+  /* Smooth autofill styling preventing jarring browser blue/yellow tints */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+    -webkit-text-fill-color: #0f172a !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover,
+  .dark input:-webkit-autofill:focus,
+  .dark input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #0f172a inset !important;
+    -webkit-text-fill-color: #f8fafc !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
 }
 
 @keyframes fadeIn {
@@ -47,4 +66,9 @@
 
 .animate-fadeIn {
   animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Hide scrollbar visually while keeping scrollability */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

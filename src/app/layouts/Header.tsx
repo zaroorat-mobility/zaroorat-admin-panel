@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, ChevronDown, Globe, LogOut, Sun, Moon, Menu } from 'lucide-react'
+import { Bell, ChevronDown, Globe, LogOut, Sun, Moon, Menu, Calendar } from 'lucide-react'
 import { useAuthStore } from "@/store/auth.store";
 import { useThemeStore } from "@/store/theme.store";
 import { useAppStore } from "@/store/app.store";
@@ -17,6 +17,7 @@ export const Header: React.FC = () => {
   
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [language, setLanguage] = useState("en");
+  const [dateRange] = useState("Sep 20, 2026 – Sep 26, 2026");
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,9 +55,44 @@ export const Header: React.FC = () => {
         <Breadcrumbs minimal={true} />
       </div>
 
-      {/* Right Side Controls */}
-      <div className="flex items-center gap-3">
-        {/* Theme mode toggle */}
+      {/* Right Side Controls matching Image 2 */}
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Date Range Selector matching Image 2 */}
+        <button
+          type="button"
+          onClick={() => {}}
+          className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-surface text-xs font-semibold text-foreground hover:bg-surface-muted transition-colors shadow-2xs cursor-pointer"
+          title="Filter date range"
+        >
+          <Calendar className="w-4 h-4 text-muted-foreground" />
+          <span>{dateRange}</span>
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+
+        {/* Live Status Pill matching Image 2 */}
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold shadow-2xs">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          <span>Live</span>
+        </div>
+
+        {/* Notification Bell matching Image 2 with red badge 8 */}
+        <div className="relative">
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-surface-muted text-muted-foreground border border-border transition-colors"
+            aria-label="View notifications"
+          >
+            <Bell className="w-4 h-4" />
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[9.5px] rounded-full flex items-center justify-center font-bold shadow-xs">
+              8
+            </span>
+          </button>
+        </div>
+
+        {/* Theme mode toggle matching Image 2 */}
         <button
           onClick={toggleTheme}
           className="w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground border border-border hover:bg-surface-muted transition-colors"
@@ -65,7 +101,7 @@ export const Header: React.FC = () => {
           {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        {/* Language selector */}
+        {/* Language selector matching Image 2 */}
         <div className="flex items-center gap-1 border border-border px-2.5 py-1.5 rounded-lg hover:bg-surface-muted transition-colors">
           <Globe className="w-4 h-4 text-muted-foreground" />
           <select
@@ -78,20 +114,7 @@ export const Header: React.FC = () => {
             <option value="hi" className="dark:bg-slate-900">HI</option>
             <option value="ur" className="dark:bg-slate-900">UR</option>
           </select>
-        </div>
-
-        {/* Notification Bell */}
-        <div className="relative">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-surface-muted text-muted-foreground border border-border"
-            aria-label="View notifications"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-white text-[9px] rounded-full flex items-center justify-center font-bold">
-              3
-            </span>
-          </button>
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground pointer-events-none -ml-0.5" />
         </div>
 
         {/* User Account Dropdown */}

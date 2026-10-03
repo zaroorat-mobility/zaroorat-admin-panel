@@ -22,7 +22,8 @@ export const CommunicationsService = {
     params?: DeliveryHistoryParams,
   ): Promise<PaginatedResponse<DeliveryHistoryItem>> => communicationsApi.getDeliveryHistory(params),
   sendPush: (data: SendPushInput) => communicationsApi.sendPush(data),
-  schedulePush: (data: SchedulePushInput) => communicationsApi.schedulePush(data),
+  schedulePush: (data: SchedulePushInput, idempotencyKey: string) =>
+    communicationsApi.schedulePush(data, idempotencyKey),
   getPushHistory: (params?: PushHistoryParams): Promise<PaginatedResponse<PushBroadcast>> =>
     communicationsApi.getPushHistory(params),
   retryPush: (id: string) => communicationsApi.retryPush(id),

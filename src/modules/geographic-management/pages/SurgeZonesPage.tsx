@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
@@ -10,12 +10,15 @@ import { useAuthStore } from '@/store/auth.store'
 import { hasPermission } from '@/infrastructure/permissions'
 import { listSurgeZones, updateSurgeZone, type SurgeZoneListItem } from '../api/surge'
 import { Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react'
+import { CreateSurgeZoneModal } from '../components/CreateSurgeZoneModal'
 
 export const SurgeZonesPage: React.FC = () => {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const canWrite = hasPermission(user, 'pricing:write')
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [editZoneId, setEditZoneId] = useState<string | null>(null)
   const { data = [], isLoading } = useQuery({
     queryKey: ['surge-zones'],
     queryFn: listSurgeZones,
@@ -78,7 +81,7 @@ export const SurgeZonesPage: React.FC = () => {
         onBack={() => navigate('/geographic-management')}
         actions={
           canWrite ? (
-            <Button onClick={() => navigate('/geographic-management/surge-zones/new')} className="gap-2">
+            <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Add Surge Zone
             </Button>
           ) : undefined
@@ -91,7 +94,27 @@ export const SurgeZonesPage: React.FC = () => {
         columns={columns}
         data={data}
         isLoading={isLoading}
-        onRowClick={(row) => navigate(`/geographic-management/surge-zones/${row.id}/edit`)}
+        onRowClick={(row) => {
+          if (canWrite) {
+            setEditZoneId(row.id)
+          } else {
+            navigate(`/geographic-management/surge-zones/${row.id}/edit`)
+          }
+        }}
+      />
+
+      <CreateSurgeZoneModal
+        isOpen={isCreateModalOpen || Boolean(editZoneId)}
+        zoneId={editZoneId || undefined}
+        onClose={() => {
+          setIsCreateModalOpen(false)
+          setEditZoneId(null)
+        }}
+        onSuccess={() => {
+          setIsCreateModalOpen(false)
+          setEditZoneId(null)
+          void qc.invalidateQueries({ queryKey: ['surge-zones'] })
+        }}
       />
     </PageWrapper>
   )

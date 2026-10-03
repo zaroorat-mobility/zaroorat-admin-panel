@@ -122,9 +122,14 @@ export const JobDetailDrawer: React.FC<Props> = ({ queue, jobId, onClose }) => {
 
           <div className="space-y-1">
             <p className="font-bold uppercase text-slate-500 text-[10px]">Payload</p>
-            <pre className="bg-slate-950 text-slate-100 p-3 rounded-lg overflow-x-auto text-[10px] font-mono">
-              {JSON.stringify(job.data, null, 2)}
-            </pre>
+            {/* The server returns only allowlisted fields; null means this queue's payload is withheld (auth-otp carries codes). */}
+            {job.data == null ? (
+              <p className="text-xs text-slate-500">Not shown for this queue.</p>
+            ) : (
+              <pre className="bg-slate-950 text-slate-100 p-3 rounded-lg overflow-x-auto text-[10px] font-mono">
+                {JSON.stringify(job.data, null, 2)}
+              </pre>
+            )}
           </div>
         </div>
       )}

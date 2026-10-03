@@ -1,10 +1,15 @@
 import React from 'react'
 
-export const Table: React.FC<React.HTMLAttributes<HTMLTableElement>> = ({
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  containerClassName?: string
+}
+
+export const Table: React.FC<TableProps> = ({
   className = '',
+  containerClassName = '',
   ...props
 }) => (
-  <div className="w-full overflow-x-auto">
+  <div className={`w-full ${containerClassName || 'overflow-x-auto'}`}>
     <table className={`w-full border-collapse text-left text-sm align-middle ${className}`} {...props} />
   </div>
 )
@@ -34,11 +39,19 @@ export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({
 export const TableHead: React.FC<React.ThHTMLAttributes<HTMLTableCellElement>> = ({
   className = '',
   ...props
-}) => (
-  <th className={`px-6 py-3.5 font-bold text-foreground ${className}`} {...props} />
-)
+}) => {
+  const hasPadding = className.includes('p-') || className.includes('px-') || className.includes('py-') || className.includes('!p')
+  return (
+    <th className={`${hasPadding ? '' : 'px-6 py-3.5 '}font-bold text-foreground ${className}`} {...props} />
+  )
+}
 
 export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableCellElement>> = ({
   className = '',
   ...props
-}) => <td className={`px-6 py-4 whitespace-nowrap text-foreground ${className}`} {...props} />
+}) => {
+  const hasPadding = className.includes('p-') || className.includes('px-') || className.includes('py-') || className.includes('!p')
+  return (
+    <td className={`${hasPadding ? '' : 'px-6 py-4 '}whitespace-nowrap text-foreground ${className}`} {...props} />
+  )
+}

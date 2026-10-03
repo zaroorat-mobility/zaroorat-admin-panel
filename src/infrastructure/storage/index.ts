@@ -4,6 +4,7 @@
 export const storage = {
   get: <T>(key: string, defaultValue: T | null = null): T | null => {
     try {
+      if (typeof localStorage === 'undefined') return defaultValue
       const item = localStorage.getItem(key)
       return item ? (JSON.parse(item) as T) : defaultValue
     } catch (error) {
@@ -14,6 +15,7 @@ export const storage = {
 
   set: <T>(key: string, value: T): void => {
     try {
+      if (typeof localStorage === 'undefined') return
       localStorage.setItem(key, JSON.stringify(value))
     } catch (error) {
       console.error(`Error setting key "${key}" to localStorage`, error)
@@ -22,6 +24,7 @@ export const storage = {
 
   remove: (key: string): void => {
     try {
+      if (typeof localStorage === 'undefined') return
       localStorage.removeItem(key)
     } catch (error) {
       console.error(`Error removing key "${key}" from localStorage`, error)
@@ -30,6 +33,7 @@ export const storage = {
 
   clear: (): void => {
     try {
+      if (typeof localStorage === 'undefined') return
       localStorage.clear()
     } catch (error) {
       console.error('Error clearing localStorage', error)
@@ -39,6 +43,7 @@ export const storage = {
   session: {
     get: <T>(key: string, defaultValue: T | null = null): T | null => {
       try {
+        if (typeof sessionStorage === 'undefined') return defaultValue
         const item = sessionStorage.getItem(key)
         return item ? (JSON.parse(item) as T) : defaultValue
       } catch (error) {
@@ -49,6 +54,7 @@ export const storage = {
 
     set: <T>(key: string, value: T): void => {
       try {
+        if (typeof sessionStorage === 'undefined') return
         sessionStorage.setItem(key, JSON.stringify(value))
       } catch (error) {
         console.error(`Error setting key "${key}" to sessionStorage`, error)
@@ -57,6 +63,7 @@ export const storage = {
 
     remove: (key: string): void => {
       try {
+        if (typeof sessionStorage === 'undefined') return
         sessionStorage.removeItem(key)
       } catch (error) {
         console.error(`Error removing key "${key}" from sessionStorage`, error)
