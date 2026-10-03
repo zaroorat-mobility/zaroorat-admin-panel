@@ -172,7 +172,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
 
         {/* Number input */}
         <div className={cn(
-          "flex items-center flex-1 min-w-0 border border-input rounded-r-lg bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary transition-all dark:border-slate-800",
+          "flex items-center flex-1 min-w-0 h-9 border border-input rounded-r-lg bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-primary/10 focus-within:border-primary transition-all dark:border-slate-800",
           error ? 'border-destructive focus-within:border-destructive focus-within:ring-destructive/10' : ''
         )}>
           <div className="pl-3 text-slate-400 font-semibold select-none text-xs flex-shrink-0">

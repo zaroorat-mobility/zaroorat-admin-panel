@@ -1,14 +1,14 @@
-import type { User } from '@/store/auth.store'
+import { useAuthStore, type User } from '@/store/auth.store'
 
 export const hasPermission = (user: User | null, requiredPermission: string): boolean => {
   if (!user) return false
-  if (user.role === 'system_admin' || user.roles.includes('system_admin')) return true
-  return user.permissions.includes(requiredPermission)
+  if (user.role === 'system_admin' || (Array.isArray(user.roles) && user.roles.includes('system_admin'))) return true
+  return Array.isArray(user.permissions) && user.permissions.includes(requiredPermission)
 }
 
 export const hasRole = (user: User | null, allowedRoles: User['role'][]): boolean => {
   if (!user) return false
-  if (user.role === 'system_admin' || user.roles.includes('system_admin')) return true
+  if (user.role === 'system_admin' || (Array.isArray(user.roles) && user.roles.includes('system_admin'))) return true
   return allowedRoles.includes(user.role)
 }
 
@@ -105,3 +105,15 @@ export const permissionActionLabel = (action: string): string =>
 
 export const checkPermission = hasPermission
 export const checkRole = hasRole
+
+export const can = (requiredPermission: string, user?: User | null): boolean => {
+  if (user !== undefined) {
+    return hasPermission(user, requiredPermission)
+  }
+  return hasPermission(useAuthStore.getState().user, requiredPermission)
+}
+
+export const usePermission = (requiredPermission: string): boolean => {
+  const user = useAuthStore((s) => s.user)
+  return hasPermission(user, requiredPermission)
+}

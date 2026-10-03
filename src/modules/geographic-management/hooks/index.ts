@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   activateServiceZone,
+  applyStateReconciliation,
   createCity,
   createServiceZone,
   createState,
@@ -11,16 +12,21 @@ import {
   getServiceZone,
   getServiceZones,
   getStates,
-  updateState,
+  previewStateReconciliation,
   updateCity,
   updateServiceZone,
+  updateState,
 } from '../api'
-import type { ServiceZoneType } from '../types'
+import type { ServiceZoneType, StateDivisionType } from '../types'
 
 export const useCountries = () =>
   useQuery({ queryKey: ['geographic', 'countries'], queryFn: getCountries })
 
-export const useStates = (params?: { countryCode?: string; activeOnly?: boolean }) =>
+export const useStates = (params?: {
+  countryCode?: string
+  divisionType?: StateDivisionType
+  activeOnly?: boolean
+}) =>
   useQuery({
     queryKey: ['geographic', 'states', params],
     queryFn: () => getStates(params),
@@ -37,9 +43,42 @@ export const useCreateState = () => {
 export const useUpdateState = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { name?: string; isActive?: boolean } }) =>
-      updateState(id, payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['geographic', 'states'] }),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string
+      payload: {
+        name?: string
+        nativeName?: string | null
+        divisionType?: StateDivisionType
+        lgdCode?: number | null
+        isoCode?: string | null
+        censusCode?: string | null
+        isActive?: boolean
+      }
+    }) => updateState(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['geographic', 'states'] })
+      qc.invalidateQueries({ queryKey: ['geographic', 'cities'] })
+    },
+  })
+}
+
+export const usePreviewStateReconciliation = () => {
+  return useMutation({
+    mutationFn: (countryCode?: string) => previewStateReconciliation(countryCode ?? 'IN'),
+  })
+}
+
+export const useApplyStateReconciliation = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: applyStateReconciliation,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['geographic', 'states'] })
+      qc.invalidateQueries({ queryKey: ['geographic', 'cities'] })
+    },
   })
 }
 
@@ -121,3 +160,6 @@ export const useDeactivateServiceZone = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['geographic', 'service-zones'] }),
   })
 }
+
+export { useCityZonesWithBoundaries } from './useCityZonesWithBoundaries'
+export * from './useVehicleTypes'

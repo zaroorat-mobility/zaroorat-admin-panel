@@ -59,10 +59,16 @@ export const sendPush = async (data: SendPushInput): Promise<PushBroadcast> => {
   return response.data.data
 }
 
-export const schedulePush = async (data: SchedulePushInput): Promise<PushBroadcast> => {
+/// `idempotencyKey` belongs to the compose draft, not the call: resubmitting the same draft
+/// (a double click, a retry after a timeout) schedules one broadcast, not two.
+export const schedulePush = async (
+  data: SchedulePushInput,
+  idempotencyKey: string,
+): Promise<PushBroadcast> => {
   const response = await api.post<{ data: PushBroadcast }>(
     API_ENDPOINTS.communications.pushSchedule,
     data,
+    { headers: { 'Idempotency-Key': idempotencyKey } },
   )
   return response.data.data
 }

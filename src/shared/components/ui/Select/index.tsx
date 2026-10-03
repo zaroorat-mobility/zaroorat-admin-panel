@@ -7,7 +7,7 @@ export interface SelectOption {
 }
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  label?: string
+  label?: React.ReactNode
   options: SelectOption[]
   error?: string
   helperText?: string
@@ -25,7 +25,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             htmlFor={selectId}
             className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider"
           >
-            {label}
+            {label} {props.required && <span className="text-red-500 ml-0.5">*</span>}
           </label>
         )}
         <select

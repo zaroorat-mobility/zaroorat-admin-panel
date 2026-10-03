@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { Send, Clock } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
@@ -26,6 +26,9 @@ export const PushComposePage: React.FC = () => {
   const { data: templatesData } = useTemplates({ channel: 'PUSH', isActive: 'true', limit: 100 })
   const sendPush = useSendPush()
   const schedulePush = useSchedulePush()
+  // One key per draft: every resubmission of this message reuses it, and a successful
+  // schedule starts a new draft with a new key.
+  const scheduleKey = useRef(crypto.randomUUID())
 
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -75,8 +78,17 @@ export const PushComposePage: React.FC = () => {
         return
       }
       schedulePush.mutate(
-        { ...payload, scheduledAt: new Date(scheduledAtLocal).toISOString() },
-        { onSuccess, onError },
+        {
+          data: { ...payload, scheduledAt: new Date(scheduledAtLocal).toISOString() },
+          idempotencyKey: scheduleKey.current,
+        },
+        {
+          onSuccess: () => {
+            scheduleKey.current = crypto.randomUUID()
+            onSuccess()
+          },
+          onError,
+        },
       )
     } else {
       sendPush.mutate(payload, { onSuccess, onError })

@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
+    "type-check:test": "tsc -p tsconfig.test.json",
+    "test": "npx tsx --tsconfig tsconfig.test.json --import ./scripts/test-assets.mjs --test --test-force-exit src/**/*.test.ts",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -31,16 +33,19 @@
     "react-leaflet": "^5.0.0",
     "react-phone-number-input": "^3.4.17",
     "react-router-dom": "^7.1.1",
+    "socket.io-client": "^4.8.4",
     "zod": "^3.24.1",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@types/jsdom": "^21.1.7",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "husky": "^9.1.7",
+    "jsdom": "^26.1.0",
     "lint-staged": "^15.2.10",
     "oxlint": "^0.15.0",
     "postcss": "^8.4.49",

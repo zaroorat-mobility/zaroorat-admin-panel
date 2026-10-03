@@ -51,8 +51,15 @@ export const responseErrorInterceptor = async (error: AxiosError): Promise<Axios
     console.error('API Infrastructure critical server error:', error.message)
   }
 
-  const authError = new Error(apiErrorMessage(error)) as Error & { status?: number; isAuthError?: boolean }
+  const authError = new Error(apiErrorMessage(error)) as Error & {
+    status?: number
+    code?: string
+    isAuthError?: boolean
+  }
   authError.status = error.response?.status
+  // Keeps a timeout (ECONNABORTED / ETIMEDOUT) or a network failure (ERR_NETWORK),
+  // which have no HTTP status, distinguishable from each other and from a server answer.
+  authError.code = error.code
   authError.isAuthError = error.response?.status === 401
   return Promise.reject(authError)
 }

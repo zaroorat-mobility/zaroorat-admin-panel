@@ -51,3 +51,16 @@ export function resolveRoutePath(
   }
   return null
 }
+
+/** A finite latitude/longitude in range. (0, 0) is an unset device position, not a place. */
+export function isValidCoordinate(lat: unknown, lng: unknown): boolean {
+  return (
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180 &&
+    !(lat === 0 && lng === 0)
+  )
+}

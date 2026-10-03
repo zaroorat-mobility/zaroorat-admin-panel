@@ -3,10 +3,12 @@ import type {
   CityDetail,
   CityListItem,
   Country,
+  ReconcileResult,
   ServiceZoneDetail,
   ServiceZoneListItem,
   ServiceZoneType,
   State,
+  StateDivisionType,
 } from '../types'
 
 export const getCountries = async (): Promise<Country[]> => {
@@ -16,6 +18,7 @@ export const getCountries = async (): Promise<Country[]> => {
 
 export const getStates = async (params?: {
   countryCode?: string
+  divisionType?: StateDivisionType
   activeOnly?: boolean
 }): Promise<State[]> => {
   const res = await api.get<{ data: State[] }>(API_ENDPOINTS.geographic.states, { params })
@@ -26,14 +29,50 @@ export const createState = async (payload: {
   countryCode?: string
   code: string
   name: string
+  nativeName?: string | null
+  divisionType?: StateDivisionType
+  lgdCode?: number | null
+  isoCode?: string | null
+  censusCode?: string | null
   isActive?: boolean
 }): Promise<State> => {
   const res = await api.post<{ data: State }>(API_ENDPOINTS.geographic.states, payload)
   return res.data.data
 }
 
-export const updateState = async (id: string, payload: { name?: string; isActive?: boolean }): Promise<State> => {
+export const updateState = async (
+  id: string,
+  payload: {
+    name?: string
+    nativeName?: string | null
+    divisionType?: StateDivisionType
+    lgdCode?: number | null
+    isoCode?: string | null
+    censusCode?: string | null
+    isActive?: boolean
+  },
+): Promise<State> => {
   const res = await api.patch<{ data: State }>(API_ENDPOINTS.geographic.state(id), payload)
+  return res.data.data
+}
+
+export const previewStateReconciliation = async (countryCode = 'IN'): Promise<ReconcileResult> => {
+  const res = await api.post<{ data: ReconcileResult }>(API_ENDPOINTS.geographic.reconcilePreview, {
+    countryCode,
+  })
+  return res.data.data
+}
+
+export const applyStateReconciliation = async (params: {
+  countryCode?: string
+  confirm: true
+  expectedVersion?: string
+}): Promise<ReconcileResult> => {
+  const res = await api.post<{ data: ReconcileResult }>(API_ENDPOINTS.geographic.reconcileApply, {
+    countryCode: params.countryCode ?? 'IN',
+    confirm: true,
+    ...(params.expectedVersion ? { expectedVersion: params.expectedVersion } : {}),
+  })
   return res.data.data
 }
 

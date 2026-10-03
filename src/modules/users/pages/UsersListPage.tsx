@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Plus, Users, UserCheck, UserX } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useUsers, useDeleteUser } from '../hooks'
 import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { StatusBadge } from '@/shared/components/StatusBadge'
@@ -10,6 +10,7 @@ import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { roleDisplayName } from '@/infrastructure/permissions'
+import { CreateAdminUserModal, EditAdminUserModal, ViewAdminUserModal } from '../components'
 import type { UserEntity } from '../types'
 
 const formatDate = (value?: string | null): string => {
@@ -21,9 +22,12 @@ const formatDate = (value?: string | null): string => {
 }
 
 export const UsersListPage: React.FC = () => {
-  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<UserEntity | null>(null)
+  const [viewingUser, setViewingUser] = useState<UserEntity | null>(null)
 
   const { data, isLoading, isError, refetch } = useUsers()
   const { mutate: deleteUser, isPending: isDeleting } = useDeleteUser()
@@ -78,6 +82,27 @@ export const UsersListPage: React.FC = () => {
   const activeUsers = activeData.filter((u) => u.status === 'active').length
   const inactiveUsers = totalUsers - activeUsers
 
+  useEffect(() => {
+    const viewId = searchParams.get('view')
+    if (viewId && activeData.length > 0) {
+      const match = activeData.find((u) => u.id === viewId)
+      if (match) {
+        setViewingUser(match)
+      } else {
+        setViewingUser({ id: viewId } as UserEntity)
+      }
+    }
+  }, [searchParams, activeData])
+
+  const handleCloseViewModal = () => {
+    setViewingUser(null)
+    if (searchParams.get('view')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('view')
+      setSearchParams(next, { replace: true })
+    }
+  }
+
   return (
     <PageWrapper>
       <PageHeader
@@ -85,7 +110,7 @@ export const UsersListPage: React.FC = () => {
         description="Staff accounts that can sign in to this admin panel."
         actions={
           <Button
-            onClick={() => navigate('/access-control/users/new')}
+            onClick={() => setIsCreateModalOpen(true)}
             className="gap-2 text-xs font-semibold h-9 rounded-lg"
           >
             <Plus className="h-4 w-4" />
@@ -124,12 +149,12 @@ export const UsersListPage: React.FC = () => {
         data={activeData}
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
-        onRowClick={(row) => navigate(`/access-control/users/${row.id}`)}
+        onRowClick={(row) => setViewingUser(row)}
         searchPlaceholder="Search admin users..."
         statusKey="status"
         actionConfig={{
-          onView: (row) => navigate(`/access-control/users/${row.id}`),
-          onEdit: (row) => navigate(`/access-control/users/${row.id}/edit`),
+          onView: (row) => setViewingUser(row),
+          onEdit: (row) => setEditingUser(row),
           onDelete: (row) => setDeleteId(row.id),
         }}
         isLoading={isLoading}
@@ -139,7 +164,7 @@ export const UsersListPage: React.FC = () => {
           title: 'No admin users',
           description: 'Create the first admin user to grant dashboard access.',
           actionLabel: 'Add admin user',
-          onAction: () => navigate('/access-control/users/new'),
+          onAction: () => setIsCreateModalOpen(true),
         }}
       />
 
@@ -152,6 +177,29 @@ export const UsersListPage: React.FC = () => {
         itemName={activeData.find((u) => u.id === deleteId)?.name}
         loading={isDeleting}
         variant="danger"
+      />
+
+      <CreateAdminUserModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => refetch()}
+      />
+
+      <EditAdminUserModal
+        isOpen={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        user={editingUser}
+        onSuccess={() => refetch()}
+      />
+
+      <ViewAdminUserModal
+        isOpen={!!viewingUser}
+        onClose={handleCloseViewModal}
+        user={viewingUser}
+        onEdit={(user) => {
+          handleCloseViewModal()
+          setEditingUser(user)
+        }}
       />
       </div>
     </PageWrapper>

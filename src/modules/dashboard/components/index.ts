@@ -1,2 +1,11 @@
-// Placeholder export for dashboard local components
-export {}
+export * from './OperationalKpis'
+export * from './FinancialKpis'
+export * from './PlatformRevenueAreaChart'
+export * from './GrossRideValueAreaChart'
+export * from './RideStatusDonutChart'
+export * from './RidesByHourBarChart'
+export * from './LiveOperationsMapSection'
+export * from './LiveDriversTable'
+export * from './RecentActivityTimeline'
+export * from './SystemHealthSection'
+export * from './DashboardSkeletons'
