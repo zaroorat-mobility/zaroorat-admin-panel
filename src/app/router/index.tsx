@@ -208,7 +208,9 @@ export const AppRouter: React.FC = () => {
         <Route path="settings/maps" element={<MapSettingsPage />} />
         <Route path="settings" element={<Navigate to="/settings/maps" replace />} />
 
-        {/* Legacy redirect routes */}
+        {/* Customer / Rider and Legacy redirect routes */}
+        <Route path="customers/*" element={<Navigate to="/riders" replace />} />
+        <Route path="customer-management/*" element={<Navigate to="/riders" replace />} />
         <Route path="drivers/*" element={<Navigate to="/driver-management/drivers" replace />} />
         <Route path="verification/*" element={<Navigate to="/driver-management/applications" replace />} />
       </Route>

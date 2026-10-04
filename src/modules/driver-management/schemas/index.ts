@@ -4,6 +4,18 @@ import { phoneSchema, emailSchema, requiredFileRefSchema, fileRefSchema } from '
 // ─── Registration Action ────────────────────────────────────────────────────
 export const registrationActionSchema = z.enum(['submit_for_review', 'approve_immediately'])
 
+export const registrationPlateSchema = z
+  .string()
+  .min(4, 'Registration number must be at least 4 characters')
+  .max(20, 'Registration number cannot exceed 20 characters')
+  .refine(
+    (val) => {
+      const clean = val.replace(/[\s-]/g, '').toUpperCase();
+      return /^[A-Z0-9]{6,15}$/.test(clean);
+    },
+    'Invalid registration number format (e.g. JK01AB1234, DL1CAB1234, or 22BH1234AA)',
+  );
+
 // ─── Core Driver KYC Form Schema (6 steps) ────────────────────────────────
 export const driverKycFormSchema = z.object({
   // Step 1: Personal Details
@@ -52,7 +64,7 @@ export const driverKycFormSchema = z.object({
   brand: z.string().min(1, 'Vehicle brand is required'),
   model: z.string().min(1, 'Vehicle model is required'),
   color: z.string().min(1, 'Color is required'),
-  registrationNumber: z.string().min(4, 'Invalid registration number').regex(/^[A-Z]{2}-\d{2}-[A-Z]{1,2}-\d{4}$/, 'Invalid format (e.g. MH-12-PQ-4567)'),
+  registrationNumber: registrationPlateSchema,
   manufacturingYear: z.coerce.number().min(2000, 'Manufacturing year must be 2000 or later').max(new Date().getFullYear() + 1, 'Invalid manufacturing year'),
   seatCapacity: z.coerce.number().min(1, 'Seats capacity must be at least 1').max(20, 'Seats capacity cannot exceed 20'),
 
