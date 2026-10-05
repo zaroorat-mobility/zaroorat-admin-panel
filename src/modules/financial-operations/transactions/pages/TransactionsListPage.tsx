@@ -6,7 +6,7 @@ import { PageHeader } from '@/shared/components/PageHeader'
 import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { Button } from '@/shared/components/ui/Button'
-import { Card, CardContent } from '@/shared/components/ui/Card'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { ActionDropdown, type DropdownAction } from '@/modules/driver-management/components/ActionDropdown'
 import { TransactionStatusBadge, PaymentMethodBadge, TransactionSummaryDrawer } from '../components'
 import { ExportService } from '../../services'
@@ -239,12 +239,12 @@ export const TransactionsListPage: React.FC = () => {
   ]
 
   const kpis = [
-    { label: 'Gross GTV Vol', value: `₹${gtv.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <DollarSign className="h-4 w-4" />, color: 'text-primary bg-primary/10' },
-    { label: 'Net Collection', value: `₹${netCollection.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <Landmark className="h-4 w-4" />, color: 'text-emerald-600 bg-emerald-50' },
-    { label: 'Total Refunded', value: `₹${refundTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <Clock className="h-4 w-4" />, color: 'text-rose-600 bg-rose-50' },
-    { label: 'Failed Attempts', value: `₹${failedTotalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <ShieldAlert className="h-4 w-4" />, color: 'text-rose-700 bg-rose-50' },
-    { label: 'Average Ticket Value', value: `₹${averageValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <CreditCard className="h-4 w-4" />, color: 'text-indigo-600 bg-indigo-50' },
-    { label: 'PG Success Rate', value: `${successRate}%`, icon: <Activity className="h-4 w-4" />, color: 'text-blue-600 bg-blue-50' }
+    { label: 'Gross GTV Vol', value: `₹${gtv.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <DollarSign className="w-5 h-5" />, variant: 'blue' as const, sub: 'Total transaction volume' },
+    { label: 'Net Collection', value: `₹${netCollection.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <Landmark className="w-5 h-5" />, variant: 'blue' as const, sub: 'GTV minus refunds' },
+    { label: 'Total Refunded', value: `₹${refundTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <Clock className="w-5 h-5" />, variant: 'red' as const, sub: 'Processed refunds' },
+    { label: 'Failed Attempts', value: `₹${failedTotalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <ShieldAlert className="w-5 h-5" />, variant: 'red' as const, sub: 'Declined or timed out' },
+    { label: 'Average Ticket Value', value: `₹${averageValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: <CreditCard className="w-5 h-5" />, variant: 'blue' as const, sub: 'Per transaction avg' },
+    { label: 'PG Success Rate', value: `${successRate}%`, icon: <Activity className="w-5 h-5" />, variant: 'blue' as const, sub: 'Successful captured' }
   ]
 
   return (
@@ -276,19 +276,18 @@ export const TransactionsListPage: React.FC = () => {
 
       <div className="space-y-6">
         {/* KPI Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-left">
+        <InfoCardGrid cols={3} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
           {kpis.map((k, idx) => (
-            <Card key={idx} className="premium-card">
-              <CardContent className="p-3.5 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-bold text-slate-455 uppercase tracking-wider">{k.label}</span>
-                  <span className={`p-1 rounded ${k.color}`}>{k.icon}</span>
-                </div>
-                <p className="text-base font-black text-slate-850 dark:text-white tracking-tight">{k.value}</p>
-              </CardContent>
-            </Card>
+            <InfoCard
+              key={idx}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              variant={k.variant}
+              subtitle={k.sub}
+            />
           ))}
-        </div>
+        </InfoCardGrid>
 
         {/* Tab Filters and Search */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-3">

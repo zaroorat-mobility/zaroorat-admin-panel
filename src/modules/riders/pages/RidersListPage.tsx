@@ -25,7 +25,9 @@ import {
   AlertTriangle,
   Ban,
   ShieldCheck,
+  Star,
 } from 'lucide-react'
+import { cn } from '@/shared/utils'
 import type { RiderEntity } from '../types'
 
 export const RidersListPage: React.FC = () => {
@@ -89,7 +91,7 @@ export const RidersListPage: React.FC = () => {
   const columns: DataTableColumn<RiderEntity>[] = [
     {
       key: 'riderId',
-      label: 'Rider ID',
+      label: 'Customer ID',
       align: 'center',
       render: (val: string) => (
         <span className="font-mono font-bold text-slate-850 dark:text-slate-200">{val}</span>
@@ -129,14 +131,18 @@ export const RidersListPage: React.FC = () => {
       ),
     },
     {
-      key: 'walletBalance',
-      label: 'Wallet Balance',
-      align: 'right',
-      render: (val: number) => (
-        <span className={val >= 0 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
-          ₹{Number(val).toFixed(2)}
-        </span>
-      ),
+      key: 'ratingAvg',
+      label: 'Rating',
+      align: 'center',
+      render: (val: number) => {
+        const hasScore = typeof val === 'number' && val > 0
+        return (
+          <span className="inline-flex items-center justify-center gap-1 font-bold text-slate-700 dark:text-slate-200">
+            <Star className={cn("h-3.5 w-3.5", hasScore ? "fill-amber-400 text-amber-500" : "text-slate-300 dark:text-slate-600")} />
+            {hasScore ? Number(val).toFixed(1) : '0.0'}
+          </span>
+        )
+      },
     },
     {
       key: 'riderStatus',
@@ -198,38 +204,42 @@ export const RidersListPage: React.FC = () => {
   return (
     <PageWrapper>
       <PageHeader
-        title="Riders Directory"
-        description="Monitor passenger user accounts, safety timelines, dispute ledgers, and login permissions."
+        title="Customers Directory"
+        description="Monitor passenger accounts from the Customer App, trip histories, safety timelines, and account status."
       />
 
       <div className="space-y-6">
         <InfoCardGrid cols={4}>
           <InfoCard
-            label="Total Riders"
+            label="Total Customers"
             value={totalRiders}
-            icon={<Users className="h-5 w-5 text-slate-500" />}
+            icon={<Users className="w-5 h-5" />}
             variant="blue"
+            subtitle={`${activeCount} active • ${suspendedCount + blockedCount} inactive`}
             loading={isLoading}
           />
           <InfoCard
             label="Active Accounts"
             value={activeCount}
-            icon={<UserCheck className="h-5 w-5 text-emerald-500" />}
-            variant="green"
+            icon={<UserCheck className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Verified accounts"
             loading={isLoading}
           />
           <InfoCard
             label="Suspended Accounts"
             value={suspendedCount}
-            icon={<UserMinus className="h-5 w-5 text-amber-500" />}
-            variant="amber"
+            icon={<UserMinus className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Temporary suspension"
             loading={isLoading}
           />
           <InfoCard
             label="Blocked Accounts"
             value={blockedCount}
-            icon={<UserX className="h-5 w-5 text-rose-500" />}
+            icon={<UserX className="w-5 h-5" />}
             variant="red"
+            subtitle="Needs attention"
             loading={isLoading}
           />
         </InfoCardGrid>
@@ -241,10 +251,9 @@ export const RidersListPage: React.FC = () => {
           isError={isError}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
-          searchPlaceholder="Search by Rider name or mobile number..."
+          searchPlaceholder="Search by customer name or mobile number..."
           onRowClick={(row) => navigate(`/riders/${row.id}`)}
-          enableDraggableExport
-          draggablePersistenceKey="riders-csv-export-pos"
+          resultLabel="riders"
         />
       </div>
 

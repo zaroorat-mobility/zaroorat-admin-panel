@@ -40,7 +40,7 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const { url: previewUrl, loading: previewLoading } = useFileReadUrl(value)
+  const { url: previewUrl, loading: previewLoading, isPdf } = useFileReadUrl(value)
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -91,6 +91,8 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
             >
               {previewLoading || uploading ? (
                 <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              ) : isPdf ? (
+                <FileText className="h-5 w-5 text-rose-500" />
               ) : previewUrl ? (
                 <img src={previewUrl} alt={label} className="h-full w-full object-cover" />
               ) : hasValue && !isFileId(value) ? (
@@ -100,6 +102,7 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
               ) : (
                 <FileText className="h-4 w-4 text-slate-400" />
               )}
+
             </div>
 
             <div className="min-w-0">

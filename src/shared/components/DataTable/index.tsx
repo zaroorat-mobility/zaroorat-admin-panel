@@ -298,7 +298,7 @@ export function DataTable<T extends Record<string, any> = any>({
               <button
                 onClick={() => setShowStatusMenu(!showStatusMenu)}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors border cursor-pointer",
+                  "flex items-center gap-2 px-3 py-1.5 text-xs h-[34px] font-semibold rounded-lg transition-colors border cursor-pointer",
                   selectedStatuses.length > 0
                     ? "bg-primary text-white border-primary hover:bg-primary-hover"
                     : "border-border text-foreground bg-transparent hover:bg-surface-muted hover:border-primary/20"
@@ -348,12 +348,12 @@ export function DataTable<T extends Record<string, any> = any>({
           <div className="relative" ref={columnRef}>
             <button
               onClick={() => setShowColumnMenu(!showColumnMenu)}
-              className="flex items-center gap-2 px-4 py-2 text-sm border border-border text-foreground rounded-lg hover:bg-surface-muted hover:border-primary/20 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 text-xs border border-border text-foreground rounded-lg hover:bg-surface-muted hover:border-primary/20 transition-colors h-[34px] font-semibold cursor-pointer"
             >
-              <Settings2 className="w-4 h-4" /> Columns
+              <Settings2 className="w-4 h-4 text-muted-foreground" /> Columns
             </button>
             {showColumnMenu && (
-              <div className="absolute right-0 mt-2 w-45 bg-surface rounded-xl border border-border shadow-xl z-50 py-1 max-h-[280px] overflow-auto">
+              <div className="absolute right-0 mt-2 w-48 bg-surface rounded-xl border border-border shadow-xl z-50 py-1 max-h-[280px] overflow-auto">
                 <div className="px-4 py-2 text-xs font-semibold text-muted-foreground border-b border-border">SHOW COLUMNS</div>
                 {initialColumns.map((col) => (
                   <label key={col.key} className="flex items-center gap-3 px-4 py-2 hover:bg-primary/5 cursor-pointer text-sm text-foreground">
@@ -367,7 +367,7 @@ export function DataTable<T extends Record<string, any> = any>({
           </div>
 
           {/* Global Date Range Filter */}
-          <div className="flex items-center gap-2 border border-border rounded-lg px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 text-xs">
+          <div className="flex items-center gap-2 border border-border rounded-lg px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 text-xs h-[34px]">
             <span className="text-muted-foreground font-semibold">From:</span>
             <input 
               type="date" 
@@ -385,7 +385,7 @@ export function DataTable<T extends Record<string, any> = any>({
             {(fromDate || toDate) && (
               <button 
                 onClick={() => { setFromDate(""); setToDate(""); resetPage(); }}
-                className="text-muted-foreground hover:text-foreground ml-1"
+                className="text-muted-foreground hover:text-foreground ml-1 cursor-pointer"
                 title="Clear date filter"
               >
                 <X className="w-3.5 h-3.5" />
@@ -412,7 +412,8 @@ export function DataTable<T extends Record<string, any> = any>({
           {!enableDraggableExport && (
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs border border-border text-foreground rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors h-[34px] font-semibold cursor-pointer"
+              disabled={filteredData.length === 0}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs border border-border text-foreground rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors h-[34px] font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title="Download CSV"
             >
               <Download className="w-4 h-4 text-primary" /> Export CSV

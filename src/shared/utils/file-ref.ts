@@ -8,3 +8,14 @@ export function resolveFileRef(fileUrl?: string | null, fileId?: string | null):
   if (fileId && isFileId(fileId)) return fileId
   return fileUrl?.trim() ?? ''
 }
+
+export function isPdfUrl(urlOrRef?: string | null, contentType?: string | null): boolean {
+  if (contentType?.toLowerCase().includes('application/pdf')) return true
+  if (!urlOrRef) return false
+  const lower = urlOrRef.toLowerCase()
+  return (
+    lower.includes('.pdf') ||
+    lower.includes('application%2fpdf') ||
+    lower.includes('response-content-type=application%2fpdf')
+  )
+}

@@ -160,29 +160,33 @@ export const VehiclesListPage: React.FC = () => {
           <InfoCard
             label="Total Fleet Size"
             value={totalVehicles}
-            icon={<Car className="h-5 w-5 text-slate-500" />}
+            icon={<Car className="w-5 h-5" />}
             variant="blue"
+            subtitle={`${activeCount} active • ${inactiveCount} inactive`}
             loading={isLoading}
           />
           <InfoCard
             label="Active Fleet Vehicles"
             value={activeCount}
-            icon={<Car className="h-5 w-5 text-emerald-500" />}
-            variant="green"
+            icon={<Car className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Roadworthy & verified"
             loading={isLoading}
           />
           <InfoCard
             label="Inactive Fleet Vehicles"
             value={inactiveCount}
-            icon={<Car className="h-5 w-5 text-slate-405" />}
-            variant="amber"
+            icon={<Car className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Off road or unassigned"
             loading={isLoading}
           />
           <InfoCard
             label="Expiries/Warnings"
             value={criticalDocumentsCount}
-            icon={<BadgeAlert className="h-5 w-5 text-rose-500" />}
+            icon={<BadgeAlert className="w-5 h-5" />}
             variant="red"
+            subtitle={criticalDocumentsCount > 0 ? "Needs attention" : "All documents valid"}
             loading={isLoading}
           />
         </InfoCardGrid>

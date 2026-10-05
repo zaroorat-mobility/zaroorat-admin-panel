@@ -18,9 +18,9 @@ import {
 } from 'lucide-react'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
-import { Card } from '@/shared/components/ui/Card'
 import { Badge } from '@/shared/components/ui/Badge'
 import { Button } from '@/shared/components/ui/Button'
 import { Drawer } from '@/shared/components/ui/Drawer'
@@ -313,51 +313,36 @@ export const SafetyCenterPage: React.FC = () => {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Card className="p-4 border-l-4 border-l-rose-600 bg-rose-50/10">
-          <div className="flex items-center justify-between text-xs font-semibold text-rose-600">
-            <span>Critical SOS Alarms</span>
-            <ShieldAlert className="h-4 w-4" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-rose-600 dark:text-rose-400">
-            {criticalCount}
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-1">Requires immediate dispatch/action</div>
-        </Card>
-
-        <Card className="p-4 border-l-4 border-l-amber-500">
-          <div className="flex items-center justify-between text-xs font-semibold text-amber-600">
-            <span>Unacknowledged Alerts</span>
-            <AlertTriangle className="h-4 w-4" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-amber-600 dark:text-amber-400">
-            {openCount}
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-1">Awaiting operator acknowledgement</div>
-        </Card>
-
-        <Card className="p-4 border-l-4 border-l-blue-500">
-          <div className="flex items-center justify-between text-xs font-semibold text-blue-600">
-            <span>Investigating / Dispatched</span>
-            <Clock className="h-4 w-4" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-slate-900 dark:text-white">
-            {incidents.filter((i) => i.status === 'ACKNOWLEDGED' || i.status === 'INVESTIGATING').length}
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-1">Active case management</div>
-        </Card>
-
-        <Card className="p-4 border-l-4 border-l-emerald-500">
-          <div className="flex items-center justify-between text-xs font-semibold text-emerald-600">
-            <span>Resolved Incidents</span>
-            <CheckCircle className="h-4 w-4" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-slate-900 dark:text-white">
-            {incidents.filter((i) => i.status === 'RESOLVED' || i.status === 'CLOSED').length}
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-1">Closed with documented resolution</div>
-        </Card>
-      </div>
+      <InfoCardGrid cols={4} className="mb-6">
+        <InfoCard
+          label="Critical SOS Alarms"
+          value={criticalCount}
+          icon={<ShieldAlert className="w-5 h-5" />}
+          variant="red"
+          subtitle="Requires immediate dispatch"
+        />
+        <InfoCard
+          label="Unacknowledged Alerts"
+          value={openCount}
+          icon={<AlertTriangle className="w-5 h-5" />}
+          variant="red"
+          subtitle="Awaiting operator acknowledgement"
+        />
+        <InfoCard
+          label="Investigating / Dispatched"
+          value={incidents.filter((i) => i.status === 'ACKNOWLEDGED' || i.status === 'INVESTIGATING').length}
+          icon={<Clock className="w-5 h-5" />}
+          variant="blue"
+          subtitle="Active case management"
+        />
+        <InfoCard
+          label="Resolved Incidents"
+          value={incidents.filter((i) => i.status === 'RESOLVED' || i.status === 'CLOSED').length}
+          icon={<CheckCircle className="w-5 h-5" />}
+          variant="blue"
+          subtitle="Closed with documented resolution"
+        />
+      </InfoCardGrid>
 
       {/* Tabs / Filter */}
       <div className="space-y-4">

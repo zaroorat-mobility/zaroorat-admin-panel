@@ -63,7 +63,9 @@ export interface DriverKycDocument {
   verifiedAt?: string
   createdAt?: string
   updatedAt?: string
+  category?: 'driver' | 'vehicle'
 }
+
 
 // ─── Vehicle Domain ────────────────────────────────────────────────────────
 

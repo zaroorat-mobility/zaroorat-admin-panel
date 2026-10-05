@@ -240,7 +240,7 @@ export const ApplicationReviewPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        
+
         {/* LEFT TWO COLUMNS: DYNAMIC TABS WORKSPACE */}
         <div className="lg:col-span-2 space-y-6">
 
@@ -337,10 +337,13 @@ export const ApplicationReviewPage: React.FC = () => {
                     <Card key={doc.id} className={cn("premium-card text-left p-4 space-y-3.5 relative border", selectedAuditDocId === doc.id ? "border-primary ring-1 ring-primary/20" : "")}>
                       <div className="flex items-start justify-between">
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground">Document Category</span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                            {doc.category === 'vehicle' ? 'Vehicle Document' : 'Driver Identity'}
+                          </span>
                           <h4 className="text-xs font-bold text-slate-800 dark:text-slate-150 capitalize">{doc.docType.replace('_', ' ')}</h4>
                           {doc.docNumber && <p className="text-[10px] text-slate-400 mt-0.5">Doc ID: {doc.docNumber}</p>}
                         </div>
+
                         <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border", statusColor)}>
                           {doc.verifyStatus.replace('_', ' ')}
                         </span>
@@ -501,7 +504,7 @@ export const ApplicationReviewPage: React.FC = () => {
                       <div key={event.id} className="relative group text-xs text-slate-600 dark:text-slate-400">
                         {/* Event icon dot */}
                         <span className="absolute -left-[31px] top-0.5 h-3.5 w-3.5 rounded-full bg-white dark:bg-slate-900 border-2 border-primary flex items-center justify-center shadow-sm" />
-                        
+
                         <div className="flex flex-col gap-0.5">
                           <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{event.action}</p>
                           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -561,7 +564,7 @@ export const ApplicationReviewPage: React.FC = () => {
 
         {/* RIGHT COLUMN: ACTION PANELS & DECISIONS */}
         <div className="space-y-6">
-          
+
           {/* Document feedback audit panel */}
           {activeTab === 'documents' && selectedAuditDocId && (
             <Card className="premium-card text-left">

@@ -78,29 +78,33 @@ export const PricingDashboardPage: React.FC = () => {
           <InfoCard
             label="Active Fare Rules"
             value={activeFareCount}
-            icon={<DollarSign className="h-5 w-5 text-emerald-500" />}
-            variant="green"
+            icon={<DollarSign className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Configured tariffs"
             loading={fareLoading}
           />
           <InfoCard
             label="Active Surge Rules"
             value={activeSurgeCount}
-            icon={<Zap className="h-5 w-5 text-amber-500" />}
-            variant="amber"
+            icon={<Zap className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Dynamic multipliers"
             loading={surgeLoading}
           />
           <InfoCard
             label="Active Cancel Rules"
             value={activeCancelCount}
-            icon={<ShieldCheck className="h-5 w-5 text-primary" />}
+            icon={<ShieldCheck className="w-5 h-5" />}
             variant="blue"
+            subtitle="Passenger & driver policies"
             loading={cancelLoading}
           />
           <InfoCard
             label="Recent Actions (30d)"
             value={historyLogs.length}
-            icon={<History className="h-5 w-5 text-slate-500" />}
+            icon={<History className="w-5 h-5" />}
             variant="blue"
+            subtitle="Logged pricing changes"
             loading={historyLoading}
           />
         </InfoCardGrid>

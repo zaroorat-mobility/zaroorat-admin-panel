@@ -62,11 +62,11 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: "Rider Management",
+    label: "Customer Management",
     href: "rider-management",
     icon: Users,
     children: [
-      { href: "/riders", label: "Riders Directory", icon: Users, permission: "riders:read" },
+      { href: "/riders", label: "Customers Directory", icon: Users, permission: "riders:read" },
     ],
   },
   {

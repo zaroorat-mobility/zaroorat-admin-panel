@@ -122,10 +122,11 @@ export const UsersListPage: React.FC = () => {
       <div className="space-y-6">
       <InfoCardGrid cols={3}>
         <InfoCard
-          label="Total admins"
+          label="Total Admins"
           value={totalUsers}
           icon={<Users className="w-5 h-5" />}
           variant="blue"
+          subtitle={`${activeUsers} active • ${inactiveUsers} inactive`}
           loading={isLoading}
         />
         <InfoCard
@@ -133,13 +134,15 @@ export const UsersListPage: React.FC = () => {
           value={activeUsers}
           icon={<UserCheck className="w-5 h-5" />}
           variant="blue"
+          subtitle="Full access granted"
           loading={isLoading}
         />
         <InfoCard
           label="Inactive"
           value={inactiveUsers}
           icon={<UserX className="w-5 h-5" />}
-          variant="blue"
+          variant="red"
+          subtitle="Needs attention"
           loading={isLoading}
         />
       </InfoCardGrid>

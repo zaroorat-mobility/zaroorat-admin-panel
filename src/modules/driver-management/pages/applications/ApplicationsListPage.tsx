@@ -165,36 +165,41 @@ export const ApplicationsListPage: React.FC = () => {
           <InfoCard
             label="Total Applications"
             value={totalApps}
-            icon={<ClipboardList className="h-5 w-5 text-slate-500" />}
+            icon={<ClipboardList className="w-5 h-5" />}
             variant="blue"
+            subtitle="All time submitted"
             loading={isLoading}
           />
           <InfoCard
             label="Pending Review"
             value={pendingReview}
-            icon={<ShieldAlert className="h-5 w-5 text-amber-500" />}
-            variant="amber"
+            icon={<ShieldAlert className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Awaiting initial audit"
             loading={isLoading}
           />
           <InfoCard
             label="Under Review"
             value={underReview}
-            icon={<ShieldAlert className="h-5 w-5 text-indigo-500" />}
-            variant="indigo"
+            icon={<ShieldAlert className="w-5 h-5" />}
+            variant="blue"
+            subtitle="In document verification"
             loading={isLoading}
           />
           <InfoCard
             label="Approved"
             value={approved}
-            icon={<ShieldCheck className="h-5 w-5 text-emerald-500" />}
-            variant="green"
+            icon={<ShieldCheck className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Ready for onboarding"
             loading={isLoading}
           />
           <InfoCard
             label="Rejected"
             value={rejected}
-            icon={<ShieldAlert className="h-5 w-5 text-rose-500" />}
+            icon={<ShieldAlert className="w-5 h-5" />}
             variant="red"
+            subtitle="Needs attention"
             loading={isLoading}
           />
         </InfoCardGrid>

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { Card } from '@/shared/components/ui/Card'
@@ -315,85 +316,50 @@ export const LiveDashboardPage: React.FC = () => {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
-        <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-blue-500">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Active Rides</span>
-            <Activity className="h-4 w-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-slate-900 dark:text-white">
-            {summary?.activeRidesCount ?? 0}
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-1">
-            {summary?.inProgressCount ?? 0} in-progress • {summary?.assignedCount ?? 0} assigned
-          </div>
-        </Card>
-
-        <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-amber-500">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Searching Requests</span>
-            <Clock className="h-4 w-4 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-amber-600 dark:text-amber-400">
-            {summary?.searchingRequestsCount ?? 0}
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-1">
-            Matching in progress
-          </div>
-        </Card>
-
-        <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-rose-500">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Long Wait Alerts</span>
-            <AlertTriangle className="h-4 w-4 text-rose-500" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-rose-600 dark:text-rose-400">
-            {summary?.longWaitCount ?? 0}
-          </div>
-          <div className="text-[10px] text-rose-500 font-semibold mt-1">
-            &gt; 5 min without match
-          </div>
-        </Card>
-
-        <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-emerald-500">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Online Drivers</span>
-            <Users className="h-4 w-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-slate-900 dark:text-white">
-            {summary?.onlineDriversCount ?? 0}
-          </div>
-          <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-            {summary?.availableDriversCount ?? 0} available • {summary?.busyDriversCount ?? 0} busy
-          </div>
-        </Card>
-
-        <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-indigo-500">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Completed Today</span>
-            <CheckCircle className="h-4 w-4 text-indigo-500" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-slate-900 dark:text-white">
-            {summary?.completedTodayCount ?? 0}
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-1">
-            Past 24h successful
-          </div>
-        </Card>
-
-        <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-slate-400">
-          <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-            <span>Cancelled Today</span>
-            <XCircle className="h-4 w-4 text-slate-400" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-slate-700 dark:text-slate-300">
-            {summary?.cancelledTodayCount ?? 0}
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-1">
-            Customer/driver/system
-          </div>
-        </Card>
-      </div>
+      <InfoCardGrid cols={3} className="grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
+        <InfoCard
+          label="Active Rides"
+          value={summary?.activeRidesCount ?? 0}
+          icon={<Activity className="w-5 h-5" />}
+          variant="blue"
+          subtitle={`${summary?.inProgressCount ?? 0} in-progress • ${summary?.assignedCount ?? 0} assigned`}
+        />
+        <InfoCard
+          label="Searching Requests"
+          value={summary?.searchingRequestsCount ?? 0}
+          icon={<Clock className="w-5 h-5" />}
+          variant="blue"
+          subtitle="Matching in progress"
+        />
+        <InfoCard
+          label="Long Wait Alerts"
+          value={summary?.longWaitCount ?? 0}
+          icon={<AlertTriangle className="w-5 h-5" />}
+          variant="red"
+          subtitle="> 5 min without match"
+        />
+        <InfoCard
+          label="Online Drivers"
+          value={summary?.onlineDriversCount ?? 0}
+          icon={<Users className="w-5 h-5" />}
+          variant="blue"
+          subtitle={`${summary?.availableDriversCount ?? 0} available • ${summary?.busyDriversCount ?? 0} busy`}
+        />
+        <InfoCard
+          label="Completed Today"
+          value={summary?.completedTodayCount ?? 0}
+          icon={<CheckCircle className="w-5 h-5" />}
+          variant="blue"
+          subtitle="Past 24h successful"
+        />
+        <InfoCard
+          label="Cancelled Today"
+          value={summary?.cancelledTodayCount ?? 0}
+          icon={<XCircle className="w-5 h-5" />}
+          variant="red"
+          subtitle="Customer / driver / timeout"
+        />
+      </InfoCardGrid>
 
       {/* Tabs */}
       <FormTabs

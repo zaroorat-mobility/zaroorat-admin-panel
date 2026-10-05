@@ -7,7 +7,7 @@ import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { Button } from '@/shared/components/ui/Button'
 import { ActionDropdown, type DropdownAction } from '@/modules/driver-management/components/ActionDropdown'
-import { Card, CardContent } from '@/shared/components/ui/Card'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { SettlementStatusBadge } from '../components'
 import {
   Plus, Eye, Play, TrendingUp,
@@ -42,12 +42,12 @@ export const SettlementsListPage: React.FC = () => {
   const totalSettled     = batches.filter(b => b.status === 'completed').reduce((s, b) => s + b.totalNetPayable, 0)
 
   const kpis = [
-    { label: 'Pending Approval', value: pendingCount, icon: <Clock className="h-4 w-4" />, color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/20' },
-    { label: 'Processing', value: processingCount, icon: <Play className="h-4 w-4" />, color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/20' },
-    { label: 'Completed', value: completedCount, icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20' },
-    { label: 'Total Drivers', value: totalDrivers, icon: <Users className="h-4 w-4" />, color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/20' },
-    { label: 'Outstanding Payable', value: `₹${totalPayable.toLocaleString('en-IN')}`, icon: <DollarSign className="h-4 w-4" />, color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/20' },
-    { label: 'Total Settled', value: `₹${totalSettled.toLocaleString('en-IN')}`, icon: <Landmark className="h-4 w-4" />, color: 'text-primary bg-primary/10' },
+    { label: 'Pending Approval', value: pendingCount, icon: <Clock className="w-5 h-5" />, variant: 'red' as const, sub: 'Awaiting operator review' },
+    { label: 'Processing', value: processingCount, icon: <Play className="w-5 h-5" />, variant: 'blue' as const, sub: 'Currently executing' },
+    { label: 'Completed', value: completedCount, icon: <CheckCircle2 className="w-5 h-5" />, variant: 'blue' as const, sub: 'Successfully settled' },
+    { label: 'Total Drivers', value: totalDrivers, icon: <Users className="w-5 h-5" />, variant: 'blue' as const, sub: 'Across active batches' },
+    { label: 'Outstanding Payable', value: `₹${totalPayable.toLocaleString('en-IN')}`, icon: <DollarSign className="w-5 h-5" />, variant: 'red' as const, sub: 'Pending batch payouts' },
+    { label: 'Total Settled', value: `₹${totalSettled.toLocaleString('en-IN')}`, icon: <Landmark className="w-5 h-5" />, variant: 'blue' as const, sub: 'Disbursed to drivers' },
   ]
 
   const tabs = [
@@ -192,19 +192,18 @@ export const SettlementsListPage: React.FC = () => {
 
       <div className="space-y-6">
         {/* KPI Summaries */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 text-left">
+        <InfoCardGrid cols={3} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
           {kpis.map((k, idx) => (
-            <Card key={idx} className="premium-card">
-              <CardContent className="p-3.5 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wider">{k.label}</span>
-                  <span className={`p-1 rounded ${k.color}`}>{k.icon}</span>
-                </div>
-                <p className="text-base font-black text-slate-850 dark:text-white tracking-tight">{k.value}</p>
-              </CardContent>
-            </Card>
+            <InfoCard
+              key={idx}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              variant={k.variant}
+              subtitle={k.sub}
+            />
           ))}
-        </div>
+        </InfoCardGrid>
 
         {/* Tab Filters and Search */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-3">

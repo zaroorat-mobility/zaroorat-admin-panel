@@ -456,11 +456,14 @@ export const DriverDetailsPage: React.FC = () => {
               <Card key={doc.id} className="premium-card p-4 space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Document Category</span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">
+                      {doc.category === 'vehicle' ? 'Vehicle Document' : 'Driver Identity'}
+                    </span>
                     <h4 className="text-xs font-bold capitalize text-slate-800 dark:text-slate-200">{doc.docType.replace('_', ' ')}</h4>
                   </div>
                   <StatusBadge status={doc.verifyStatus} />
                 </div>
+
                 <div className="h-28 w-full bg-slate-100 dark:bg-slate-900 border border-border rounded-lg overflow-hidden relative group">
                   <FileImage
                     src={resolveFileRef(doc.fileUrl, doc.fileId)}

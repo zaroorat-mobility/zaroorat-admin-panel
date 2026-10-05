@@ -22,20 +22,19 @@ export interface InfoCardProps {
   variant?: InfoCardVariant;
   className?: string;
   loading?: boolean;
+  onClick?: () => void;
 }
 
-const COLOR_MAP = {
-  purple: { border: "border-primary/20", iconText: "text-primary", bgGradient: "bg-primary/5/40 dark:bg-primary/10" },
-  green:  { border: "border-green-200 dark:border-green-800/40", iconText: "text-green-600 dark:text-green-400", bgGradient: "bg-green-50/40 dark:bg-green-950/10" },
-  blue:   { border: "border-blue-200 dark:border-blue-800/40", iconText: "text-blue-600 dark:text-blue-400", bgGradient: "bg-blue-50/40 dark:bg-blue-950/10" },
-  slate:  { border: "border-slate-200 dark:border-slate-800/40", iconText: "text-slate-500 dark:text-slate-400", bgGradient: "bg-slate-50/40 dark:bg-slate-900/10" },
-  indigo: { border: "border-primary/20", iconText: "text-primary", bgGradient: "bg-primary/5/40 dark:bg-primary/10" },
-  red:    { border: "border-red-200 dark:border-red-800/40", iconText: "text-red-600 dark:text-red-400", bgGradient: "bg-red-50/40 dark:bg-red-950/10" },
-  orange: { border: "border-orange-200 dark:border-amber-800/40", iconText: "text-orange-600 dark:text-amber-400", bgGradient: "bg-orange-50/40 dark:bg-amber-950/10" },
-
-  // Backwards compatibility mappings
-  default: { border: "border-slate-200 dark:border-slate-800/40", iconText: "text-slate-500", bgGradient: "bg-slate-50/40" },
-  amber:   { border: "border-orange-200 dark:border-amber-800/40", iconText: "text-orange-600 dark:text-amber-400", bgGradient: "bg-orange-50/40 dark:bg-amber-950/10" },
+const BADGE_BG_MAP: Record<string, string> = {
+  blue: "bg-[#1F2B6D]",
+  slate: "bg-[#1F2B6D]",
+  indigo: "bg-[#1F2B6D]",
+  purple: "bg-[#1F2B6D]",
+  default: "bg-[#1F2B6D]",
+  green: "bg-emerald-600",
+  amber: "bg-amber-500",
+  orange: "bg-amber-500",
+  red: "bg-rose-500",
 };
 
 export function InfoCard({
@@ -48,53 +47,61 @@ export function InfoCard({
   variant = "slate",
   className = "",
   loading = false,
+  onClick,
 }: InfoCardProps) {
-  // Normalize variants for backwards compatibility
   const normalizedVariant = variant === "default" ? "slate" : variant === "amber" ? "orange" : variant;
-  const c = COLOR_MAP[normalizedVariant] || COLOR_MAP.slate;
+  const badgeBg = BADGE_BG_MAP[normalizedVariant] || "bg-[#1F2B6D]";
 
   return (
     <div
+      onClick={onClick}
       className={cn(
-        c.bgGradient,
-        c.border,
-        "border border-t-2 border-t-primary rounded-xl h-[110px] px-4 py-3 flex flex-col transition-all duration-200 hover:shadow-sm text-left select-none",
+        "bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between text-left select-none transition-all duration-200 hover:shadow-md",
+        onClick && "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700",
         className
       )}
     >
-      {/* Top Row: Label & Icon */}
-      <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-slate-500 dark:text-slate-400 leading-none">{label}</span>
-        {icon && <span className={cn("flex-shrink-0", c.iconText)}>{icon}</span>}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-4">
+          {icon && (
+            <div className={cn("w-[42px] h-[42px] rounded-full flex items-center justify-center text-white shadow-sm flex-shrink-0 [&_svg]:w-5 [&_svg]:h-5 [&_svg]:!text-white [&_svg]:!stroke-white", badgeBg)}>
+              {icon}
+            </div>
+          )}
+          <div>
+            <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
+              {loading ? (
+                <span className="inline-block h-6 w-16 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+              ) : (
+                value
+              )}
+            </p>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+              {label}
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Middle Row: Value */}
-      <div className="mt-1.5 text-[24px] font-bold leading-none text-slate-900 dark:text-white tracking-tight">
-        {loading ? (
-          <div className="h-6 w-16 bg-slate-200 dark:bg-dark-800 rounded animate-pulse" />
-        ) : (
-          value
-        )}
-      </div>
-
-      {/* Bottom Row: Subtitle/Trend */}
-      <div className="mt-auto text-[11px] leading-none text-slate-400 dark:text-slate-500 flex items-center gap-1.5 font-medium">
-        {loading ? (
-          <div className="h-3 w-24 bg-slate-200 dark:bg-dark-800 rounded animate-pulse" />
-        ) : (
-          <>
-            {trend && (
-              <span className={cn(
-                "font-semibold flex items-center gap-0.5",
-                trendDirection === 'up' ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
-              )}>
-                {trendDirection === 'up' ? '↗' : '↘'} {trend}
-              </span>
-            )}
-            <span>{subtitle || 'vs last week'}</span>
-          </>
-        )}
-      </div>
+      {(subtitle || trend) && (
+        <div className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          {loading ? (
+            <span className="inline-block h-3 w-24 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+          ) : (
+            <>
+              <span>{subtitle}</span>
+              {trend && (
+                <span className={cn(
+                  "font-semibold flex items-center gap-0.5",
+                  trendDirection === 'up' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'
+                )}>
+                  {trendDirection === 'up' ? '↗' : '↘'} {trend}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

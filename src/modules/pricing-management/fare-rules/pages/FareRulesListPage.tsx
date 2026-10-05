@@ -267,29 +267,33 @@ export const FareRulesListPage: React.FC = () => {
           <InfoCard
             label="Total Fare Rules"
             value={totalRules}
-            icon={<DollarSign className="h-5 w-5 text-slate-500" />}
+            icon={<DollarSign className="w-5 h-5" />}
             variant="blue"
+            subtitle={`${activeRules} active • ${inactiveRules} inactive`}
             loading={isLoading}
           />
           <InfoCard
             label="Active Rules"
             value={activeRules}
-            icon={<Activity className="h-5 w-5 text-emerald-500" />}
-            variant="green"
+            icon={<Activity className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Published tariffs"
             loading={isLoading}
           />
           <InfoCard
             label="Inactive Rules"
             value={inactiveRules}
-            icon={<ToggleLeft className="h-5 w-5 text-amber-500" />}
-            variant="amber"
+            icon={<ToggleLeft className="w-5 h-5" />}
+            variant="red"
+            subtitle={inactiveRules > 0 ? "Needs attention" : "No disabled rules"}
             loading={isLoading}
           />
           <InfoCard
             label="Vehicle Types Covered"
             value={vehicleTypesCovered}
-            icon={<Car className="h-5 w-5 text-primary" />}
+            icon={<Car className="w-5 h-5" />}
             variant="blue"
+            subtitle="Across active zones"
             loading={isLoading}
           />
         </InfoCardGrid>
