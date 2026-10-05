@@ -5,7 +5,7 @@ import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { Button } from '@/shared/components/ui/Button'
-import { Card, CardContent } from '@/shared/components/ui/Card'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { ExportService } from '../../services'
 import {
   ArrowLeft, Download, ShieldAlert, CheckCircle2, AlertTriangle, DollarSign, Percent
@@ -144,11 +144,11 @@ export const TransactionReconciliationPage: React.FC = () => {
   ]
 
   const kpis = [
-    { label: 'Total Fares Analyzed', value: summary.totalRecords, icon: <DollarSign className="h-4.5 w-4.5 text-primary" />, color: 'text-primary bg-primary/10' },
-    { label: 'Matched Fares', value: summary.matchedRecords, icon: <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500" />, color: 'text-emerald-600 bg-emerald-50' },
-    { label: 'Commission Collected (7%)', value: `₹${(records.reduce((acc, r) => acc + (r.rideFare || 0) * 0.07, 0) || 41208.50).toFixed(2)}`, icon: <Percent className="h-4.5 w-4.5 text-indigo-500" />, color: 'text-indigo-650 bg-indigo-50' },
-    { label: 'Variance Mismatch Alerts', value: summary.varianceRecords, icon: <AlertTriangle className="h-4.5 w-4.5 text-rose-500" />, color: 'text-rose-600 bg-rose-50' },
-    { label: 'Total Discrepancy Amount', value: `₹${summary.varianceAmount.toLocaleString('en-IN')}`, icon: <ShieldAlert className="h-4.5 w-4.5 text-rose-500" />, color: 'text-rose-700 bg-rose-50' }
+    { label: 'Total Fares Analyzed', value: summary.totalRecords, icon: <DollarSign className="w-5 h-5" />, variant: 'blue' as const, sub: 'Ride fares audited' },
+    { label: 'Matched Fares', value: summary.matchedRecords, icon: <CheckCircle2 className="w-5 h-5" />, variant: 'blue' as const, sub: 'Exact fare match' },
+    { label: 'Commission Collected (7%)', value: `₹${(records.reduce((acc, r) => acc + (r.rideFare || 0) * 0.07, 0) || 41208.50).toFixed(2)}`, icon: <Percent className="w-5 h-5" />, variant: 'blue' as const, sub: 'Platform commission' },
+    { label: 'Variance Mismatch Alerts', value: summary.varianceRecords, icon: <AlertTriangle className="w-5 h-5" />, variant: 'red' as const, sub: 'Requires investigation' },
+    { label: 'Total Discrepancy Amount', value: `₹${summary.varianceAmount.toLocaleString('en-IN')}`, icon: <ShieldAlert className="w-5 h-5" />, variant: 'red' as const, sub: 'Total mismatch volume' }
   ]
 
   return (
@@ -177,19 +177,18 @@ export const TransactionReconciliationPage: React.FC = () => {
 
       <div className="space-y-6">
         {/* KPI Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-left">
+        <InfoCardGrid cols={5}>
           {kpis.map((k, idx) => (
-            <Card key={idx} className="premium-card">
-              <CardContent className="p-4 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-455 uppercase tracking-wider">{k.label}</span>
-                  <span className={`p-1 rounded ${k.color}`}>{k.icon}</span>
-                </div>
-                <p className="text-xl font-black text-slate-850 dark:text-white tracking-tight">{k.value}</p>
-              </CardContent>
-            </Card>
+            <InfoCard
+              key={idx}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              variant={k.variant}
+              subtitle={k.sub}
+            />
           ))}
-        </div>
+        </InfoCardGrid>
 
         {/* Filter Toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-3">

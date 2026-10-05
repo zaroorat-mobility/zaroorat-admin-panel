@@ -17,6 +17,47 @@ export interface BreadcrumbProps {
   minimal?: boolean
 }
 
+const ROUTE_LABELS: Record<string, string> = {
+  riders: 'Customers',
+  'driver-management': 'Driver Management',
+  'vehicle-management': 'Vehicle Management',
+  'geographic-management': 'Geographic Management',
+  'pricing-management': 'Pricing Management',
+  'access-control': 'Access Control',
+  'promotions-management': 'Promotions & Campaigns',
+  'referral-management': 'Referral & Rewards',
+  'financial-operations': 'Financial Operations',
+  'school-mobility': 'School Mobility',
+  'service-zones': 'Service Zones',
+  'surge-zones': 'Surge Zones',
+  'fare-rules': 'Fare Rules',
+  'surge-rules': 'Surge Rules',
+  'cancellation-rules': 'Cancellation Rules',
+  'pricing-history': 'Pricing History',
+  'delivery-history': 'Delivery History',
+  'ride-monitor': 'Ride Monitor',
+  'live-dashboard': 'Live Dashboard',
+  'safety-center': 'Safety Center',
+  'student-registry': 'Student Registry',
+  'route-optimization': 'Route Optimization',
+  'parent-portal': 'Parent Portal',
+  'audit-log': 'Audit Log',
+  'document-controller': 'Document Controller',
+}
+
+const formatSegmentLabel = (segment: string): string => {
+  if (ROUTE_LABELS[segment]) {
+    return ROUTE_LABELS[segment]
+  }
+  if (segment.length > 15) {
+    return 'Details'
+  }
+  return segment
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
 export const Breadcrumbs: React.FC<BreadcrumbProps> = ({
   items: customItems,
   actions,
@@ -33,9 +74,7 @@ export const Breadcrumbs: React.FC<BreadcrumbProps> = ({
     { label: 'Home', href: '/dashboard' },
     ...pathnames.map((value, index) => {
       const href = `/${pathnames.slice(0, index + 1).join('/')}`
-      const label = value.length > 15 
-        ? 'Details' 
-        : value.charAt(0).toUpperCase() + value.slice(1)
+      const label = formatSegmentLabel(value)
       return { label, href }
     })
   ]

@@ -231,29 +231,33 @@ export const DriversListPage: React.FC = () => {
           <InfoCard
             label="Total Partners"
             value={totalDrivers}
-            icon={<Users className="h-5 w-5 text-slate-500" />}
+            icon={<Users className="w-5 h-5" />}
             variant="blue"
+            subtitle={`${activeCount} active • ${suspendedCount + blockedCount} inactive`}
             loading={isLoading}
           />
           <InfoCard
             label="Operable"
             value={activeCount}
-            icon={<UserCheck className="h-5 w-5 text-emerald-500" />}
-            variant="green"
+            icon={<UserCheck className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Verified and active"
             loading={isLoading}
           />
           <InfoCard
             label="Suspended"
             value={suspendedCount}
-            icon={<ShieldAlert className="h-5 w-5 text-amber-500" />}
-            variant="amber"
+            icon={<ShieldAlert className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Temporary hold"
             loading={isLoading}
           />
           <InfoCard
             label="Blocked"
             value={blockedCount}
-            icon={<UserX className="h-5 w-5 text-rose-500" />}
+            icon={<UserX className="w-5 h-5" />}
             variant="red"
+            subtitle="Needs attention"
             loading={isLoading}
           />
         </InfoCardGrid>
@@ -267,8 +271,7 @@ export const DriversListPage: React.FC = () => {
           onSelectionChange={setSelectedIds}
           searchPlaceholder="Search by name, driver ID or phone number..."
           onRowClick={(row) => navigate(`/driver-management/drivers/${row.id}`)}
-          enableDraggableExport
-          draggablePersistenceKey="drivers-csv-export-pos"
+          resultLabel="drivers"
         />
       </div>
 

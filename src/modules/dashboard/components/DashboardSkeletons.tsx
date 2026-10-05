@@ -122,14 +122,16 @@ export const KpiSkeletonGrid: React.FC<{ count?: number; columns?: string }> = (
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm animate-pulse space-y-3"
+          className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm animate-pulse flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between">
-            <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
-            <div className="h-7 w-7 rounded-lg bg-slate-200 dark:bg-slate-800" />
+          <div className="flex items-center gap-4">
+            <div className="w-[42px] h-[42px] rounded-full bg-slate-200 dark:bg-slate-800 shrink-0" />
+            <div className="space-y-1.5 flex-1">
+              <div className="h-6 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
+              <div className="h-3 w-28 bg-slate-100 dark:bg-slate-850 rounded" />
+            </div>
           </div>
-          <div className="h-7 w-24 bg-slate-300 dark:bg-slate-700 rounded mt-2" />
-          <div className="h-2.5 w-32 bg-slate-200 dark:bg-slate-800 rounded" />
+          <div className="h-3 w-32 bg-slate-100 dark:bg-slate-850 rounded mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800" />
         </div>
       ))}
     </div>

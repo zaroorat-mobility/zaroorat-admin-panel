@@ -80,12 +80,12 @@ export const LiveDriversTable: React.FC<LiveDriversTableProps> = ({
   return (
     <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs flex flex-col h-full overflow-hidden">
       {/* Table Card Header */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 flex-shrink-0">
-        <div className="flex items-center">
-          <h4 className="text-base sm:text-lg font-bold text-[#0F172A] dark:text-white tracking-tight">
+      <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
             Live Drivers & Vehicles
           </h4>
-          <span className="text-sm text-slate-500 dark:text-slate-400 font-normal ml-2">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
             ({onlineCount} online)
           </span>
         </div>
@@ -93,7 +93,7 @@ export const LiveDriversTable: React.FC<LiveDriversTableProps> = ({
         <button
           type="button"
           onClick={() => navigate('/operations/live-dashboard')}
-          className="text-xs sm:text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8] hover:underline transition-colors flex items-center gap-1"
+          className="text-xs font-semibold text-primary hover:underline transition-colors flex items-center gap-1"
         >
           View All →
         </button>

@@ -14,6 +14,7 @@ import { StatusBadge } from '@/shared/components/StatusBadge'
 import { Button } from '@/shared/components/ui/Button'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
 import { DataTable } from '@/shared/components/DataTable'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { useToast } from '@/shared/context/toast'
 import { useAuthStore } from '@/store/auth.store'
 import { hasPermission } from '@/infrastructure/permissions'
@@ -36,7 +37,6 @@ import {
   Languages,
   Mail,
   Phone,
-  ChevronRight,
   Copy,
   Camera,
   Zap,
@@ -46,11 +46,9 @@ import {
   Gift,
   MoreHorizontal,
   Edit3,
-  Shield,
   Check,
   ChevronDown,
   X,
-  Users,
 } from 'lucide-react'
 import { cn } from '@/shared/utils'
 
@@ -98,7 +96,7 @@ export const RiderDetailsPage: React.FC = () => {
 
   const { data: rider, isLoading, isError, refetch } = useRider(id || '')
   useRiderRealtime(id || '', Boolean(rider))
-  
+
   const { mutate: suspendRider, isPending: isSuspending } = useSuspendRider()
   const { mutate: blockRider, isPending: isBlocking } = useBlockRider()
   const { mutate: activateRider, isPending: isActivating } = useActivateRider()
@@ -183,7 +181,7 @@ export const RiderDetailsPage: React.FC = () => {
     }
     return (
       rider.ratingBreakdown ?? {
-        avgRating: rider.ratingAvg ?? 5,
+        avgRating: rider.ratingAvg && rider.ratingAvg > 0 ? rider.ratingAvg : 0,
         totalRatings: 0,
         star5: 0,
         star4: 0,
@@ -194,9 +192,10 @@ export const RiderDetailsPage: React.FC = () => {
     )
   })()
 
-  const displayedAvgRating = ratingBreakdown.totalRatings > 0
+  const hasRatings = ratingBreakdown.totalRatings > 0
+  const displayedAvgRating = hasRatings
     ? Number(ratingBreakdown.avgRating).toFixed(1)
-    : Number(rider.ratingAvg ?? 5).toFixed(1)
+    : (rider.ratingAvg && rider.ratingAvg > 0 ? Number(rider.ratingAvg).toFixed(1) : '0.0')
 
   // Date and Text Formatters matching the template UI
   const getInitials = (name?: string) => {
@@ -599,11 +598,11 @@ export const RiderDetailsPage: React.FC = () => {
                 {/* Status Badge */}
                 <span className={cn(
                   "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5",
-                  rider.riderStatus === 'active' 
+                  rider.riderStatus === 'active'
                     ? "bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
                     : rider.riderStatus === 'suspended'
-                    ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300"
-                    : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300"
+                      ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300"
+                      : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300"
                 )}>
                   <span className={cn(
                     "w-2 h-2 rounded-full",
@@ -647,59 +646,63 @@ export const RiderDetailsPage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-slate-500" />
-                  <span className="font-semibold">{rider.email || '—'}</span>
-                  {rider.isEmailVerified ? (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0] dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" /> Verified
-                    </span>
-                  ) : rider.email ? (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                      Unverified
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Row 4: Demographics with Vertical Dividers | Ride PIN | Referral */}
-              <div className="flex items-center gap-3 flex-wrap text-xs text-slate-600 dark:text-slate-400 pt-0.5">
-                <div className="flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="font-medium">{formatGender(rider.gender)}</span>
-                </div>
-
-                <span className="text-slate-300 dark:text-slate-700">|</span>
-
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="font-medium">{formatDob(rider.dateOfBirth)}</span>
-                </div>
-
-                <span className="text-slate-300 dark:text-slate-700">|</span>
-
-                <div className="flex items-center gap-1.5">
-                  <Languages className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="font-medium">{formatLanguage(rider.languageCode)}</span>
-                </div>
-
-                {rider.hasRidePin ? (
-                  <div className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EEF2FF] text-[#4F46E5] border border-[#C7D2FE] dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300 flex items-center gap-1">
-                    <KeyRound className="w-3.5 h-3.5 text-[#4F46E5]" />
-                    <span>Ride PIN Configured (v{rider.ridePinVersion ?? 1})</span>
+                {rider.email ? (
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-slate-500" />
+                    <span className="font-semibold">{rider.email}</span>
+                    {rider.isEmailVerified ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0] dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" /> Verified
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                        Unverified
+                      </span>
+                    )}
                   </div>
                 ) : (
-                  <div className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1">
-                    <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Ride PIN Not Configured</span>
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="italic text-[11px]">No email registered</span>
                   </div>
                 )}
-
-                <div className="flex items-center gap-1.5">
-                  <Gift className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="font-medium">Referral: {rider.referralCode || '—'}</span>
-                </div>
               </div>
+
+              {/* Row 4: Demographics - only show populated fields with clean dividers */}
+              {(() => {
+                const items: Array<{ icon: React.ReactNode; label: string }> = []
+                const gender = formatGender(rider.gender)
+                if (gender !== '—') {
+                  items.push({ icon: <User className="w-3.5 h-3.5 text-slate-400" />, label: gender })
+                }
+                const dob = formatDob(rider.dateOfBirth)
+                if (dob !== '—') {
+                  items.push({ icon: <Calendar className="w-3.5 h-3.5 text-slate-400" />, label: dob })
+                }
+                const lang = formatLanguage(rider.languageCode)
+                if (lang !== '—') {
+                  items.push({ icon: <Languages className="w-3.5 h-3.5 text-slate-400" />, label: lang })
+                }
+                if (rider.referralCode && rider.referralCode.trim()) {
+                  items.push({ icon: <Gift className="w-3.5 h-3.5 text-slate-400" />, label: `Referral: ${rider.referralCode}` })
+                }
+
+                if (items.length === 0) return null
+
+                return (
+                  <div className="flex items-center gap-3 flex-wrap text-xs text-slate-600 dark:text-slate-400 pt-0.5">
+                    {items.map((it, idx) => (
+                      <React.Fragment key={idx}>
+                        {idx > 0 && <span className="text-slate-300 dark:text-slate-700 select-none">|</span>}
+                        <div className="flex items-center gap-1.5">
+                          {it.icon}
+                          <span className="font-medium">{it.label}</span>
+                        </div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
           </div>
 
@@ -727,207 +730,44 @@ export const RiderDetailsPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* 4 KPI Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6 text-left">
-        {/* KPI 1: Total Bookings */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:shadow-md transition-shadow relative flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Car className="w-5 h-5 text-blue-600" />
-                <span className="font-bold text-sm text-slate-900 dark:text-slate-100">Total Bookings</span>
-              </div>
-              <ChevronRight
-                className="w-4 h-4 text-blue-500 cursor-pointer hover:translate-x-0.5 transition-transform"
-                onClick={() => setActiveTab('history')}
-              />
-            </div>
-            <div className="text-3xl font-black text-slate-900 dark:text-white mt-3">
-              {stats.totalRides}
-            </div>
-            <div className="text-xs text-emerald-600 font-bold mt-1 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              {stats.completedRides} Completed Trips
-            </div>
-          </div>
-          <div className="flex items-center justify-between pt-3 mt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
-            <span className="text-slate-500 font-medium">Total Ride Fare Spent</span>
-            <span className="font-black text-slate-900 dark:text-slate-100 text-sm">
-              ₹{stats.totalSpent.toFixed(2)}
-            </span>
-          </div>
-        </Card>
-
-        {/* KPI 2: Passenger Rating */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:shadow-md transition-shadow relative flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
-                <span className="font-bold text-sm text-slate-900 dark:text-slate-100">Passenger Rating</span>
-              </div>
-              <ChevronRight
-                className="w-4 h-4 text-blue-500 cursor-pointer hover:translate-x-0.5 transition-transform"
-                onClick={() => setActiveTab('reviews')}
-              />
-            </div>
-            <div className="flex items-baseline gap-1 mt-2">
-              <span className="text-3xl font-black text-slate-900 dark:text-white">
-                {displayedAvgRating}
-              </span>
-              <span className="text-sm font-bold text-amber-500">/ 5.0</span>
-              <Star className="w-4 h-4 text-amber-500 fill-amber-500 inline ml-0.5" />
-            </div>
-            <div className="text-xs text-slate-400 mt-0.5 mb-2 font-medium">
-              Based on {ratingBreakdown.totalRatings} driver review{ratingBreakdown.totalRatings === 1 ? '' : 's'}
-            </div>
-
-            {/* Horizontal Mini Bars */}
-            <div className="space-y-1.5">
-              {[
-                { star: 5, count: ratingBreakdown.star5 },
-                { star: 4, count: ratingBreakdown.star4 },
-                { star: 3, count: ratingBreakdown.star3 },
-                { star: 2, count: ratingBreakdown.star2 },
-                { star: 1, count: ratingBreakdown.star1 },
-              ].map(({ star, count }) => {
-                const total = ratingBreakdown.totalRatings || 0
-                const pct = total > 0 ? Math.round((count / total) * 100) : 0
-                return (
-                  <div key={star} className="flex items-center gap-2.5 text-xs leading-none text-slate-500">
-                    <span className="w-5 font-semibold text-slate-600 dark:text-slate-400">{star} ★</span>
-                    <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                      <div
-                        className="h-full bg-amber-400 rounded-full transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="w-4 text-right text-slate-400 font-mono text-xs">{count}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </Card>
-
-        {/* KPI 3: Cancellation Rate */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:shadow-md transition-shadow relative flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-rose-500" />
-                <span className="font-bold text-sm text-slate-900 dark:text-slate-100">Cancellation Rate</span>
-              </div>
-              <ChevronRight
-                className="w-4 h-4 text-blue-500 cursor-pointer hover:translate-x-0.5 transition-transform"
-                onClick={() => setActiveTab('history')}
-              />
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <div>
-                <div className="text-3xl font-black text-slate-900 dark:text-white">
-                  {stats.cancelRate}%
-                </div>
-                <div className="text-xs text-slate-400 mt-0.5 mb-2 font-medium">
-                  {stats.cancelledByCustomer} by customer • {stats.cancelledByDriver} by driver
-                </div>
-              </div>
-
-              {/* Donut Chart SVG matching Design 2 thick lavender ring */}
-              <div className="relative w-16 h-16 flex items-center justify-center flex-shrink-0">
-                <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    className="text-[#E0E7FF] dark:text-indigo-950/60"
-                    strokeWidth="6"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  {stats.cancelRate > 0 && (
-                    <path
-                      className="text-[#6366F1] dark:text-indigo-400"
-                      strokeDasharray={`${Math.max(stats.cancelRate, 2)}, 100`}
-                      strokeWidth="6"
-                      strokeLinecap="round"
-                      stroke="currentColor"
-                      fill="none"
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    />
-                  )}
-                </svg>
-              </div>
-            </div>
-
-            {/* Breakdown bullets */}
-            <div className="space-y-1 text-xs text-slate-600 dark:text-slate-350 pt-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-rose-500" />
-                  <span>Customer Cancels</span>
-                </div>
-                <strong className="text-slate-800 dark:text-slate-200">{stats.cancelledByCustomer}</strong>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                  <span>Driver Cancels</span>
-                </div>
-                <strong className="text-slate-800 dark:text-slate-200">{stats.cancelledByDriver}</strong>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-blue-900 dark:bg-blue-400" />
-                  <span>No-Show Violations</span>
-                </div>
-                <strong className="text-slate-800 dark:text-slate-200">{stats.noShowCount}</strong>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* KPI 4: Security & Safety */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:shadow-md transition-shadow relative flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-blue-600" />
-                <span className="font-bold text-sm text-slate-900 dark:text-slate-100">Security & Safety</span>
-              </div>
-              <ChevronRight
-                className="w-4 h-4 text-blue-500 cursor-pointer hover:translate-x-0.5 transition-transform"
-                onClick={() => setActiveTab('profile')}
-              />
-            </div>
-            <div className="text-lg font-bold text-slate-900 dark:text-white mt-2 mb-3">
-              {rider.hasRidePin ? 'PIN Protected' : 'PIN Not Configured'}
-            </div>
-
-            <div className="space-y-2 text-xs pt-1">
-              <div
-                className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-semibold cursor-pointer hover:underline"
-                onClick={() => setActiveTab('profile')}
-              >
-                <Users className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                <span><strong className="font-bold">{emergencyContacts.length}</strong> Emergency Contacts</span>
-              </div>
-              <div
-                className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-semibold cursor-pointer hover:underline"
-                onClick={() => setActiveTab('profile')}
-              >
-                <Smartphone className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                <span><strong className="font-bold">{devices.length}</strong> Registered Device{devices.length === 1 ? '' : 's'}</span>
-              </div>
-              <div
-                className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-semibold cursor-pointer hover:underline"
-                onClick={() => setActiveTab('timeline')}
-              >
-                <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                <span><strong className="font-bold">{safetyIncidentsCount}</strong> Safety Incidents</span>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
+      {/* 4 KPI Cards Grid - Geographic Zone Card Style */}
+      <InfoCardGrid cols={4} className="mb-6">
+        <InfoCard
+          label="Total Bookings"
+          value={stats.totalRides}
+          icon={<Car className="w-5 h-5" />}
+          variant="blue"
+          subtitle={`${stats.completedRides} completed • ₹${stats.totalSpent.toFixed(2)} spent`}
+          onClick={() => setActiveTab('history')}
+        />
+        <InfoCard
+          label="Passenger Rating"
+          value={`${displayedAvgRating} ★`}
+          icon={<Star className={cn("w-5 h-5", hasRatings ? "fill-white text-white" : "fill-white/30 text-white/60")} />}
+          variant="blue"
+          subtitle={hasRatings
+            ? `Based on ${ratingBreakdown.totalRatings} driver review${ratingBreakdown.totalRatings === 1 ? '' : 's'}`
+            : 'No driver reviews yet'
+          }
+          onClick={() => setActiveTab('reviews')}
+        />
+        <InfoCard
+          label="Cancellation Rate"
+          value={`${stats.cancelRate}%`}
+          icon={<BarChart3 className="w-5 h-5" />}
+          variant="red"
+          subtitle={`${stats.cancelledByCustomer} rider • ${stats.cancelledByDriver} driver • ${stats.noShowCount} no-show`}
+          onClick={() => setActiveTab('history')}
+        />
+        <InfoCard
+          label="Security & Safety"
+          value={rider.hasRidePin ? 'Protected' : 'No PIN'}
+          icon={<ShieldCheck className="w-5 h-5" />}
+          variant="blue"
+          subtitle={`${emergencyContacts.length} contacts • ${devices.length} device${devices.length === 1 ? '' : 's'} • ${safetyIncidentsCount} safety`}
+          onClick={() => setActiveTab('profile')}
+        />
+      </InfoCardGrid>
 
       {/* Tab Navigation Pill Bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-200 dark:border-slate-800 mb-6">
@@ -1061,11 +901,11 @@ export const RiderDetailsPage: React.FC = () => {
                   <span className="text-slate-500">Account Status</span>
                   <span className={cn(
                     "px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 capitalize",
-                    rider.riderStatus === 'active' 
+                    rider.riderStatus === 'active'
                       ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
                       : rider.riderStatus === 'suspended'
-                      ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300"
-                      : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300"
+                        ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300"
+                        : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300"
                   )}>
                     <span className={cn(
                       "w-1.5 h-1.5 rounded-full",
@@ -1459,9 +1299,15 @@ export const RiderDetailsPage: React.FC = () => {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Average Rating</p>
               <div className="text-4xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 my-2">
                 <span>{displayedAvgRating}</span>
-                <Star className="h-8 w-8 text-amber-500 fill-amber-500" />
+                <Star className={cn("h-8 w-8", hasRatings ? "text-amber-500 fill-amber-500" : "text-slate-300 dark:text-slate-700")} />
               </div>
-              <p className="text-xs text-slate-500">Based on <strong>{ratingBreakdown.totalRatings}</strong> driver review{ratingBreakdown.totalRatings === 1 ? '' : 's'}</p>
+              <p className="text-xs text-slate-500">
+                {hasRatings ? (
+                  <>Based on <strong>{ratingBreakdown.totalRatings}</strong> driver review{ratingBreakdown.totalRatings === 1 ? '' : 's'}</>
+                ) : (
+                  'No reviews received yet'
+                )}
+              </p>
             </Card>
 
             <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 lg:col-span-2 space-y-2 shadow-sm">

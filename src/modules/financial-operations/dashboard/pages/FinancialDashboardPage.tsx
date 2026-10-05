@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useDashboardStats, useFinanceAuditLogs } from '../../transactions/hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { Card, CardContent } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
 import { PageLoader, InfinityLoader } from '@/shared/components/loaders'
 import {
   DollarSign, Activity, AlertTriangle,
-  TrendingUp, TrendingDown, Clock, ArrowRight, ShieldAlert, FileText, Landmark
+  TrendingUp, TrendingDown, Clock, ShieldAlert, FileText, Landmark
 } from 'lucide-react'
 
 export const FinancialDashboardPage: React.FC = () => {
@@ -24,20 +25,20 @@ export const FinancialDashboardPage: React.FC = () => {
   const hlth = stats?.health
 
   const revenueKpis = [
-    { label: 'Gross Transaction Value (GTV)', value: `₹${rev?.gtv.toLocaleString('en-IN')}`, icon: <DollarSign className="h-4.5 w-4.5 text-primary" />, sub: 'All completed PG captures' },
-    { label: 'Net Revenue', value: `₹${rev?.netRevenue.toLocaleString('en-IN')}`, icon: <TrendingUp className="h-4.5 w-4.5 text-emerald-500" />, sub: 'GTV minus refunds resolved' },
-    { label: "Today's Collection", value: `₹${rev?.todayCollection.toLocaleString('en-IN')}`, icon: <Clock className="h-4.5 w-4.5 text-blue-500" />, sub: 'Captured today' },
-    { label: 'Weekly Collection', value: `₹${rev?.weeklyCollection.toLocaleString('en-IN')}`, icon: <Clock className="h-4.5 w-4.5 text-indigo-500" />, sub: 'Past 7 days' },
-    { label: 'Outstanding Settlements Liability', value: `₹${rev?.outstandingSettlements.toLocaleString('en-IN')}`, icon: <Landmark className="h-4.5 w-4.5 text-amber-600" />, sub: 'Pending batch payouts' },
-    { label: 'Outstanding Refunds Liability', value: `₹${rev?.outstandingRefunds.toLocaleString('en-IN')}`, icon: <TrendingDown className="h-4.5 w-4.5 text-rose-500" />, sub: 'Approved in-review refunds' },
-    { label: 'Open Disputes Asset Value', value: `₹${rev?.openDisputesValue.toLocaleString('en-IN')}`, icon: <ShieldAlert className="h-4.5 w-4.5 text-rose-500" />, sub: 'Value locked in disputes' }
+    { label: 'Gross Transaction Value (GTV)', value: `₹${rev?.gtv.toLocaleString('en-IN')}`, icon: <DollarSign className="w-5 h-5" />, variant: 'blue' as const, sub: 'All completed PG captures' },
+    { label: 'Net Revenue', value: `₹${rev?.netRevenue.toLocaleString('en-IN')}`, icon: <TrendingUp className="w-5 h-5" />, variant: 'blue' as const, sub: 'GTV minus refunds resolved' },
+    { label: "Today's Collection", value: `₹${rev?.todayCollection.toLocaleString('en-IN')}`, icon: <Clock className="w-5 h-5" />, variant: 'blue' as const, sub: 'Captured today' },
+    { label: 'Weekly Collection', value: `₹${rev?.weeklyCollection.toLocaleString('en-IN')}`, icon: <Clock className="w-5 h-5" />, variant: 'blue' as const, sub: 'Past 7 days' },
+    { label: 'Outstanding Settlements Liability', value: `₹${rev?.outstandingSettlements.toLocaleString('en-IN')}`, icon: <Landmark className="w-5 h-5" />, variant: 'red' as const, sub: 'Pending batch payouts' },
+    { label: 'Outstanding Refunds Liability', value: `₹${rev?.outstandingRefunds.toLocaleString('en-IN')}`, icon: <TrendingDown className="w-5 h-5" />, variant: 'red' as const, sub: 'Approved in-review refunds' },
+    { label: 'Open Disputes Asset Value', value: `₹${rev?.openDisputesValue.toLocaleString('en-IN')}`, icon: <ShieldAlert className="w-5 h-5" />, variant: 'red' as const, sub: 'Value locked in disputes' }
   ]
 
   const healthKpis = [
-    { label: 'PG Success Rate', value: `${hlth?.successRate}%`, sub: 'Successful captured vs total' },
-    { label: 'Dispute Ratio', value: `${hlth?.disputeRatio}%`, sub: 'Disputes raised vs total transactions' },
-    { label: 'Refund Ratio', value: `${hlth?.refundRatio}%`, sub: 'Refund requests count vs total' },
-    { label: 'Settlement Success Rate', value: `${hlth?.settlementSuccessRate}%`, sub: 'Settlement processing success rate' }
+    { label: 'PG Success Rate', value: `${hlth?.successRate}%`, icon: <Activity className="w-5 h-5" />, variant: 'blue' as const, sub: 'Successful captured vs total' },
+    { label: 'Dispute Ratio', value: `${hlth?.disputeRatio}%`, icon: <ShieldAlert className="w-5 h-5" />, variant: 'red' as const, sub: 'Disputes raised vs total transactions' },
+    { label: 'Refund Ratio', value: `${hlth?.refundRatio}%`, icon: <TrendingDown className="w-5 h-5" />, variant: 'red' as const, sub: 'Refund requests count vs total' },
+    { label: 'Settlement Success Rate', value: `${hlth?.settlementSuccessRate}%`, icon: <Landmark className="w-5 h-5" />, variant: 'blue' as const, sub: 'Settlement processing success rate' }
   ]
 
   const severityColor = (sev: string) => {
@@ -70,20 +71,18 @@ export const FinancialDashboardPage: React.FC = () => {
           <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider text-left flex items-center gap-1">
             <DollarSign className="h-4 w-4" /> Revenue & Liability Overview
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-left">
+          <InfoCardGrid cols={4}>
             {revenueKpis.map((k, idx) => (
-              <Card key={idx} className="premium-card">
-                <CardContent className="p-4 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">{k.label}</span>
-                    <span className="p-1 rounded bg-slate-100 dark:bg-slate-800">{k.icon}</span>
-                  </div>
-                  <p className="text-xl font-black text-slate-850 dark:text-white tracking-tight">{k.value}</p>
-                  <p className="text-[10px] text-slate-450 font-medium">{k.sub}</p>
-                </CardContent>
-              </Card>
+              <InfoCard
+                key={idx}
+                label={k.label}
+                value={k.value}
+                icon={k.icon}
+                variant={k.variant}
+                subtitle={k.sub}
+              />
             ))}
-          </div>
+          </InfoCardGrid>
         </div>
 
         {/* Section 2: Action Required / Exception Queues */}
@@ -91,27 +90,25 @@ export const FinancialDashboardPage: React.FC = () => {
           <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider text-left flex items-center gap-1">
             <AlertTriangle className="h-4 w-4" /> Exception Action Items
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 text-left">
+          <InfoCardGrid cols={5}>
             {[
-              { label: 'Failed Transactions', count: act?.failedTransactions || 0, path: '/financial-operations/failed-transactions', color: 'border-rose-200 hover:border-rose-300 bg-rose-50/10' },
-              { label: 'Open Disputes', count: act?.openDisputes || 0, path: '/financial-operations/disputes', color: 'border-amber-200 hover:border-amber-300 bg-amber-50/10' },
-              { label: 'Refunds Pending Review', count: act?.refundsPendingReview || 0, path: '/financial-operations/refunds', color: 'border-indigo-200 hover:border-indigo-300 bg-indigo-50/10' },
-              { label: 'Settlement Variances', count: act?.settlementVariances || 0, path: '/financial-operations/reconciliation?variance=true', color: 'border-rose-200 hover:border-rose-300 bg-rose-50/10' },
-              { label: 'Unreconciled Variances', count: act?.unreconciledTransactions || 0, path: '/financial-operations/reconciliation', color: 'border-orange-200 hover:border-orange-300 bg-orange-50/10' }
+              { label: 'Failed Transactions', count: act?.failedTransactions || 0, path: '/financial-operations/failed-transactions', icon: <AlertTriangle className="w-5 h-5" /> },
+              { label: 'Open Disputes', count: act?.openDisputes || 0, path: '/financial-operations/disputes', icon: <ShieldAlert className="w-5 h-5" /> },
+              { label: 'Refunds Pending Review', count: act?.refundsPendingReview || 0, path: '/financial-operations/refunds', icon: <Clock className="w-5 h-5" /> },
+              { label: 'Settlement Variances', count: act?.settlementVariances || 0, path: '/financial-operations/reconciliation?variance=true', icon: <Landmark className="w-5 h-5" /> },
+              { label: 'Unreconciled Variances', count: act?.unreconciledTransactions || 0, path: '/financial-operations/reconciliation', icon: <Activity className="w-5 h-5" /> }
             ].map((a, idx) => (
-              <button
+              <InfoCard
                 key={idx}
+                label={a.label}
+                value={a.count}
+                icon={a.icon}
+                variant="red"
+                subtitle="Click to view queue →"
                 onClick={() => navigate(a.path)}
-                className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all hover:shadow-md cursor-pointer ${a.color}`}
-              >
-                <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">{a.label}</span>
-                <div className="flex items-end justify-between mt-2">
-                  <span className="text-2xl font-black text-slate-850 dark:text-white leading-none">{a.count}</span>
-                  <ArrowRight className="h-4 w-4 text-slate-400" />
-                </div>
-              </button>
+              />
             ))}
-          </div>
+          </InfoCardGrid>
         </div>
 
         {/* Section 3: Health Metrics */}
@@ -119,17 +116,18 @@ export const FinancialDashboardPage: React.FC = () => {
           <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider text-left flex items-center gap-1">
             <Activity className="h-4 w-4" /> Transaction Health Rates
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 text-left">
+          <InfoCardGrid cols={4}>
             {healthKpis.map((k, idx) => (
-              <Card key={idx} className="premium-card">
-                <CardContent className="p-4 space-y-1">
-                  <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wider">{k.label}</span>
-                  <p className="text-lg font-black text-primary tracking-tight">{k.value}</p>
-                  <p className="text-[10px] text-slate-450 font-medium leading-normal">{k.sub}</p>
-                </CardContent>
-              </Card>
+              <InfoCard
+                key={idx}
+                label={k.label}
+                value={k.value}
+                icon={k.icon}
+                variant={k.variant}
+                subtitle={k.sub}
+              />
             ))}
-          </div>
+          </InfoCardGrid>
         </div>
 
         {/* Recent Activity */}

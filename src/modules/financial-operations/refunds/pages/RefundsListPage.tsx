@@ -8,7 +8,7 @@ import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { RefundStatusBadge } from '../components'
 import { Button } from '@/shared/components/ui/Button'
 import { ActionDropdown, type DropdownAction } from '@/modules/driver-management/components/ActionDropdown'
-import { Card, CardContent } from '@/shared/components/ui/Card'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { Eye, User, Plus, Clock, DollarSign, ShieldAlert, CreditCard, CheckCircle, Ban, Tag } from 'lucide-react'
 import type { RefundRequest } from '../types'
 
@@ -200,12 +200,12 @@ export const RefundsListPage: React.FC = () => {
   ]
 
   const kpis = [
-    { label: 'Refund Requests', value: requestedCount, icon: <ShieldAlert className="h-4 w-4" />, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Under Review', value: underReviewCount, icon: <Clock className="h-4 w-4" />, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Approved', value: approvedCount, icon: <CreditCard className="h-4 w-4" />, color: 'text-purple-600 bg-purple-50' },
-    { label: 'Completed', value: completedCount, icon: <CheckCircle className="h-4 w-4" />, color: 'text-emerald-600 bg-emerald-50' },
-    { label: 'Rejected', value: rejectedCount, icon: <Ban className="h-4 w-4" />, color: 'text-rose-600 bg-rose-50' },
-    { label: 'Total Payouts Settled', value: `₹${totalRefundAmount.toFixed(2)}`, icon: <DollarSign className="h-4 w-4" />, color: 'text-primary bg-primary/10' }
+    { label: 'Refund Requests', value: requestedCount, icon: <ShieldAlert className="w-5 h-5" />, variant: 'blue' as const, sub: 'Initial claims submitted' },
+    { label: 'Under Review', value: underReviewCount, icon: <Clock className="w-5 h-5" />, variant: 'red' as const, sub: 'Pending agent audit' },
+    { label: 'Approved', value: approvedCount, icon: <CreditCard className="w-5 h-5" />, variant: 'blue' as const, sub: 'Queued for payout' },
+    { label: 'Completed', value: completedCount, icon: <CheckCircle className="w-5 h-5" />, variant: 'blue' as const, sub: 'Successfully disbursed' },
+    { label: 'Rejected', value: rejectedCount, icon: <Ban className="w-5 h-5" />, variant: 'red' as const, sub: 'Declined or invalid' },
+    { label: 'Total Payouts Settled', value: `₹${totalRefundAmount.toFixed(2)}`, icon: <DollarSign className="w-5 h-5" />, variant: 'blue' as const, sub: 'Disbursed refunds value' }
   ]
 
   return (
@@ -226,19 +226,18 @@ export const RefundsListPage: React.FC = () => {
 
       <div className="space-y-6">
         {/* KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-left">
+        <InfoCardGrid cols={3} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
           {kpis.map((k, idx) => (
-            <Card key={idx} className="premium-card">
-              <CardContent className="p-3.5 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-bold text-slate-450 uppercase tracking-wider">{k.label}</span>
-                  <span className={`p-1 rounded ${k.color}`}>{k.icon}</span>
-                </div>
-                <p className="text-base font-black text-slate-850 dark:text-white tracking-tight">{k.value}</p>
-              </CardContent>
-            </Card>
+            <InfoCard
+              key={idx}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              variant={k.variant}
+              subtitle={k.sub}
+            />
           ))}
-        </div>
+        </InfoCardGrid>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-3">

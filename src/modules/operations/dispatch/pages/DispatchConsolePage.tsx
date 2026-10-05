@@ -15,7 +15,7 @@ import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
-import { Card } from '@/shared/components/ui/Card'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { Badge } from '@/shared/components/ui/Badge'
 import { Button } from '@/shared/components/ui/Button'
 import { Drawer } from '@/shared/components/ui/Drawer'
@@ -340,32 +340,36 @@ export const DispatchConsolePage: React.FC = () => {
             </div>
 
             {/* Matching Round KPI Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Card className="p-3 text-center border-border">
-                <span className="text-[11px] text-muted-foreground">Total Rounds</span>
-                <div className="text-lg font-bold text-slate-900 dark:text-white mt-1">
-                  {requestDetail.summary.totalRounds}
-                </div>
-              </Card>
-              <Card className="p-3 text-center border-border">
-                <span className="text-[11px] text-muted-foreground">Drivers Offered</span>
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1">
-                  {requestDetail.summary.totalDispatches}
-                </div>
-              </Card>
-              <Card className="p-3 text-center border-border">
-                <span className="text-[11px] text-muted-foreground">Rejected / Timeout</span>
-                <div className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-1">
-                  {requestDetail.summary.rejectedCount + requestDetail.summary.timeoutCount}
-                </div>
-              </Card>
-              <Card className="p-3 text-center border-border">
-                <span className="text-[11px] text-muted-foreground">Accepted</span>
-                <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                  {requestDetail.summary.acceptedCount}
-                </div>
-              </Card>
-            </div>
+            <InfoCardGrid cols={4}>
+              <InfoCard
+                label="Total Rounds"
+                value={requestDetail.summary.totalRounds}
+                icon={<Compass className="w-5 h-5" />}
+                variant="blue"
+                subtitle="Dispatch cycle passes"
+              />
+              <InfoCard
+                label="Drivers Offered"
+                value={requestDetail.summary.totalDispatches}
+                icon={<User className="w-5 h-5" />}
+                variant="blue"
+                subtitle="Nearby drivers pinged"
+              />
+              <InfoCard
+                label="Rejected / Timeout"
+                value={requestDetail.summary.rejectedCount + requestDetail.summary.timeoutCount}
+                icon={<Phone className="w-5 h-5" />}
+                variant="red"
+                subtitle="Declined dispatch offers"
+              />
+              <InfoCard
+                label="Accepted"
+                value={requestDetail.summary.acceptedCount}
+                icon={<CheckCircle className="w-5 h-5" />}
+                variant="blue"
+                subtitle="Driver confirmed"
+              />
+            </InfoCardGrid>
 
             {/* Customer & Route Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

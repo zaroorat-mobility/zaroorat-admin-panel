@@ -2,13 +2,12 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import {
-  Layers,
   Car,
   Bike,
   Truck,
   CheckCircle2,
-  XCircle,
   Edit2,
   Plus,
   Minus,
@@ -22,6 +21,10 @@ import {
   Loader2,
   Copy,
   Check,
+  Plane,
+  Shield,
+  BarChart3,
+  Settings,
 } from 'lucide-react'
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -390,91 +393,36 @@ export const ServiceZoneDetailPage: React.FC<{ zoneId: string }> = ({ zoneId }) 
 
       <div className="space-y-4 mt-4">
         {/* ── Key Metrics Cards Row ─────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {/* Card 1: Zone Type */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-              style={{ backgroundColor: `${zoneColors.border}15`, color: zoneColors.border }}
-            >
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Zone Type
-              </p>
-              <p className="text-sm font-extrabold text-slate-900 mt-0.5">{zone.zoneType}</p>
-            </div>
-          </div>
-
-          {/* Card 2: Operations */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1F2B6D] flex items-center justify-center shrink-0 border border-blue-100">
-              <Car className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Operations
-              </p>
-              <div className="flex items-center gap-2 mt-0.5 text-xs font-bold">
-                <span className={zone.allowsPickup ? 'text-emerald-700' : 'text-slate-400'}>
-                  {zone.allowsPickup ? 'Pickups' : 'No Pickup'}
-                </span>
-                <span className="text-slate-300">•</span>
-                <span className={zone.allowsDropoff ? 'text-emerald-700' : 'text-slate-400'}>
-                  {zone.allowsDropoff ? 'Drop-offs' : 'No Drop'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: Boundary Area */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 border border-indigo-100">
-              <Scan className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Coverage Area
-              </p>
-              <p className="text-sm font-extrabold text-slate-900 mt-0.5">
-                {areaKm2.toFixed(2)} km²
-                <span className="text-xs font-normal text-slate-500 ml-1.5">
-                  ({pointsCount} pts)
-                </span>
-              </p>
-            </div>
-          </div>
-
-          {/* Card 4: Status */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                zone.isActive
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                  : 'bg-slate-100 text-slate-500 border border-slate-200'
-              }`}
-            >
-              {zone.isActive ? (
-                <CheckCircle2 className="w-5 h-5" />
-              ) : (
-                <XCircle className="w-5 h-5" />
-              )}
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Zone Status
-              </p>
-              <p
-                className={`text-sm font-extrabold mt-0.5 ${
-                  zone.isActive ? 'text-emerald-700' : 'text-slate-500'
-                }`}
-              >
-                {zone.isActive ? 'Active Zone' : 'Inactive Zone'}
-              </p>
-            </div>
-          </div>
-        </div>
+        <InfoCardGrid cols={4}>
+          <InfoCard
+            label="Zone Type"
+            value={zone.zoneType}
+            icon={zone.zoneType === 'AIRPORT' ? <Plane className="w-5 h-5" /> : zone.zoneType === 'RESTRICTED' ? <Shield className="w-5 h-5" /> : <Settings className="w-5 h-5" />}
+            variant="blue"
+            subtitle={zone.name}
+          />
+          <InfoCard
+            label="Operations"
+            value={zone.allowsPickup && zone.allowsDropoff ? 'Pickup & Drop' : zone.allowsPickup ? 'Pickup Only' : zone.allowsDropoff ? 'Drop Only' : 'Restricted'}
+            icon={<Car className="w-5 h-5" />}
+            variant="blue"
+            subtitle={`${zone.allowsPickup ? 'Pickups enabled' : 'No pickup'} • ${zone.allowsDropoff ? 'Drops enabled' : 'No drop'}`}
+          />
+          <InfoCard
+            label="Coverage Area"
+            value={`${areaKm2.toFixed(2)} km²`}
+            icon={<Scan className="w-5 h-5" />}
+            variant="blue"
+            subtitle={`${pointsCount} boundary polygon points`}
+          />
+          <InfoCard
+            label="Zone Status"
+            value={zone.isActive ? 'Active Zone' : 'Inactive Zone'}
+            icon={zone.isActive ? <CheckCircle2 className="w-5 h-5" /> : <BarChart3 className="w-5 h-5" />}
+            variant={zone.isActive ? 'blue' : 'red'}
+            subtitle={zone.isActive ? 'Operational and active' : 'Needs attention'}
+          />
+        </InfoCardGrid>
 
         {/* ── 2-Column Main Section (Map + Details) ────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">

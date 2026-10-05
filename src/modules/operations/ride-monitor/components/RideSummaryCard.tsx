@@ -1,6 +1,6 @@
 import React from 'react'
 import type { Ride } from '../types'
-import { Card, CardContent } from '@/shared/components/ui/Card'
+import { InfoCard } from '@/shared/components/InfoCard'
 import { Activity, Search, ShieldAlert, Navigation, CreditCard, CheckSquare, XOctagon } from 'lucide-react'
 
 interface RideSummaryCardProps {
@@ -30,27 +30,25 @@ export const RideSummaryCard: React.FC<RideSummaryCardProps> = ({ rides }) => {
   ).length
 
   const items = [
-    { label: 'Live Rides', value: live, icon: <Activity className="h-4 w-4" />, color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/20' },
-    { label: 'Searching', value: searching, icon: <Search className="h-4 w-4" />, color: 'text-sky-600 bg-sky-50 dark:bg-sky-950/20' },
-    { label: 'Assigned', value: assigned, icon: <ShieldAlert className="h-4 w-4" />, color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/20' },
-    { label: 'In Progress', value: inProgress, icon: <Navigation className="h-4 w-4" />, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20' },
-    { label: 'Payment Pending', value: paymentPending, icon: <CreditCard className="h-4 w-4" />, color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/20' },
-    { label: 'Completed Today', value: completedToday, icon: <CheckSquare className="h-4 w-4" />, color: 'text-slate-650 bg-slate-50 dark:bg-slate-900/50' },
-    { label: 'Cancelled Today', value: cancelledToday, icon: <XOctagon className="h-4 w-4" />, color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/20' },
+    { label: 'Live Rides', value: live, icon: <Activity className="w-5 h-5" />, variant: 'blue' as const },
+    { label: 'Searching', value: searching, icon: <Search className="w-5 h-5" />, variant: 'blue' as const },
+    { label: 'Assigned', value: assigned, icon: <ShieldAlert className="w-5 h-5" />, variant: 'blue' as const },
+    { label: 'In Progress', value: inProgress, icon: <Navigation className="w-5 h-5" />, variant: 'blue' as const },
+    { label: 'Payment Pending', value: paymentPending, icon: <CreditCard className="w-5 h-5" />, variant: 'blue' as const },
+    { label: 'Completed Today', value: completedToday, icon: <CheckSquare className="w-5 h-5" />, variant: 'blue' as const },
+    { label: 'Cancelled Today', value: cancelledToday, icon: <XOctagon className="w-5 h-5" />, variant: 'red' as const },
   ]
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-left">
       {items.map((item, idx) => (
-        <Card key={idx} className="premium-card">
-          <CardContent className="p-3.5 space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider line-clamp-1">{item.label}</span>
-              <span className={`p-1 rounded ${item.color}`}>{item.icon}</span>
-            </div>
-            <p className="text-xl font-black text-slate-850 dark:text-white tracking-tight">{item.value}</p>
-          </CardContent>
-        </Card>
+        <InfoCard
+          key={idx}
+          label={item.label}
+          value={item.value}
+          icon={item.icon}
+          variant={item.variant}
+        />
       ))}
     </div>
   )

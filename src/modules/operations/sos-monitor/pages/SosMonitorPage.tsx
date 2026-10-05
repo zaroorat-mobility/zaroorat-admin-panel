@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSOSAlerts } from '../../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
-import { Card, CardContent } from '@/shared/components/ui/Card'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { SosTimer, SosSeverityBadge, SosDetailsDrawer } from '../components'
@@ -147,10 +147,10 @@ export const SosMonitorPage: React.FC = () => {
   ]
 
   const kpis = [
-    { label: 'Active Alerts', value: openCount, icon: <BellRing className="h-4 w-4" />, color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/20' },
-    { label: 'Acknowledged', value: ackCount, icon: <Clock className="h-4 w-4" />, color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/20' },
-    { label: 'Critical Unresolved', value: criticalCount, icon: <ShieldAlert className="h-4 w-4" />, color: 'text-red-650 bg-red-100/50' },
-    { label: 'Resolved Today', value: resolvedToday, icon: <CheckCircle className="h-4 w-4" />, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20' }
+    { label: 'Active Alerts', value: openCount, icon: <BellRing className="w-5 h-5" />, variant: (openCount > 0 ? 'red' : 'blue') as 'red' | 'blue', subtitle: 'Live in-progress emergencies' },
+    { label: 'Acknowledged', value: ackCount, icon: <Clock className="w-5 h-5" />, variant: 'blue' as const, subtitle: 'Under response investigation' },
+    { label: 'Critical Unresolved', value: criticalCount, icon: <ShieldAlert className="w-5 h-5" />, variant: (criticalCount > 0 ? 'red' : 'blue') as 'red' | 'blue', subtitle: 'Priority level escalations' },
+    { label: 'Resolved Today', value: resolvedToday, icon: <CheckCircle className="w-5 h-5" />, variant: 'blue' as const, subtitle: 'Incidents handled safely' }
   ]
 
   return (
@@ -162,19 +162,18 @@ export const SosMonitorPage: React.FC = () => {
 
       <div className="space-y-6">
         {/* KPI Summaries */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-left">
+        <InfoCardGrid cols={4}>
           {kpis.map((k, idx) => (
-            <Card key={idx} className="premium-card">
-              <CardContent className="p-4 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">{k.label}</span>
-                  <span className={`p-1.5 rounded ${k.color}`}>{k.icon}</span>
-                </div>
-                <p className="text-2xl font-black text-slate-850 dark:text-white tracking-tight">{k.value}</p>
-              </CardContent>
-            </Card>
+            <InfoCard
+              key={idx}
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              variant={k.variant}
+              subtitle={k.subtitle}
+            />
           ))}
-        </div>
+        </InfoCardGrid>
 
         {/* Tab Filters and Search */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-3">

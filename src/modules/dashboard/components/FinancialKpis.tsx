@@ -66,7 +66,7 @@ export const FinancialKpis: React.FC<FinancialKpisProps> = ({
       deltaPct: financials.platformRevenueChangePct,
       subtext: 'Subscriptions + Commission + Platform Fees',
       icon: Coins,
-      iconBg: 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400',
+      badgeBg: 'bg-[#1F2B6D]',
     },
     {
       id: 'gross-ride-value',
@@ -75,7 +75,7 @@ export const FinancialKpis: React.FC<FinancialKpisProps> = ({
       deltaPct: financials.grossRideValueChangePct,
       subtext: 'Total ride value (paid directly to drivers)',
       icon: Wallet,
-      iconBg: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400',
+      badgeBg: 'bg-[#1F2B6D]',
     },
     {
       id: 'driver-ride-collections',
@@ -84,37 +84,41 @@ export const FinancialKpis: React.FC<FinancialKpisProps> = ({
       deltaPct: financials.driverRideCollectionsChangePct,
       subtext: 'After ride commission/fees (excl. subscriptions)',
       icon: HandCoins,
-      iconBg: 'bg-rose-50 text-rose-500 dark:bg-rose-950/50 dark:text-rose-400',
+      badgeBg: 'bg-[#1F2B6D]',
     },
   ]
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5 w-full">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 w-full">
       {cards.map((c) => {
         const Icon = c.icon
 
         return (
           <div
             key={c.id}
-            className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 2xl:px-5 2xl:py-4 shadow-xs hover:shadow-md transition-shadow flex items-center justify-between gap-3 sm:gap-4"
+            className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between text-left select-none transition-all duration-200 hover:shadow-md"
           >
-            <div className={`h-11 w-11 2xl:h-12 2xl:w-12 rounded-2xl flex items-center justify-center shrink-0 ${c.iconBg}`}>
-              <Icon className="h-5 w-5 2xl:h-6 2xl:w-6" />
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className={`w-[42px] h-[42px] rounded-full ${c.badgeBg} flex items-center justify-center text-white shadow-sm flex-shrink-0 [&_svg]:w-5 [&_svg]:h-5 [&_svg]:!text-white [&_svg]:!stroke-white`}>
+                  <Icon className="w-5 h-5 text-white stroke-white" />
+                </div>
+                <div>
+                  <div className="flex items-baseline gap-1.5 leading-none">
+                    <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
+                      {c.displayValue}
+                    </p>
+                    <DeltaText pct={c.deltaPct} className="text-xs" />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                    {c.label}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="flex-1 min-w-0">
-              <div title={c.label} className="text-[11.5px] 2xl:text-xs font-semibold text-slate-500 dark:text-slate-400 truncate leading-tight">
-                {c.label}
-              </div>
-              <div className="flex items-baseline gap-2 mt-0.5 leading-tight flex-nowrap">
-                <span className="text-xl sm:text-2xl 2xl:text-[26px] font-black text-[#0F172A] dark:text-white tracking-tight shrink-0">
-                  {c.displayValue}
-                </span>
-                <DeltaText pct={c.deltaPct} className="text-xs" />
-              </div>
-              <div title={c.subtext} className="text-[10.5px] 2xl:text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 font-normal leading-tight">
-                {c.subtext}
-              </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <span className="truncate">{c.subtext}</span>
             </div>
           </div>
         )

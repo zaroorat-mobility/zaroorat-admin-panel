@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
-import { Card } from '@/shared/components/ui/Card'
+import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { DataTable } from '@/shared/components/DataTable'
 import { Button } from '@/shared/components/ui/Button'
-import { AlertTriangle, ShieldAlert, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, ShieldAlert, CheckCircle2, Clock, MapPin } from 'lucide-react'
 
 interface MishapEvent {
   id: string
@@ -147,30 +147,29 @@ export const MishapReportingPage: React.FC = () => {
 
       <div className="space-y-6 text-left">
         {/* KPI Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="premium-card p-5">
-            <span className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Active Road Mishaps</span>
-            <div className="flex items-center gap-2 mt-2">
-              <AlertTriangle className="h-6 w-6 text-rose-600" />
-              <div>
-                <p className="text-2xl font-black text-slate-800 dark:text-white">2 Emergency Alerts</p>
-                <p className="text-[9px] text-rose-600 font-semibold">Critical dispatch: 1 responder en-route</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="premium-card p-5">
-            <span className="text-[10px] uppercase font-bold text-slate-455 tracking-wider">Average Dispatch SLA</span>
-            <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">4.8 Minutes</p>
-            <p className="text-[9px] text-emerald-600 font-semibold mt-1">Within standard 5-minute limit</p>
-          </Card>
-
-          <Card className="premium-card p-5">
-            <span className="text-[10px] uppercase font-bold text-slate-455 tracking-wider">Active Responders</span>
-            <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">12 Hotspots</p>
-            <p className="text-[9px] text-muted-foreground mt-1">Coordinated with municipal trauma services</p>
-          </Card>
-        </div>
+        <InfoCardGrid cols={3}>
+          <InfoCard
+            label="Active Road Mishaps"
+            value="2 Emergency Alerts"
+            icon={<AlertTriangle className="w-5 h-5" />}
+            variant="red"
+            subtitle="Critical dispatch: 1 responder en-route"
+          />
+          <InfoCard
+            label="Average Dispatch SLA"
+            value="4.8 Minutes"
+            icon={<Clock className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Within standard 5-minute limit"
+          />
+          <InfoCard
+            label="Active Responders"
+            value="12 Hotspots"
+            icon={<MapPin className="w-5 h-5" />}
+            variant="blue"
+            subtitle="Coordinated with trauma services"
+          />
+        </InfoCardGrid>
 
         {/* Tab filters */}
         <div className="flex items-center justify-between border-b border-border pb-3">
