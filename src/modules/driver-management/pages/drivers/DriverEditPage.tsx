@@ -49,28 +49,28 @@ export const DriverEditPage: React.FC = () => {
         onBack={() => navigate(`/driver-management/drivers/${id}`)}
       />
 
-      <Card className="premium-card text-left max-w-xl mx-auto mt-6">
-        <CardHeader>
-          <CardTitle>Edit Partner Information</CardTitle>
-          <CardDescription>Update general partner account details.</CardDescription>
+      <Card className="rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden text-left max-w-xl mx-auto mt-6 bg-white dark:bg-slate-900">
+        <CardHeader className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <CardTitle className="text-[16px] font-bold text-[#1F2B6D] dark:text-white">Edit Partner Information</CardTitle>
+          <CardDescription className="text-xs text-slate-500">Update general partner account details.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-500 uppercase">Driver Name</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+        <CardContent className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Driver Name</label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="focus:border-[#1F2B6D] focus:ring-[#1F2B6D]" />
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-500 uppercase">Mobile Phone</label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Mobile Phone</label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="focus:border-[#1F2B6D] focus:ring-[#1F2B6D]" />
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-500 uppercase">Email Address</label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} />
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Email Address</label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} className="focus:border-[#1F2B6D] focus:ring-[#1F2B6D]" />
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button variant="outline" onClick={() => navigate(`/driver-management/drivers/${id}`)}>Cancel</Button>
-            <Button variant="primary" onClick={handleSave} loading={isPending}>Save Profile</Button>
+            <Button className="bg-[#1F2B6D] hover:bg-[#182258] text-white font-semibold shadow-sm" onClick={handleSave} loading={isPending}>Save Profile</Button>
           </div>
         </CardContent>
       </Card>

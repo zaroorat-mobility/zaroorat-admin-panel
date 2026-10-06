@@ -9,6 +9,16 @@ const QK = {
   driver: (id: string) => ['driver-management', 'drivers', 'detail', id],
   vehicles: (params?: QueryParams) => ['driver-management', 'vehicles', 'list', params],
   vehicle: (id: string) => ['driver-management', 'vehicles', 'detail', id],
+  expiryAlerts: () => ['driver-management', 'expiry-alerts'],
+}
+
+// ─── Expiry Alerts Hook ────────────────────────────────────────────────────
+
+export const useExpiryAlerts = () => {
+  return useQuery({
+    queryKey: QK.expiryAlerts(),
+    queryFn: () => DriverManagementService.getExpiryAlerts(),
+  })
 }
 
 // ─── Applications Hooks ────────────────────────────────────────────────────

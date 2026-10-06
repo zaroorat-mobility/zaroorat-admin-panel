@@ -48,6 +48,7 @@ export const API_ENDPOINTS = {
     block: (id: string) => `/admin/drivers/${id}/block`,
     activate: (id: string) => `/admin/drivers/${id}/activate`,
     verify: (id: string) => `/admin/drivers/${id}/verify`,
+    expiryAlerts: '/admin/expiry-alerts',
     documentReview: (driverId: string, documentId: string) =>
       `/admin/drivers/${driverId}/documents/${documentId}/review`,
   },

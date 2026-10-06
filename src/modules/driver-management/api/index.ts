@@ -6,6 +6,7 @@ import type {
   DriverApplicationEntity,
   DriverApplicationDetails,
   VehicleEntity,
+  ExpiryAlertsSummary,
 } from '../types'
 
 export const getDrivers = async (
@@ -160,3 +161,9 @@ export const flagVehicleForRenewal = async (
   })
   return response.data.data
 }
+
+export const getExpiryAlerts = async (): Promise<ExpiryAlertsSummary> => {
+  const response = await api.get<{ data: ExpiryAlertsSummary }>(API_ENDPOINTS.drivers.expiryAlerts)
+  return response.data.data
+}
+

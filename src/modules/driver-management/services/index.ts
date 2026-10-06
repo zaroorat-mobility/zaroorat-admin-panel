@@ -165,6 +165,7 @@ export const DriverManagementService = {
   getVehicles,
   getVehicleById,
   flagVehicleForRenewal,
+  getExpiryAlerts: () => driversApi.getExpiryAlerts(),
 }
 
 export default DriverManagementService

@@ -112,6 +112,14 @@ export interface ApplicationTimelineEvent {
   isSystem?: boolean
 }
 
+export interface ExpiryAlertsSummary {
+  expired: number
+  d30: number
+  d60: number
+  d90: number
+  total: number
+}
+
 // ─── Driver Application (core entity) ─────────────────────────────────────
 
 export interface DriverApplicationEntity extends BaseEntity {
@@ -123,6 +131,9 @@ export interface DriverApplicationEntity extends BaseEntity {
   applicationStatus: ApplicationStatus
   source: ApplicationSource
   submittedAt: string
+  profilePhotoUrl?: string
+  documentsCount?: number
+  totalDocuments?: number
 }
 
 export interface DriverApplicationDetails extends DriverApplicationEntity {
@@ -194,6 +205,9 @@ export interface DriverEntity extends BaseEntity {
   totalTrips: number
   walletBalance: number
   profilePhotoUrl?: string
+  documentsCount?: number
+  totalDocuments?: number
+  licenseExpiry?: string
   joinedAt: string
   lastActiveAt?: string
   isOnline: boolean
