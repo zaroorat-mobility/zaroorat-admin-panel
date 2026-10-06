@@ -22,6 +22,32 @@ import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { useApplications, useDrivers, useVehicles, useExpiryAlerts } from '../../hooks'
 import { ActionDropdown } from '../../components'
 
+// Reusable Dashboard Card Table Components
+const CardTable = ({ children }: { children: React.ReactNode }) => (
+  <div className="overflow-x-auto px-1">
+    <table className="w-full text-left text-[12.5px]">{children}</table>
+  </div>
+)
+const CardThead = ({ children }: { children: React.ReactNode }) => (
+  <thead className="text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+    {children}
+  </thead>
+)
+const CardTh = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+  <th className={`pb-3 px-4 font-semibold ${className}`}>{children}</th>
+)
+const CardTbody = ({ children }: { children: React.ReactNode }) => (
+  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">{children}</tbody>
+)
+const CardTr = ({ children, onClick, className = '' }: { children: React.ReactNode; onClick?: () => void; className?: string }) => (
+  <tr onClick={onClick} className={`hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors ${onClick ? 'cursor-pointer' : ''} ${className}`}>
+    {children}
+  </tr>
+)
+const CardTd = ({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: (e: React.MouseEvent) => void }) => (
+  <td className={`py-4 px-4 ${className}`} onClick={onClick}>{children}</td>
+)
+
 export const DriverManagementOverviewPage: React.FC = () => {
   const navigate = useNavigate()
   const [selectedPeriod, setSelectedPeriod] = useState<'this_month' | 'last_month' | 'all_time'>('this_month')
@@ -979,7 +1005,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
 
             {/* 3. Recent Driver Applications Table */}
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
+              <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
                 <div className="flex items-center gap-2.5">
                   <Hexagon className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9]" strokeWidth={2.5} />
                   <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Recent Driver Applications</h3>
@@ -992,97 +1018,83 @@ export const DriverManagementOverviewPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50/80 dark:bg-slate-800/40 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                    <tr>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Applicant</th>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Application ID</th>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Submitted On</th>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Documents</th>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Status</th>
-                      <th className="py-3 px-4 text-center font-semibold text-slate-500 dark:text-slate-400">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {recentApplications.map((app) => (
-                      <tr
-                        key={app.id}
-                        onClick={() => navigate(`/driver-management/applications/${app.id}`)}
-                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
-                      >
-                        {/* Applicant */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3">
-                            {app.photo ? (
-                              <img
-                                src={app.photo}
-                                alt={app.name}
-                                className="w-8 h-8 rounded-full object-cover shrink-0 shadow-2xs"
-                              />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-[#DBEAFE] text-[#1D4ED8] dark:bg-blue-950/40 dark:text-blue-300 font-bold text-xs flex items-center justify-center shrink-0">
-                                {app.avatarInitial}
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-semibold text-slate-800 dark:text-slate-100">{app.name}</p>
-                              <p className="text-[11px] text-slate-400">{app.phone}</p>
+              <CardTable>
+                <CardThead>
+                  <tr>
+                    <CardTh>Applicant</CardTh>
+                    <CardTh>Application ID</CardTh>
+                    <CardTh>Submitted On</CardTh>
+                    <CardTh>Documents</CardTh>
+                    <CardTh>Status</CardTh>
+                    <CardTh className="text-center">Actions</CardTh>
+                  </tr>
+                </CardThead>
+                <CardTbody>
+                  {recentApplications.map((app) => (
+                    <CardTr key={app.id} onClick={() => navigate(`/driver-management/applications/${app.id}`)}>
+                      {/* Applicant */}
+                      <CardTd>
+                        <div className="flex items-center gap-3">
+                          {app.photo ? (
+                            <img src={app.photo} alt={app.name} className="w-8 h-8 rounded-full object-cover shrink-0 shadow-2xs" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-[#DBEAFE] text-[#1D4ED8] dark:bg-blue-950/40 dark:text-blue-300 font-bold text-[12.5px] flex items-center justify-center shrink-0">
+                              {app.avatarInitial}
                             </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-slate-100">{app.name}</p>
+                            <p className="text-[11.5px] text-slate-500 font-medium">{app.phone}</p>
                           </div>
-                        </td>
+                        </div>
+                      </CardTd>
 
-                        {/* Application ID */}
-                        <td className="py-3.5 px-4 font-medium text-slate-600 dark:text-slate-300 font-sans">
-                          {app.appId}
-                        </td>
+                      {/* Application ID */}
+                      <CardTd className="font-medium text-slate-600 dark:text-slate-300 font-sans">
+                        {app.appId}
+                      </CardTd>
 
-                        {/* Submitted On */}
-                        <td className="py-3.5 px-4">
-                          <p className="font-semibold text-slate-700 dark:text-slate-200">{app.submittedDate}</p>
-                          <p className="text-[11px] text-slate-400">{app.submittedTime}</p>
-                        </td>
+                      {/* Submitted On */}
+                      <CardTd>
+                        <p className="font-semibold text-slate-700 dark:text-slate-200">{app.submittedDate}</p>
+                        <p className="text-[11.5px] text-slate-400">{app.submittedTime}</p>
+                      </CardTd>
 
-                        {/* Documents */}
-                        <td className="py-3.5 px-4 font-bold text-slate-700 dark:text-slate-300">
-                          {app.documents}
-                        </td>
+                      {/* Documents */}
+                      <CardTd className="font-bold text-slate-700 dark:text-slate-300">
+                        {app.documents}
+                      </CardTd>
 
-                        {/* Status */}
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                              app.status === 'under_review'
-                                ? 'bg-[#FFF4EB] text-[#D97706] dark:bg-amber-950/20 dark:text-amber-400'
-                                : app.status === 'pending_docs'
-                                  ? 'bg-[#FFF4EB] text-[#D97706] dark:bg-amber-950/20 dark:text-amber-400'
-                                  : app.status === 'approved'
-                                    ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400'
-                                    : 'bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400'
-                            }`}
-                          >
-                            {app.statusLabel}
-                          </span>
-                        </td>
+                      {/* Status */}
+                      <CardTd>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold ${
+                          app.status === 'under_review' ? 'bg-[#FFF4EB] text-[#D97706] dark:bg-amber-950/20 dark:text-amber-400' :
+                          app.status === 'pending_docs' ? 'bg-[#FFF4EB] text-[#D97706] dark:bg-amber-950/20 dark:text-amber-400' :
+                          app.status === 'approved' ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400' :
+                          'bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400'
+                        }`}>
+                          {app.statusLabel}
+                        </span>
+                      </CardTd>
 
-                        {/* Actions */}
-                        <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-2">
-                            {app.status === 'under_review' || app.status === 'pending_docs' ? (
-                              <button
-                                onClick={() => navigate(`/driver-management/applications/${app.id}`)}
-                                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#172554] hover:bg-[#101c45] text-white shadow-2xs transition-colors"
-                              >
-                                Review
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => navigate(`/driver-management/applications/${app.id}`)}
-                                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
-                              >
-                                View
-                              </button>
-                            )}
+                      {/* Actions */}
+                      <CardTd className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-2">
+                          {app.status === 'under_review' || app.status === 'pending_docs' ? (
+                            <button
+                              onClick={() => navigate(`/driver-management/applications/${app.id}`)}
+                              className="px-3.5 py-1.5 rounded-full text-[11.5px] font-bold bg-[#172554] hover:bg-[#101c45] text-white shadow-2xs transition-colors"
+                            >
+                              Review
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => navigate(`/driver-management/applications/${app.id}`)}
+                              className="px-3.5 py-1.5 rounded-full text-[11.5px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
+                            >
+                              View
+                            </button>
+                          )}
 
                             <ActionDropdown
                               actions={[
@@ -1099,12 +1111,11 @@ export const DriverManagementOverviewPage: React.FC = () => {
                               ]}
                             />
                           </div>
-                        </td>
-                      </tr>
+                        </CardTd>
+                      </CardTr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </CardTbody>
+                </CardTable>
             </div>
 
             {/* 5. Recent Verifications & Activities */}
@@ -1122,67 +1133,56 @@ export const DriverManagementOverviewPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="overflow-x-auto px-1">
-                <table className="w-full text-left text-[12.5px]">
-                  <thead className="text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                    <tr>
-                      <th className="pb-3 px-4 font-semibold">Time</th>
-                      <th className="pb-3 px-4 font-semibold">Admin</th>
-                      <th className="pb-3 px-4 font-semibold">Action</th>
-                      <th className="pb-3 px-4 font-semibold">Driver</th>
-                      <th className="pb-3 px-4 font-semibold">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {recentActivities.map((act) => (
-                      <tr key={act.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="py-4 px-4 text-slate-500 font-medium whitespace-nowrap">
-                          {act.time}
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2.5">
-                            {act.adminPhoto ? (
-                              <img
-                                src={act.adminPhoto}
-                                alt={act.admin}
-                                className="w-7 h-7 rounded-full object-cover shrink-0 shadow-2xs"
-                              />
-                            ) : (
-                              <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                {act.adminInitial}
-                              </div>
-                            )}
-                            <span className="font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
-                              {act.admin}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold ${
-                              act.actionType === 'verified'
-                                ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400'
-                                : act.actionType === 'moved'
-                                  ? 'bg-[#EFF6FF] text-[#2563EB] dark:bg-blue-950/20 dark:text-blue-400'
-                                  : act.actionType === 'rejected'
-                                    ? 'bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400'
-                                    : 'bg-[#F1F5F9] text-[#334155] dark:bg-slate-800 dark:text-slate-300'
-                            }`}
-                          >
-                            {act.action}
+              <CardTable>
+                <CardThead>
+                  <tr>
+                    <CardTh>Time</CardTh>
+                    <CardTh>Admin</CardTh>
+                    <CardTh>Action</CardTh>
+                    <CardTh>Driver</CardTh>
+                    <CardTh>Details</CardTh>
+                  </tr>
+                </CardThead>
+                <CardTbody>
+                  {recentActivities.map((act) => (
+                    <CardTr key={act.id}>
+                      <CardTd className="text-slate-500 font-medium whitespace-nowrap">
+                        {act.time}
+                      </CardTd>
+                      <CardTd>
+                        <div className="flex items-center gap-2.5">
+                          {act.adminPhoto ? (
+                            <img src={act.adminPhoto} alt={act.admin} className="w-7 h-7 rounded-full object-cover shrink-0 shadow-2xs" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold flex items-center justify-center shrink-0">
+                              {act.adminInitial}
+                            </div>
+                          )}
+                          <span className="font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                            {act.admin}
                           </span>
-                        </td>
-                        <td className="py-4 px-4 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                          {act.driver}
-                        </td>
-                        <td className="py-4 px-4 text-slate-500 dark:text-slate-400">
-                          {act.details}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </CardTd>
+                      <CardTd>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold ${
+                          act.actionType === 'verified' ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400' :
+                          act.actionType === 'moved' ? 'bg-[#EFF6FF] text-[#2563EB] dark:bg-blue-950/20 dark:text-blue-400' :
+                          act.actionType === 'rejected' ? 'bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400' :
+                          'bg-[#F1F5F9] text-[#334155] dark:bg-slate-800 dark:text-slate-300'
+                        }`}>
+                          {act.action}
+                        </span>
+                      </CardTd>
+                      <CardTd className="font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                        {act.driver}
+                      </CardTd>
+                      <CardTd className="text-slate-500 dark:text-slate-400">
+                        {act.details}
+                      </CardTd>
+                    </CardTr>
+                  ))}
+                </CardTbody>
+              </CardTable>
             </div>
 
           </div>
@@ -1191,8 +1191,11 @@ export const DriverManagementOverviewPage: React.FC = () => {
           <div className="lg:col-span-4 space-y-6">
 
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
-                <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Documents Expiry Alerts</h3>
+              <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
+                <div className="flex items-center gap-2.5">
+                  <Hexagon className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9]" strokeWidth={2.5} />
+                  <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Documents Expiry Alerts</h3>
+                </div>
                 <button
                   onClick={() => navigate('/vehicle-management/vehicles')}
                   className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
