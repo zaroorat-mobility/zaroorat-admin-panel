@@ -15,6 +15,7 @@ import {
   TrendingUp,
   FileWarning,
   Users,
+  ChevronRight,
   Hexagon,
 } from 'lucide-react'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
@@ -48,25 +49,37 @@ const CardTd = ({ children, className = '', onClick }: { children: React.ReactNo
 )
 
 // Reusable Quick Action Button Component
-const QuickActionButton = ({ icon, title, subtitle, onClick }: { icon: React.ReactNode, title: string, subtitle: string, onClick: () => void }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="p-3 rounded-xl border border-slate-200 hover:border-[#1F2B6D]/40 hover:bg-slate-50 transition-all flex items-center gap-2.5 bg-white cursor-pointer text-left"
-  >
-    <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-      {icon}
-    </div>
-    <div className="min-w-0">
-      <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
-        {title}
-      </p>
-      <p className="text-[11px] text-slate-400 leading-tight truncate">
-        {subtitle}
-      </p>
-    </div>
-  </button>
-)
+const QuickActionButton = ({ 
+  icon, 
+  title, 
+  onClick, 
+  hoverColorClass = 'hover:border-blue-400 dark:hover:border-blue-500 group-hover:text-blue-600',
+}: { 
+  icon: React.ReactNode, 
+  title: React.ReactNode, 
+  onClick: () => void,
+  hoverColorClass?: string,
+}) => {
+  // Extract text and border hover classes for group-hover
+  const borderHoverClass = hoverColorClass.split(' ').filter(c => c.includes('border-')).join(' ')
+  const textHoverClass = hoverColorClass.split(' ').filter(c => c.includes('text-')).join(' ')
+  
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group ${borderHoverClass}`}
+    >
+      <div className="flex items-center gap-2 text-left">
+        {icon}
+        <span className={`text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 transition-colors leading-[1.2] ${textHoverClass}`}>
+          {title}
+        </span>
+      </div>
+      <ChevronRight className={`w-4 h-4 text-slate-400 transition-colors shrink-0 ${textHoverClass}`} />
+    </button>
+  )
+}
 
 export const DriverManagementOverviewPage: React.FC = () => {
   const navigate = useNavigate()
@@ -1323,27 +1336,31 @@ export const DriverManagementOverviewPage: React.FC = () => {
               <div className="px-5 pb-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <QuickActionButton
-                    icon={<FileText className="w-[18px] h-[18px] text-[#1F2B6D]" strokeWidth={2} />}
+                    icon={<FileText className="w-4 h-4 text-[#2563EB] shrink-0" strokeWidth={2.5} />}
                     title="View All Applications"
-                    subtitle="Browse all driver requests"
+                    hoverColorClass="hover:border-blue-400 dark:hover:border-blue-500 group-hover:text-blue-600"
                     onClick={() => navigate('/driver-management/applications')}
                   />
                   <QuickActionButton
-                    icon={<AlertTriangle className="w-[18px] h-[18px] text-[#1F2B6D]" strokeWidth={2} />}
-                    title="Review Pending Docs"
-                    subtitle="Handle incomplete profiles"
+                    icon={
+                      <div className="w-4 h-4 rounded-full bg-[#F59E0B] text-white flex items-center justify-center shrink-0 font-black text-[10px] shadow-2xs">
+                        !
+                      </div>
+                    }
+                    title={<>Review Pending<br />Documents</>}
+                    hoverColorClass="hover:border-amber-400 dark:hover:border-amber-500 group-hover:text-amber-600"
                     onClick={() => navigate('/driver-management/applications?status=under_review')}
                   />
                   <QuickActionButton
-                    icon={<Users className="w-[18px] h-[18px] text-[#1F2B6D]" strokeWidth={2} />}
+                    icon={<Users className="w-4 h-4 text-[#2563EB] shrink-0" strokeWidth={2.5} />}
                     title="Manage Drivers"
-                    subtitle="View all active drivers"
+                    hoverColorClass="hover:border-indigo-400 dark:hover:border-indigo-500 group-hover:text-indigo-600"
                     onClick={() => navigate('/driver-management/drivers')}
                   />
                   <QuickActionButton
-                    icon={<Calendar className="w-[18px] h-[18px] text-[#1F2B6D]" strokeWidth={2} />}
-                    title="Expiry Report"
-                    subtitle="Check upcoming renewals"
+                    icon={<Calendar className="w-4 h-4 text-[#1F2B6D] dark:text-[#8B93D9] shrink-0" strokeWidth={2.5} />}
+                    title={<>Document Expiry<br />Report</>}
+                    hoverColorClass="hover:border-slate-400 dark:hover:border-slate-500 group-hover:text-blue-600"
                     onClick={() => navigate('/vehicle-management/vehicles')}
                   />
                 </div>
