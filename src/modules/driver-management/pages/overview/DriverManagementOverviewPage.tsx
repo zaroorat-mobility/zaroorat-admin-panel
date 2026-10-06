@@ -15,7 +15,6 @@ import {
   TrendingUp,
   FileWarning,
   Users,
-  ChevronRight,
   Hexagon,
 } from 'lucide-react'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
@@ -46,6 +45,27 @@ const CardTr = ({ children, onClick, className = '' }: { children: React.ReactNo
 )
 const CardTd = ({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: (e: React.MouseEvent) => void }) => (
   <td className={`py-4 px-4 ${className}`} onClick={onClick}>{children}</td>
+)
+
+// Reusable Quick Action Button Component
+const QuickActionButton = ({ icon, title, subtitle, onClick }: { icon: React.ReactNode, title: string, subtitle: string, onClick: () => void }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="p-3 rounded-xl border border-slate-200 hover:border-[#1F2B6D]/40 hover:bg-slate-50 transition-all flex items-center gap-2.5 bg-white cursor-pointer text-left"
+  >
+    <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+      {icon}
+    </div>
+    <div className="min-w-0">
+      <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+        {title}
+      </p>
+      <p className="text-[11px] text-slate-400 leading-tight truncate">
+        {subtitle}
+      </p>
+    </div>
+  </button>
 )
 
 export const DriverManagementOverviewPage: React.FC = () => {
@@ -998,10 +1018,10 @@ export const DriverManagementOverviewPage: React.FC = () => {
         </div>
 
         {/* ─── SECTION 3, 4, 5: Main Grid (Recent Applications, Expiries, Activities) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
 
           {/* Left Column (2 Cols): Recent Applications & Recent Activities */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="lg:col-span-8 space-y-6 flex flex-col">
 
             {/* 3. Recent Driver Applications Table */}
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
@@ -1011,10 +1031,11 @@ export const DriverManagementOverviewPage: React.FC = () => {
                   <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Recent Driver Applications</h3>
                 </div>
                 <button
+                  type="button"
                   onClick={() => navigate('/driver-management/applications')}
-                  className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400 flex items-center gap-1"
+                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 underline hover:no-underline"
                 >
-                  <span>View All</span>
+                  View All →
                 </button>
               </div>
 
@@ -1119,17 +1140,18 @@ export const DriverManagementOverviewPage: React.FC = () => {
             </div>
 
             {/* 5. Recent Verifications & Activities */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col flex-1">
               <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
                 <div className="flex items-center gap-2.5">
                   <Hexagon className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9]" strokeWidth={2.5} />
                   <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Recent Verifications & Activities</h3>
                 </div>
                 <button
+                  type="button"
                   onClick={() => navigate('/driver-management/applications')}
-                  className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 underline hover:no-underline"
                 >
-                  View All
+                  View All →
                 </button>
               </div>
 
@@ -1188,7 +1210,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
           </div>
 
           {/* Right Column (1 Col): 4. Documents Expiry Alerts (Excluding Quick Actions as requested) */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="lg:col-span-4 space-y-6 flex flex-col">
 
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
               <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
@@ -1197,10 +1219,11 @@ export const DriverManagementOverviewPage: React.FC = () => {
                   <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Documents Expiry Alerts</h3>
                 </div>
                 <button
+                  type="button"
                   onClick={() => navigate('/vehicle-management/vehicles')}
-                  className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 underline hover:no-underline"
                 >
-                  View All
+                  View All →
                 </button>
               </div>
               
@@ -1289,7 +1312,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
             </div>
 
             {/* 6. Quick Actions Card */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col flex-1">
               <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
                 <div className="flex items-center gap-2.5">
                   <Hexagon className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9]" strokeWidth={2.5} />
@@ -1299,63 +1322,30 @@ export const DriverManagementOverviewPage: React.FC = () => {
 
               <div className="px-5 pb-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {/* 1. View All Applications */}
-                  <div
+                  <QuickActionButton
+                    icon={<FileText className="w-[18px] h-[18px] text-[#1F2B6D]" strokeWidth={2} />}
+                    title="View All Applications"
+                    subtitle="Browse all driver requests"
                     onClick={() => navigate('/driver-management/applications')}
-                    className="flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-[#2563EB] shrink-0" strokeWidth={2.5} />
-                      <span className="text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 group-hover:text-blue-600 transition-colors whitespace-nowrap leading-tight">
-                        View All Applications
-                      </span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
-                  </div>
-
-                  {/* 2. Review Pending Documents */}
-                  <div
+                  />
+                  <QuickActionButton
+                    icon={<AlertTriangle className="w-[18px] h-[18px] text-[#1F2B6D]" strokeWidth={2} />}
+                    title="Review Pending Docs"
+                    subtitle="Handle incomplete profiles"
                     onClick={() => navigate('/driver-management/applications?status=under_review')}
-                    className="flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-[#F59E0B] text-white flex items-center justify-center shrink-0 font-black text-[10px] shadow-2xs">
-                        !
-                      </div>
-                      <span className="text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 group-hover:text-amber-600 transition-colors leading-[1.2]">
-                        Review Pending<br />Documents
-                      </span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
-                  </div>
-
-                  {/* 3. Manage Drivers */}
-                  <div
+                  />
+                  <QuickActionButton
+                    icon={<Users className="w-[18px] h-[18px] text-[#1F2B6D]" strokeWidth={2} />}
+                    title="Manage Drivers"
+                    subtitle="View all active drivers"
                     onClick={() => navigate('/driver-management/drivers')}
-                    className="flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-[#2563EB] shrink-0" strokeWidth={2.5} />
-                      <span className="text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 group-hover:text-indigo-600 transition-colors whitespace-nowrap leading-tight">
-                        Manage Drivers
-                      </span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
-                  </div>
-
-                  {/* 4. Document Expiry Report */}
-                  <div
+                  />
+                  <QuickActionButton
+                    icon={<Calendar className="w-[18px] h-[18px] text-[#1F2B6D]" strokeWidth={2} />}
+                    title="Expiry Report"
+                    subtitle="Check upcoming renewals"
                     onClick={() => navigate('/vehicle-management/vehicles')}
-                    className="flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-400 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-[#1F2B6D] dark:text-[#8B93D9] shrink-0" strokeWidth={2.5} />
-                      <span className="text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 group-hover:text-blue-600 transition-colors leading-[1.2]">
-                        Document Expiry<br />Report
-                      </span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
-                  </div>
+                  />
                 </div>
               </div>
             </div>
