@@ -25,6 +25,7 @@ import { ActionDropdown } from '../../components'
 export const DriverManagementOverviewPage: React.FC = () => {
   const navigate = useNavigate()
   const [selectedPeriod, setSelectedPeriod] = useState<'this_month' | 'last_month' | 'all_time'>('this_month')
+  const [dateRange] = useState('1 Oct 2026 - 31 Oct 2026')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(() => new Date().toLocaleTimeString())
 
