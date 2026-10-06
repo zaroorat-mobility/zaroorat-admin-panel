@@ -1109,7 +1109,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
 
             {/* 5. Recent Verifications & Activities */}
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
+              <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
                 <div className="flex items-center gap-2.5">
                   <Hexagon className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9]" strokeWidth={2.5} />
                   <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Recent Verifications & Activities</h3>
@@ -1122,24 +1122,24 @@ export const DriverManagementOverviewPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50/60 dark:bg-slate-800/40 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+              <div className="overflow-x-auto px-1">
+                <table className="w-full text-left text-[12.5px]">
+                  <thead className="text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                     <tr>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Time</th>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Admin</th>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Action</th>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Driver</th>
-                      <th className="py-3 px-4 font-semibold text-slate-500 dark:text-slate-400">Details</th>
+                      <th className="pb-3 px-4 font-semibold">Time</th>
+                      <th className="pb-3 px-4 font-semibold">Admin</th>
+                      <th className="pb-3 px-4 font-semibold">Action</th>
+                      <th className="pb-3 px-4 font-semibold">Driver</th>
+                      <th className="pb-3 px-4 font-semibold">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {recentActivities.map((act) => (
                       <tr key={act.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="py-3.5 px-4 text-slate-500 font-medium whitespace-nowrap">
+                        <td className="py-4 px-4 text-slate-500 font-medium whitespace-nowrap">
                           {act.time}
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-4 px-4">
                           <div className="flex items-center gap-2.5">
                             {act.adminPhoto ? (
                               <img
@@ -1157,9 +1157,9 @@ export const DriverManagementOverviewPage: React.FC = () => {
                             </span>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-4 px-4">
                           <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold ${
                               act.actionType === 'verified'
                                 ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400'
                                 : act.actionType === 'moved'
@@ -1172,10 +1172,10 @@ export const DriverManagementOverviewPage: React.FC = () => {
                             {act.action}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                        <td className="py-4 px-4 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                           {act.driver}
                         </td>
-                        <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
+                        <td className="py-4 px-4 text-slate-500 dark:text-slate-400">
                           {act.details}
                         </td>
                       </tr>
@@ -1286,69 +1286,73 @@ export const DriverManagementOverviewPage: React.FC = () => {
             </div>
 
             {/* 6. Quick Actions Card */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-sm">
-              <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-                <Hexagon className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9]" strokeWidth={2.5} />
-                <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Quick Actions</h3>
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+              <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
+                <div className="flex items-center gap-2.5">
+                  <Hexagon className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9]" strokeWidth={2.5} />
+                  <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Quick Actions</h3>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-4">
-                {/* 1. View All Applications */}
-                <div
-                  onClick={() => navigate('/driver-management/applications')}
-                  className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <FileText className="w-[18px] h-[18px] text-[#2563EB] shrink-0" strokeWidth={2.5} />
-                    <span className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 group-hover:text-blue-600 transition-colors whitespace-nowrap leading-tight">
-                      View All Applications
-                    </span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
-                </div>
-
-                {/* 2. Review Pending Documents */}
-                <div
-                  onClick={() => navigate('/driver-management/applications?status=under_review')}
-                  className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-[18px] h-[18px] rounded-full bg-[#F59E0B] text-white flex items-center justify-center shrink-0 font-black text-[10px] shadow-2xs">
-                      !
+              <div className="px-5 pb-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* 1. View All Applications */}
+                  <div
+                    onClick={() => navigate('/driver-management/applications')}
+                    className="flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-[#2563EB] shrink-0" strokeWidth={2.5} />
+                      <span className="text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 group-hover:text-blue-600 transition-colors whitespace-nowrap leading-tight">
+                        View All Applications
+                      </span>
                     </div>
-                    <span className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 group-hover:text-amber-600 transition-colors leading-[1.2]">
-                      Review Pending<br />Documents
-                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
-                </div>
 
-                {/* 3. Manage Drivers */}
-                <div
-                  onClick={() => navigate('/driver-management/drivers')}
-                  className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Users className="w-[18px] h-[18px] text-[#2563EB] shrink-0" strokeWidth={2.5} />
-                    <span className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 group-hover:text-indigo-600 transition-colors whitespace-nowrap leading-tight">
-                      Manage Drivers
-                    </span>
+                  {/* 2. Review Pending Documents */}
+                  <div
+                    onClick={() => navigate('/driver-management/applications?status=under_review')}
+                    className="flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-[#F59E0B] text-white flex items-center justify-center shrink-0 font-black text-[10px] shadow-2xs">
+                        !
+                      </div>
+                      <span className="text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 group-hover:text-amber-600 transition-colors leading-[1.2]">
+                        Review Pending<br />Documents
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
-                </div>
 
-                {/* 4. Document Expiry Report */}
-                <div
-                  onClick={() => navigate('/vehicle-management/vehicles')}
-                  className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-400 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Calendar className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9] shrink-0" strokeWidth={2.5} />
-                    <span className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 group-hover:text-blue-600 transition-colors leading-[1.2]">
-                      Document Expiry<br />Report
-                    </span>
+                  {/* 3. Manage Drivers */}
+                  <div
+                    onClick={() => navigate('/driver-management/drivers')}
+                    className="flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-[#2563EB] shrink-0" strokeWidth={2.5} />
+                      <span className="text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 group-hover:text-indigo-600 transition-colors whitespace-nowrap leading-tight">
+                        Manage Drivers
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
+
+                  {/* 4. Document Expiry Report */}
+                  <div
+                    onClick={() => navigate('/vehicle-management/vehicles')}
+                    className="flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-400 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-[#1F2B6D] dark:text-[#8B93D9] shrink-0" strokeWidth={2.5} />
+                      <span className="text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 group-hover:text-blue-600 transition-colors leading-[1.2]">
+                        Document Expiry<br />Report
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
+                  </div>
                 </div>
               </div>
             </div>
