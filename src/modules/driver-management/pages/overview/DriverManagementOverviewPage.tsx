@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Calendar,
   ChevronDown,
-  ArrowDown,
   UserCheck,
   RefreshCw,
   TrendingUp,
@@ -35,7 +34,7 @@ const CardThead = ({ children }: { children: React.ReactNode }) => (
   </thead>
 )
 const CardTh = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <th className={`pb-3 pt-3 px-4 font-medium text-slate-500 dark:text-slate-400 text-[12.5px] ${className}`}>{children}</th>
+  <th className={`pb-3 px-4 font-semibold ${className}`}>{children}</th>
 )
 const CardTbody = ({ children }: { children: React.ReactNode }) => (
   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">{children}</tbody>
@@ -50,21 +49,21 @@ const CardTd = ({ children, className = '', onClick }: { children: React.ReactNo
 )
 
 // Reusable Quick Action Button Component
-const QuickActionButton = ({ 
-  icon, 
-  title, 
-  onClick, 
+const QuickActionButton = ({
+  icon,
+  title,
+  onClick,
   hoverColorClass = 'hover:border-blue-400 dark:hover:border-blue-500 group-hover:text-blue-600',
-}: { 
-  icon: React.ReactNode, 
-  title: React.ReactNode, 
+}: {
+  icon: React.ReactNode,
+  title: React.ReactNode,
   onClick: () => void,
   hoverColorClass?: string,
 }) => {
   // Extract text and border hover classes for group-hover
   const borderHoverClass = hoverColorClass.split(' ').filter(c => c.includes('border-')).join(' ')
   const textHoverClass = hoverColorClass.split(' ').filter(c => c.includes('text-')).join(' ')
-  
+
   return (
     <button
       type="button"
@@ -1055,33 +1054,11 @@ export const DriverManagementOverviewPage: React.FC = () => {
               <CardTable>
                 <CardThead>
                   <tr>
-                    <CardTh>
-                      <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-700 transition-colors">
-                        Applicant <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                      </div>
-                    </CardTh>
-                    <CardTh>
-                      <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-700 transition-colors">
-                        Application ID <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                      </div>
-                    </CardTh>
-                    <CardTh>
-                      <div className="flex items-center gap-1.5 font-bold text-[#1F2B6D] cursor-pointer">
-                        Submitted On <ArrowDown className="w-3.5 h-3.5 text-[#1F2B6D]" />
-                      </div>
-                    </CardTh>
+                    <CardTh>Applicant</CardTh>
+                    <CardTh>Application ID</CardTh>
+                    <CardTh>Submitted On</CardTh>
                     <CardTh>Documents</CardTh>
-                    <CardTh>
-                      <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-700 transition-colors">
-                        Status <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                      </div>
-                    </CardTh>
-                    <CardTh>
-                      <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-700 transition-colors">
-                        Progress <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                      </div>
-                    </CardTh>
-                    <CardTh>Last Updated</CardTh>
+                    <CardTh>Status</CardTh>
                     <CardTh className="text-center">Actions</CardTh>
                   </tr>
                 </CardThead>
@@ -1106,7 +1083,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
                       </CardTd>
 
                       {/* Application ID */}
-                      <CardTd className="text-[12.5px] text-slate-500 dark:text-slate-400 font-medium">
+                      <CardTd className="font-medium text-slate-600 dark:text-slate-300 font-sans">
                         {app.appId}
                       </CardTd>
 
@@ -1123,33 +1100,13 @@ export const DriverManagementOverviewPage: React.FC = () => {
 
                       {/* Status */}
                       <CardTd>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold ${
-                          app.status === 'under_review' ? 'bg-[#FFF4EB] text-[#D97706] dark:bg-amber-950/20 dark:text-amber-400' :
-                          app.status === 'pending_docs' ? 'bg-[#FFF4EB] text-[#D97706] dark:bg-amber-950/20 dark:text-amber-400' :
-                          app.status === 'approved' ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400' :
-                          'bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400'
-                        }`}>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold ${app.status === 'under_review' ? 'bg-[#FFF4EB] text-[#D97706] dark:bg-amber-950/20 dark:text-amber-400' :
+                            app.status === 'pending_docs' ? 'bg-[#FFF4EB] text-[#D97706] dark:bg-amber-950/20 dark:text-amber-400' :
+                              app.status === 'approved' ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400' :
+                                'bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400'
+                          }`}>
                           {app.statusLabel}
                         </span>
-                      </CardTd>
-
-                      {/* Progress */}
-                      <CardTd>
-                        <div className="flex items-center gap-2.5 w-32">
-                          <div className="flex-1 h-2.5 bg-slate-200/80 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${app.status === 'approved' ? 'bg-[#10B981]' : app.status === 'under_review' ? 'bg-[#10B981]' : 'bg-[#F59E0B]'}`} style={{ width: app.status === 'approved' ? '100%' : app.status === 'under_review' ? '73%' : '55%' }}></div>
-                          </div>
-                          <span className="text-[11.5px] font-semibold text-[#1F2B6D] w-8 text-right">{app.status === 'approved' ? '100%' : app.status === 'under_review' ? '73%' : '55%'}</span>
-                        </div>
-                      </CardTd>
-
-                      {/* Last Updated */}
-                      <CardTd>
-                        <p className="font-semibold text-[12.5px] text-[#1F2B6D] dark:text-slate-200">{app.submittedDate}</p>
-                        <p className="text-[11.5px] text-slate-400 mt-0.5 leading-tight">
-                          {app.submittedTime}<br/>
-                          by {app.status === 'approved' ? 'Ahmed Raza' : app.status === 'under_review' ? 'Sarah Khan' : 'Fatima Noor'}
-                        </p>
                       </CardTd>
 
                       {/* Actions */}
@@ -1158,39 +1115,39 @@ export const DriverManagementOverviewPage: React.FC = () => {
                           {app.status === 'under_review' || app.status === 'pending_docs' ? (
                             <button
                               onClick={() => navigate(`/driver-management/applications/${app.id}`)}
-                              className="px-4 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[#1F2B6D] hover:bg-[#182258] text-white transition-colors w-[72px]"
+                              className="px-4 py-1.5 rounded-md text-[11.5px] font-bold bg-[#1F2B6D] hover:bg-[#182258] text-white shadow-2xs transition-colors"
                             >
                               Review
                             </button>
                           ) : (
                             <button
                               onClick={() => navigate(`/driver-management/applications/${app.id}`)}
-                              className="px-4 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-white border border-slate-200 text-[#1F2B6D] hover:bg-slate-50 transition-colors w-[72px]"
+                              className="px-4 py-1.5 rounded-md text-[11.5px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#1F2B6D] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
                             >
                               View
                             </button>
                           )}
 
-                            <ActionDropdown
-                              actions={[
-                                {
-                                  label: 'Review Application',
-                                  icon: <FileText className="w-3.5 h-3.5" />,
-                                  onClick: () => navigate(`/driver-management/applications/${app.id}`)
-                                },
-                                {
-                                  label: 'View Partner Details',
-                                  icon: <UserCheck className="w-3.5 h-3.5" />,
-                                  onClick: () => navigate('/driver-management/drivers')
-                                }
-                              ]}
-                            />
-                          </div>
-                        </CardTd>
-                      </CardTr>
-                    ))}
-                  </CardTbody>
-                </CardTable>
+                          <ActionDropdown
+                            actions={[
+                              {
+                                label: 'Review Application',
+                                icon: <FileText className="w-3.5 h-3.5" />,
+                                onClick: () => navigate(`/driver-management/applications/${app.id}`)
+                              },
+                              {
+                                label: 'View Partner Details',
+                                icon: <UserCheck className="w-3.5 h-3.5" />,
+                                onClick: () => navigate('/driver-management/drivers')
+                              }
+                            ]}
+                          />
+                        </div>
+                      </CardTd>
+                    </CardTr>
+                  ))}
+                </CardTbody>
+              </CardTable>
             </div>
 
             {/* 5. Recent Verifications & Activities */}
@@ -1239,12 +1196,11 @@ export const DriverManagementOverviewPage: React.FC = () => {
                         </div>
                       </CardTd>
                       <CardTd>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold ${
-                          act.actionType === 'verified' ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400' :
-                          act.actionType === 'moved' ? 'bg-[#EFF6FF] text-[#2563EB] dark:bg-blue-950/20 dark:text-blue-400' :
-                          act.actionType === 'rejected' ? 'bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400' :
-                          'bg-[#F1F5F9] text-[#334155] dark:bg-slate-800 dark:text-slate-300'
-                        }`}>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold ${act.actionType === 'verified' ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400' :
+                            act.actionType === 'moved' ? 'bg-[#EFF6FF] text-[#2563EB] dark:bg-blue-950/20 dark:text-blue-400' :
+                              act.actionType === 'rejected' ? 'bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400' :
+                                'bg-[#F1F5F9] text-[#334155] dark:bg-slate-800 dark:text-slate-300'
+                          }`}>
                           {act.action}
                         </span>
                       </CardTd>
@@ -1277,82 +1233,82 @@ export const DriverManagementOverviewPage: React.FC = () => {
                   View All
                 </button>
               </div>
-              
+
               <div className="p-5">
-              {/* 4 Alert Cards */}
-              <div className="space-y-3">
+                {/* 4 Alert Cards */}
+                <div className="space-y-3">
 
-                {/* 1. Expired Documents */}
-                <div
-                  onClick={() => navigate('/vehicle-management/vehicles')}
-                  className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50/80 dark:bg-rose-950/20 hover:bg-rose-100/60 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <FileWarning className="w-[18px] h-[18px] text-rose-500 shrink-0" fill="currentColor" />
-                    <div>
-                      <p className="text-xs font-bold text-rose-600 dark:text-rose-400">Expired Documents</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Immediate action required</p>
+                  {/* 1. Expired Documents */}
+                  <div
+                    onClick={() => navigate('/vehicle-management/vehicles')}
+                    className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50/80 dark:bg-rose-950/20 hover:bg-rose-100/60 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <FileWarning className="w-[18px] h-[18px] text-rose-500 shrink-0" fill="currentColor" />
+                      <div>
+                        <p className="text-xs font-bold text-rose-600 dark:text-rose-400">Expired Documents</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Immediate action required</p>
+                      </div>
                     </div>
+                    <span className="text-base sm:text-lg font-bold text-rose-600 dark:text-rose-400">
+                      {expiryMetrics.expired}
+                    </span>
                   </div>
-                  <span className="text-base sm:text-lg font-bold text-rose-600 dark:text-rose-400">
-                    {expiryMetrics.expired}
-                  </span>
-                </div>
 
-                {/* 2. Expiring in 30 days */}
-                <div
-                  onClick={() => navigate('/vehicle-management/vehicles')}
-                  className="flex items-center justify-between p-3.5 rounded-xl bg-orange-50/80 dark:bg-amber-950/20 hover:bg-orange-100/60 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-[18px] h-[18px] rounded-full bg-orange-500 text-white flex items-center justify-center shrink-0 font-bold text-[11px]">
-                      !
+                  {/* 2. Expiring in 30 days */}
+                  <div
+                    onClick={() => navigate('/vehicle-management/vehicles')}
+                    className="flex items-center justify-between p-3.5 rounded-xl bg-orange-50/80 dark:bg-amber-950/20 hover:bg-orange-100/60 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-[18px] h-[18px] rounded-full bg-orange-500 text-white flex items-center justify-center shrink-0 font-bold text-[11px]">
+                        !
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[#1F2B6D] dark:text-slate-100">Expiring in 30 days</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Expire within 30 days</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-[#1F2B6D] dark:text-slate-100">Expiring in 30 days</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Expire within 30 days</p>
-                    </div>
+                    <span className="text-base sm:text-lg font-bold text-orange-500 dark:text-orange-400">
+                      {expiryMetrics.d30}
+                    </span>
                   </div>
-                  <span className="text-base sm:text-lg font-bold text-orange-500 dark:text-orange-400">
-                    {expiryMetrics.d30}
-                  </span>
-                </div>
 
-                {/* 3. Expiring in 60 days */}
-                <div
-                  onClick={() => navigate('/vehicle-management/vehicles')}
-                  className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50/50 dark:bg-yellow-950/20 hover:bg-amber-100/60 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <ShieldAlert className="w-[18px] h-[18px] text-amber-400 shrink-0" fill="currentColor" />
-                    <div>
-                      <p className="text-xs font-bold text-[#1F2B6D] dark:text-slate-100">Expiring in 60 days</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Expire within 60 days</p>
+                  {/* 3. Expiring in 60 days */}
+                  <div
+                    onClick={() => navigate('/vehicle-management/vehicles')}
+                    className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50/50 dark:bg-yellow-950/20 hover:bg-amber-100/60 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <ShieldAlert className="w-[18px] h-[18px] text-amber-400 shrink-0" fill="currentColor" />
+                      <div>
+                        <p className="text-xs font-bold text-[#1F2B6D] dark:text-slate-100">Expiring in 60 days</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Expire within 60 days</p>
+                      </div>
                     </div>
+                    <span className="text-base sm:text-lg font-bold text-amber-500 dark:text-amber-400">
+                      {expiryMetrics.d60}
+                    </span>
                   </div>
-                  <span className="text-base sm:text-lg font-bold text-amber-500 dark:text-amber-400">
-                    {expiryMetrics.d60}
-                  </span>
-                </div>
 
-                {/* 4. Expiring in 90 days */}
-                <div
-                  onClick={() => navigate('/vehicle-management/vehicles')}
-                  className="flex items-center justify-between p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/20 hover:bg-blue-100/60 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <ShieldCheck className="w-[18px] h-[18px] text-blue-500 shrink-0" fill="currentColor" />
-                    <div>
-                      <p className="text-xs font-bold text-[#1F2B6D] dark:text-slate-100">Expiring in 90 days</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Expire within 90 days</p>
+                  {/* 4. Expiring in 90 days */}
+                  <div
+                    onClick={() => navigate('/vehicle-management/vehicles')}
+                    className="flex items-center justify-between p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/20 hover:bg-blue-100/60 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <ShieldCheck className="w-[18px] h-[18px] text-blue-500 shrink-0" fill="currentColor" />
+                      <div>
+                        <p className="text-xs font-bold text-[#1F2B6D] dark:text-slate-100">Expiring in 90 days</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Expire within 90 days</p>
+                      </div>
                     </div>
+                    <span className="text-base sm:text-lg font-bold text-[#1F2B6D] dark:text-blue-400">
+                      {expiryMetrics.d90}
+                    </span>
                   </div>
-                  <span className="text-base sm:text-lg font-bold text-[#1F2B6D] dark:text-blue-400">
-                    {expiryMetrics.d90}
-                  </span>
-                </div>
 
-              </div>
+                </div>
               </div>
             </div>
 
