@@ -187,14 +187,25 @@ export function startDashboardRealtime(o: DashboardRealtimeOptions): () => void 
   for (const event of DASHBOARD_SOCKET_EVENTS) {
     handlers[event] = (payload: unknown) => {
       for (const target of invalidationTargets(event, payload) ?? []) schedule(target)
+      if (event === 'dashboard.ride.changed') {
+        void o.queryClient.invalidateQueries({ queryKey: ['operations', 'rides'] })
+        void o.queryClient.invalidateQueries({ queryKey: ['operations', 'live'] })
+        const p = rideChanged.safeParse(payload)
+        if (p.success && p.data.data.rideId) {
+          void o.queryClient.invalidateQueries({ queryKey: ['operations', 'ride', p.data.data.rideId] })
+        }
+      } else if (event === 'dashboard.ride_request.changed') {
+        void o.queryClient.invalidateQueries({ queryKey: ['operations', 'dispatch'] })
+        void o.queryClient.invalidateQueries({ queryKey: ['operations', 'live'] })
+      }
     }
   }
-  for (const [event, handler] of Object.entries(handlers)) socket.on(event, handler)
+  for (const [event, handler] of Object.entries(handlers)) socket.on(event, handler as (...args: any[]) => void)
 
   return () => {
     for (const timer of pending.values()) clearTimeout(timer)
     pending.clear()
-    for (const [event, handler] of Object.entries(handlers)) socket.off(event, handler)
+    for (const [event, handler] of Object.entries(handlers)) socket.off(event, handler as (...args: any[]) => void)
     socket.disconnect()
   }
 }

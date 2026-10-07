@@ -14,11 +14,15 @@ export const RideStatusBadge: React.FC<RideStatusBadgeProps> = ({ status }) => {
         return 'bg-sky-50 text-sky-700 border-sky-100 dark:bg-sky-950/20 dark:text-sky-400 dark:border-sky-900 animate-pulse'
       case 'DRIVER_ASSIGNED':
         return 'bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900'
+      case 'DRIVER_ARRIVING':
+        return 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900'
       case 'DRIVER_ARRIVED':
         return 'bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900'
       case 'OTP_VERIFIED':
       case 'IN_PROGRESS':
         return 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900 font-bold'
+      case 'DRIVER_AT_DROPOFF':
+        return 'bg-teal-50 text-teal-700 border-teal-100 dark:bg-teal-950/20 dark:text-teal-400 dark:border-teal-900 font-bold animate-pulse'
       case 'PAYMENT_PENDING':
         return 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900'
       case 'COMPLETED':

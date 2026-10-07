@@ -60,6 +60,7 @@ export const API_ENDPOINTS = {
     requestResubmission: (id: string) => `/admin/applications/${id}/request-resubmission`,
     documentReview: (id: string, documentId: string) =>
       `/admin/applications/${id}/documents/${documentId}/review`,
+    stats: '/admin/applications/stats',
   },
   vehicles: {
     list: '/admin/vehicles',

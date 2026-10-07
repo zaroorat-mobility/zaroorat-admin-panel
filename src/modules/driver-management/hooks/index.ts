@@ -13,6 +13,13 @@ const QK = {
 
 // ─── Applications Hooks ────────────────────────────────────────────────────
 
+export const useApplicationStats = () => {
+  return useQuery({
+    queryKey: ['driver-management', 'applications', 'stats'],
+    queryFn: () => DriverManagementService.getApplicationStats(),
+  })
+}
+
 export const useApplications = (params?: QueryParams) => {
   return useQuery({
     queryKey: QK.applications(params),

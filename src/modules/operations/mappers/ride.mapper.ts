@@ -10,11 +10,13 @@ export function mapBackendStatusToUiStatus(backendStatus: string): RideStatus {
     case 'ACCEPTED':
       return 'DRIVER_ASSIGNED'
     case 'DRIVER_ARRIVING':
-      return 'DRIVER_ARRIVED'
+      return 'DRIVER_ARRIVING'
     case 'DRIVER_ARRIVED':
       return 'DRIVER_ARRIVED'
     case 'IN_PROGRESS':
       return 'IN_PROGRESS'
+    case 'DRIVER_AT_DROPOFF':
+      return 'DRIVER_AT_DROPOFF'
     case 'COMPLETED':
       return 'COMPLETED'
     case 'CANCELLED_BY_CUSTOMER':
@@ -26,7 +28,7 @@ export function mapBackendStatusToUiStatus(backendStatus: string): RideStatus {
     case 'NO_DRIVERS_FOUND':
       return 'NO_DRIVER_FOUND'
     default:
-      return 'IN_PROGRESS'
+      return 'UNKNOWN'
   }
 }
 
