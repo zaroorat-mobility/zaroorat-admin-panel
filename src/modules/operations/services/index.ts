@@ -10,6 +10,9 @@ const COMPLAINTS_KEY = 'zaroorat_complaints_db'
 
 // Helper database getters and setters
 const getDb = <T>(key: string, seedFn: () => T[]): T[] => {
+  if (import.meta.env.PROD) {
+    return []
+  }
   const db = localStorage.getItem(key)
   if (!db) {
     const seed = seedFn()
@@ -462,6 +465,10 @@ const getRides = async (params?: QueryParams): Promise<PaginatedResponse<Ride>> 
       },
     }
   } catch (err) {
+    if (import.meta.env.PROD) {
+      console.error('[OperationsService.getRides] Backend request failed in production:', err)
+      throw err
+    }
     console.warn('[OperationsService.getRides] Backend request failed, falling back to cached db:', err)
     const db = getDb(RIDES_KEY, seedRides)
     const search = ((params?.search as string) || '').toLowerCase()
@@ -496,6 +503,10 @@ const getRideById = async (id: string): Promise<Ride> => {
     const res = await operationsApi.getRideById(id)
     return mapBackendRideToUiRide(res)
   } catch (err) {
+    if (import.meta.env.PROD) {
+      console.error(`[OperationsService.getRideById] Backend request failed in production for ${id}:`, err)
+      throw err
+    }
     console.warn(`[OperationsService.getRideById] Backend request failed for ${id}, falling back:`, err)
     const db = getDb(RIDES_KEY, seedRides)
     const found = db.find((r) => r.id === id)
