@@ -23,7 +23,7 @@ export const RideMonitorPage: React.FC = () => {
   const getFilteredRides = () => {
     switch (activeTab) {
       case 'live':
-        return allRides.filter(r => ['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVED', 'OTP_VERIFIED', 'IN_PROGRESS', 'PAYMENT_PENDING'].includes(r.status))
+        return allRides.filter(r => ['REQUESTED', 'SEARCHING', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED', 'OTP_VERIFIED', 'IN_PROGRESS', 'DRIVER_AT_DROPOFF', 'PAYMENT_PENDING'].includes(r.status))
       case 'completed':
         return allRides.filter(r => r.status === 'COMPLETED')
       case 'cancelled':

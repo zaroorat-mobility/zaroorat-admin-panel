@@ -51,6 +51,12 @@ export interface RideSettings {
   maxSearchRadiusMeters: SettingField<number>
   cancellationGraceMinutes: SettingField<number>
   defaultCancellationFee: SettingField<number>
+  pickupGeofenceMeters?: SettingField<number>
+  dropGeofenceMeters?: SettingField<number>
+  arrivalMaxAccuracyMeters?: SettingField<number>
+  arrivalRequiredFixes?: SettingField<number>
+  dispatchMaxRounds?: SettingField<number>
+  dispatchMaxAttemptedDrivers?: SettingField<number>
 }
 
 export interface UpdateRideSettingsBody {
@@ -61,6 +67,12 @@ export interface UpdateRideSettingsBody {
   maxSearchRadiusMeters?: number
   cancellationGraceMinutes?: number
   defaultCancellationFee?: number
+  pickupGeofenceMeters?: number
+  dropGeofenceMeters?: number
+  arrivalMaxAccuracyMeters?: number
+  arrivalRequiredFixes?: number
+  dispatchMaxRounds?: number
+  dispatchMaxAttemptedDrivers?: number
 }
 
 export interface OtpSettings {

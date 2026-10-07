@@ -52,19 +52,19 @@ export const ApplicationsListPage: React.FC = () => {
 
   const columns: DataTableColumn<DriverApplicationEntity>[] = [
     {
-      key: 'applicationId',
-      label: 'Application ID',
+      key: "applicationId",
+      label: "Application ID",
       sortable: true,
-      align: 'left',
+      align: "left",
       render: (value) => (
         <span className="font-mono text-xs font-bold text-[#1F2B6D] dark:text-[#8B93D9]">{value}</span>
       ),
     },
     {
-      key: 'driverName',
-      label: 'Driver Name',
+      key: "driverName",
+      label: "Driver Name",
       sortable: true,
-      align: 'left',
+      align: "left",
       render: (value, row) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-[#1F2B6D] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-sm">
@@ -80,8 +80,8 @@ export const ApplicationsListPage: React.FC = () => {
       ),
     },
     {
-      key: 'vehicleType',
-      label: 'Vehicle Category',
+      key: "vehicleType",
+      label: "Vehicle Category",
       sortable: true,
       render: (value) => (
         <span className="capitalize font-semibold text-xs text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 px-2 py-0.5 rounded">
@@ -90,14 +90,14 @@ export const ApplicationsListPage: React.FC = () => {
       ),
     },
     {
-      key: 'source',
-      label: 'Source',
+      key: "source",
+      label: "Source",
       sortable: true,
       render: (value) => <ApplicationSourceBadge source={value} />,
     },
     {
-      key: 'submittedAt',
-      label: 'Submission Date',
+      key: "submittedAt",
+      label: "Submission Date",
       sortable: true,
       render: (value) => (
         <span className="text-xs text-slate-600 dark:text-slate-400">
@@ -110,15 +110,15 @@ export const ApplicationsListPage: React.FC = () => {
       ),
     },
     {
-      key: 'applicationStatus',
-      label: 'Review Status',
+      key: "applicationStatus",
+      label: "Review Status",
       sortable: true,
       render: (value) => <StatusBadge status={value} />,
     },
     {
-      key: 'actions',
-      label: 'Actions',
-      align: 'center',
+      key: "actions",
+      label: "Actions",
+      align: "center",
       render: (_, row) => (
         <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
@@ -131,17 +131,17 @@ export const ApplicationsListPage: React.FC = () => {
           <ActionDropdown
             actions={[
               {
-                label: 'Review Details',
+                label: "Review Details",
                 icon: <Eye className="h-3.5 w-3.5" />,
                 onClick: () => navigate(`/driver-management/applications/${row.id}`),
               },
               {
-                label: 'Edit Application',
+                label: "Edit Application",
                 icon: <Edit className="h-3.5 w-3.5" />,
                 onClick: () => navigate(`/driver-management/applications/${row.id}/edit`),
               },
               {
-                label: 'Delete Record',
+                label: "Delete Record",
                 icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
                 onClick: () => setDeleteId(row.id),
                 variant: 'danger',
@@ -172,8 +172,8 @@ export const ApplicationsListPage: React.FC = () => {
         onError: (err: unknown) => {
           setDeleteId(null)
           showError(
-            'Delete unavailable',
-            err instanceof Error ? err.message : 'Could not delete this application',
+            "Delete unavailable",
+            err instanceof Error ? err.message : "Could not delete this application",
           )
         },
       })

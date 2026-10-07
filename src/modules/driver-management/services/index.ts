@@ -149,6 +149,7 @@ export const DriverManagementService = {
   getApplications,
   getApplicationById,
   createApplication,
+  getApplicationStats: driversApi.getApplicationStats,
   updateApplication,
   deleteApplication,
   approveApplication,

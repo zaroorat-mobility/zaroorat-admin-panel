@@ -162,6 +162,32 @@ export const flagVehicleForRenewal = async (
   return response.data.data
 }
 
+export interface RecentRejectionMeta {
+  driverId: string
+  driverCode: string
+  driverName: string
+  reason: string | null
+  reviewerId: string | null
+  reviewerName: string | null
+  timestamp: string | null
+}
+
+export interface ApplicationStats {
+  total: number
+  approved: number
+  rejected: number
+  pendingReview: number
+  underReview: number
+  suspended: number
+  blocked: number
+  recentRejections: RecentRejectionMeta[]
+}
+
+export const getApplicationStats = async (): Promise<ApplicationStats> => {
+  const response = await api.get<{ data: ApplicationStats }>(API_ENDPOINTS.applications.stats)
+  return response.data.data
+}
+
 export const getExpiryAlerts = async (): Promise<ExpiryAlertsSummary> => {
   const response = await api.get<{ data: ExpiryAlertsSummary }>(API_ENDPOINTS.drivers.expiryAlerts)
   return response.data.data
