@@ -490,8 +490,7 @@ export const ManualRegistrationPage: React.FC = () => {
               <span>Save Draft</span>
             </Button>
             <Button
-              variant="primary"
-              className="gap-2 text-xs font-semibold h-9 rounded-lg"
+              className="gap-2 text-xs font-semibold h-9 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white shadow-sm"
               onClick={handleSubmit(onCompleteRegistration)}
               loading={isPending}
               disabled={isPending || !isValid}

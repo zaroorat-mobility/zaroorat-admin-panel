@@ -5,6 +5,7 @@ import type { AuditLogItem } from '../types'
 interface AuditLogApiItem {
   id: string
   actorId: string | null
+  actorName: string | null
   action: string
   entityType: string | null
   entityId: string | null
@@ -24,7 +25,7 @@ interface AuditLogApiResponse {
 const mapAuditLogItem = (row: AuditLogApiItem): AuditLogItem => ({
   id: row.id,
   timestamp: row.createdAt,
-  actor: row.actorId ?? 'System',
+  actor: row.actorName ?? row.actorId ?? 'System',
   action: row.action,
   entityId: row.entityId ?? undefined,
   entityType: (row.entityType as AuditLogItem['entityType']) ?? undefined,

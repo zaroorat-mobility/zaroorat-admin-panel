@@ -1,17 +1,26 @@
-import React, { useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { useApplications, useApplicationStats, useDeleteApplication } from "../../hooks"
-import { PageWrapper } from "@/app/layouts/PageWrapper"
-import { PageHeader } from "@/shared/components/PageHeader"
-import { DataTable, type DataTableColumn } from "@/shared/components/DataTable"
-import { StatusBadge } from "@/shared/components/StatusBadge"
-import { InfoCard, InfoCardGrid } from "@/shared/components/InfoCard"
-import { Button } from "@/shared/components/ui/Button"
-import { ConfirmationModal } from "@/shared/components/ConfirmationModal"
-import { useToast } from "@/shared/context/toast"
-import { ClipboardList, ShieldCheck, ShieldAlert, Plus, Trash2, Eye, Edit, AlertOctagon, Clock, UserCheck } from "lucide-react"
-import { ApplicationSourceBadge, ActionDropdown } from "../../components"
-import type { DriverApplicationEntity } from "../../types"
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useApplications, useApplicationStats, useDeleteApplication } from '../../hooks'
+import { PageWrapper } from '@/app/layouts/PageWrapper'
+import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
+import { StatusBadge } from '@/shared/components/StatusBadge'
+import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
+import { useToast } from '@/shared/context/toast'
+import {
+  ClipboardList,
+  ShieldCheck,
+  ShieldAlert,
+  Plus,
+  Trash2,
+  Eye,
+  Edit,
+  RefreshCw,
+  Clock,
+  Ban,
+  AlertTriangle,
+} from 'lucide-react'
+import { ApplicationSourceBadge, ActionDropdown } from '../../components'
+import type { DriverApplicationEntity } from '../../types'
 
 export const ApplicationsListPage: React.FC = () => {
   const navigate = useNavigate()
@@ -19,9 +28,44 @@ export const ApplicationsListPage: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const { error: showError } = useToast()
 
-  const { data, isLoading, isError, refetch } = useApplications()
-  const { data: statsData, isLoading: isStatsLoading } = useApplicationStats()
+  // Last updated timestamp matching Geographic Dashboard
+  const [lastUpdated, setLastUpdated] = useState(() => {
+    const now = new Date()
+    return (
+      now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ', ' +
+      now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    )
+  })
+
+  // ponytail: DataTable pages client-side, so only the newest 100 (backend max) are listed;
+  // add server-side paging to DataTable when applications outgrow that.
+  const { data, isLoading, isError, refetch } = useApplications({ limit: 100 })
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useApplicationStats()
   const { mutate: deleteApp, isPending: isDeleting } = useDeleteApplication()
+
+  // Keep last updated timestamp synchronized whenever realtime data arrives
+  React.useEffect(() => {
+    if (data || stats) {
+      const now = new Date()
+      setLastUpdated(
+        now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+        ', ' +
+        now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      )
+    }
+  }, [data, stats])
+
+  const handleRefresh = () => {
+    void refetch()
+    void refetchStats()
+    const now = new Date()
+    setLastUpdated(
+      now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ', ' +
+      now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    )
+  }
 
   const columns: DataTableColumn<DriverApplicationEntity>[] = [
     {
@@ -30,7 +74,7 @@ export const ApplicationsListPage: React.FC = () => {
       sortable: true,
       align: "left",
       render: (value) => (
-        <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{value}</span>
+        <span className="font-mono text-xs font-bold text-[#1F2B6D] dark:text-[#8B93D9]">{value}</span>
       ),
     },
     {
@@ -40,12 +84,14 @@ export const ApplicationsListPage: React.FC = () => {
       align: "left",
       render: (value, row) => (
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+          <div className="w-8 h-8 rounded-lg bg-[#1F2B6D] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-sm">
             {value.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <p className="font-bold text-slate-800 dark:text-slate-100">{value}</p>
-            <p className="text-[10px] text-muted-foreground">{row.mobileNumber}</p>
+          <div className="flex flex-col text-left min-w-0">
+            <p className="font-bold text-xs text-slate-800 dark:text-white hover:text-[#1F2B6D] dark:hover:text-[#8B93D9] transition-colors truncate">
+              {value}
+            </p>
+            <p className="text-[10px] text-slate-400 font-mono truncate">{row.mobileNumber}</p>
           </div>
         </div>
       ),
@@ -55,7 +101,7 @@ export const ApplicationsListPage: React.FC = () => {
       label: "Vehicle Category",
       sortable: true,
       render: (value) => (
-        <span className="capitalize font-semibold text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded dark:bg-slate-800 dark:text-slate-400">
+        <span className="capitalize font-semibold text-xs text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 px-2 py-0.5 rounded">
           {value}
         </span>
       ),
@@ -71,11 +117,11 @@ export const ApplicationsListPage: React.FC = () => {
       label: "Submission Date",
       sortable: true,
       render: (value) => (
-        <span className="text-xs text-muted-foreground">
-          {new Date(value).toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
+        <span className="text-xs text-slate-600 dark:text-slate-400">
+          {new Date(value).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
           })}
         </span>
       ),
@@ -91,7 +137,14 @@ export const ApplicationsListPage: React.FC = () => {
       label: "Actions",
       align: "center",
       render: (_, row) => (
-        <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => navigate(`/driver-management/applications/${row.id}`)}
+            className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs cursor-pointer"
+          >
+            Review
+          </button>
           <ActionDropdown
             actions={[
               {
@@ -108,7 +161,7 @@ export const ApplicationsListPage: React.FC = () => {
                 label: "Delete Record",
                 icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
                 onClick: () => setDeleteId(row.id),
-                variant: "danger",
+                variant: 'danger',
               },
             ]}
           />
@@ -119,14 +172,13 @@ export const ApplicationsListPage: React.FC = () => {
 
   const activeData = data?.data ?? []
 
-  // Server authoritative funnel metrics (fallback to active page only if stats pending)
-  const totalApps = statsData?.total ?? activeData.length
-  const pendingReview = statsData?.pendingReview ?? activeData.filter((v) => v.applicationStatus === "pending_review").length
-  const underReview = statsData?.underReview ?? activeData.filter((v) => v.applicationStatus === "under_review").length
-  const approved = statsData?.approved ?? activeData.filter((v) => v.applicationStatus === "approved").length
-  const rejected = statsData?.rejected ?? activeData.filter((v) => v.applicationStatus === "rejected").length
-
-  const recentRejections = statsData?.recentRejections ?? []
+  const totalApps = stats?.total ?? 0
+  const pendingReview = stats?.pendingReview ?? 0
+  const underReview = stats?.underReview ?? 0
+  const resubmissionRequired =
+    (stats as any)?.resubmissionRequired != null ? (stats as any).resubmissionRequired : '—'
+  const approved = stats?.approved ?? 0
+  const rejected = stats?.rejected ?? 0
 
   const handleDeleteConfirm = () => {
     if (deleteId) {
@@ -147,112 +199,183 @@ export const ApplicationsListPage: React.FC = () => {
   }
 
   return (
-    <PageWrapper>
-      <PageHeader
-        title="Driver Applications"
-        description="Verify driver partner applications, KYC compliance files, and transport permits."
-        actions={
-          <Button
-            variant="primary"
-            className="gap-2 text-xs font-semibold h-9 rounded-lg"
-            onClick={() => navigate("/driver-management/applications/new")}
+    <PageWrapper className="space-y-4 pt-1 pb-6 px-3 sm:px-5">
+      {/* ─── 1. Header with Geographic Dashboard Styling ───────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1F2B6D] dark:text-white">
+            Driver Applications
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Verify driver partner applications, KYC compliance files, and transport permits.
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live
+          </span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
+            Last updated {lastUpdated}
+          </span>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            title="Refresh data"
+            className="p-2 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition shadow-2xs cursor-pointer"
           >
-            <Plus className="h-4 w-4" />
+            <RefreshCw
+              className={`w-4 h-4 ${isLoading ? 'animate-spin text-[#1F2B6D]' : ''}`}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/driver-management/applications/new')}
+            className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-4 py-2 rounded-[10px] text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
             <span>Manual Registration</span>
-          </Button>
-        }
-      />
+          </button>
+        </div>
+      </div>
 
-      <div className="space-y-6">
-        <InfoCardGrid cols={5}>
-          <InfoCard
-            label="Total Applications"
-            value={totalApps}
-            icon={<ClipboardList className="w-5 h-5" />}
-            variant="blue"
-            subtitle="Database aggregate"
-            loading={isLoading || isStatsLoading}
-          />
-          <InfoCard
-            label="Pending Review"
-            value={pendingReview}
-            icon={<ShieldAlert className="w-5 h-5" />}
-            variant="blue"
-            subtitle="Awaiting initial audit"
-            loading={isLoading || isStatsLoading}
-          />
-          <InfoCard
-            label="Under Review"
-            value={underReview}
-            icon={<ShieldAlert className="w-5 h-5" />}
-            variant="blue"
-            subtitle="In document verification"
-            loading={isLoading || isStatsLoading}
-          />
-          <InfoCard
-            label="Approved"
-            value={approved}
-            icon={<ShieldCheck className="w-5 h-5" />}
-            variant="blue"
-            subtitle="Ready for onboarding"
-            loading={isLoading || isStatsLoading}
-          />
-          <InfoCard
-            label="Rejected"
-            value={rejected}
-            icon={<ShieldAlert className="w-5 h-5" />}
-            variant="red"
-            subtitle="Needs attention"
-            loading={isLoading || isStatsLoading}
-          />
-        </InfoCardGrid>
-
-        {recentRejections.length > 0 && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 dark:border-rose-900/50 dark:bg-rose-950/20">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertOctagon className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-              <h3 className="text-sm font-semibold text-rose-900 dark:text-rose-200">
-                Recent Application Rejections (Authoritative Audit Log)
-              </h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {recentRejections.slice(0, 6).map((rej) => (
-                <div
-                  key={rej.driverId}
-                  className="rounded-lg bg-white p-3 shadow-xs border border-rose-100 dark:bg-slate-900 dark:border-rose-950"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-xs text-slate-900 dark:text-slate-100">
-                      {rej.driverName}
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-500">
-                      {rej.driverCode}
-                    </span>
-                  </div>
-                  <p className="text-xs text-rose-700 dark:text-rose-400 font-medium mb-2">
-                    Reason: {rej.reason || "Documents failed verification standards"}
-                  </p>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <UserCheck className="h-3 w-3" />
-                      {rej.reviewerName || "Reviewer"}
-                    </span>
-                    {rej.timestamp && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {new Date(rej.timestamp).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                        })}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+      {/* ─── 2. Top 6 Metric KPI Cards (Geographic Dashboard Style) ────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        {/* Card 1: Total Applications */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                <ClipboardList className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
+                  {statsLoading ? '...' : totalApps}
+                </p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                  Total Applications
+                </p>
+              </div>
             </div>
           </div>
-        )}
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            All time submitted
+          </p>
+        </div>
 
+        {/* Card 2: Pending Review */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-[42px] h-[42px] rounded-full bg-amber-500 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
+                  {statsLoading ? '...' : pendingReview}
+                </p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                  Pending Review
+                </p>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            Awaiting initial audit
+          </p>
+        </div>
+
+        {/* Card 3: Under Review */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
+                  {statsLoading ? '...' : underReview}
+                </p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                  Under Review
+                </p>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            In document verification
+          </p>
+        </div>
+
+        {/* Card: Resubmission Required */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-[42px] h-[42px] rounded-full bg-orange-500 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
+                  {statsLoading ? '...' : resubmissionRequired}
+                </p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                  Resubmission Required
+                </p>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            Fix requested by reviewer
+          </p>
+        </div>
+
+        {/* Card 4: Approved */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
+                  {statsLoading ? '...' : approved}
+                </p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                  Approved
+                </p>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            Ready for onboarding
+          </p>
+        </div>
+
+        {/* Card 5: Rejected */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-[42px] h-[42px] rounded-full bg-rose-500 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                <Ban className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
+                  {statsLoading ? '...' : rejected}
+                </p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                  Rejected
+                </p>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            Needs attention / re-upload
+          </p>
+        </div>
+      </div>
+
+      {/* ─── 3. Applications Table ─────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden p-1">
         <DataTable
           data={activeData}
           columns={columns}
@@ -262,6 +385,7 @@ export const ApplicationsListPage: React.FC = () => {
           onSelectionChange={setSelectedIds}
           searchPlaceholder="Search by Driver name, Mobile or Application ID..."
           onRowClick={(row) => navigate(`/driver-management/applications/${row.id}`)}
+          resultLabel="applications"
         />
       </div>
 

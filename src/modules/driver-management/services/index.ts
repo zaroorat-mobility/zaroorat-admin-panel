@@ -59,7 +59,6 @@ const deleteApplication = async (_id: string): Promise<void> => {
 const approveApplication = async (
   id: string,
   notes?: string,
-  _billingMode?: 'free' | 'commission' | 'subscription',
 ): Promise<DriverApplicationDetails> => {
   return driversApi.approveApplication(id, notes)
 }
@@ -166,6 +165,8 @@ export const DriverManagementService = {
   getVehicles,
   getVehicleById,
   flagVehicleForRenewal,
+  getExpiryAlerts: () => driversApi.getExpiryAlerts(),
+  verifyDriverBankAccount: driversApi.verifyDriverBankAccount,
 }
 
 export default DriverManagementService

@@ -1,6 +1,6 @@
 import { api as apiClient, API_ENDPOINTS } from '@/infrastructure/api';
 
-export type MapProviderName = 'ola' | 'google' | 'mappls';
+export type MapProviderName = 'google' | 'mappls';
 
 export type MapCapability =
   | 'autocomplete'
@@ -28,15 +28,11 @@ export interface MapProviderConfigView {
   lastHealthAt?: string;
 }
 
-/// Exactly one provider is active; there is no fallback chain. The backend used
-/// to return a `fallback` policy here, but it could never be populated — the
-/// admin validator refused to enable any provider but the primary — so the
-/// mechanism it described did not exist. Removed on both sides.
+/// Exactly one provider is active; there is no fallback chain.
 export interface MapSettingsView {
   primaryProvider: MapProviderName;
   version: number;
   providers: {
-    ola: MapProviderConfigView;
     google: MapProviderConfigView;
     mappls: MapProviderConfigView;
   };
@@ -46,7 +42,6 @@ export interface UpdateMapSettingsPayload {
   primaryProvider: MapProviderName;
   expectedVersion?: number;
   providers?: {
-    ola?: { apiKey?: string; clientSdkKey?: string; baseUrl?: string };
     google?: { apiKey?: string; clientSdkKey?: string; baseUrl?: string };
     mappls?: {
       restApiKey?: string;

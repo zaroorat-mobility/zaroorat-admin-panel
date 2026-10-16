@@ -47,7 +47,6 @@ const getDriverBreakdown = async (
 const generateSettlementBatch = async (
   periodStart: string,
   periodEnd: string,
-  _generatedBy?: string,
   _drivers?: DriverSettlement[],
 ): Promise<SettlementBatch> => {
   const response = await api.post<{ data: SettlementBatch }>(
@@ -60,7 +59,6 @@ const generateSettlementBatch = async (
 const updateSettlementStatus = async (
   id: string,
   status: SettlementStatus,
-  _actor?: string,
 ): Promise<SettlementBatch> => {
   const response = await api.patch<{ data: SettlementBatch }>(
     API_ENDPOINTS.finance.settlementStatus(id),

@@ -18,15 +18,10 @@ import { MapStudioPreview, MapTestConsole } from '../components'
 import { Globe, Cpu } from 'lucide-react'
 
 const PROVIDER_METADATA: Record<MapProviderName, { label: string; badge: string; hint: string }> = {
-  ola: {
-    label: 'Ola Maps',
-    badge: 'Recommended for India',
-    hint: 'High-precision routing engine optimized for Indian traffic, auto-rickshaw lanes & highways.',
-  },
   google: {
     label: 'Google Maps Platform',
-    badge: 'Global Coverage',
-    hint: 'Worldwide tile coverage, satellite view imagery, and global place geocoding.',
+    badge: 'Primary / Recommended',
+    hint: 'Worldwide tile coverage, satellite view imagery, real-time routing, and global place geocoding.',
   },
   mappls: {
     label: 'Mappls (MapmyIndia)',
@@ -41,12 +36,11 @@ const PROVIDER_METADATA: Record<MapProviderName, { label: string; badge: string;
  * is labelled as such. Use the Health Probe tab to test a provider for real.
  */
 const PROVIDER_CAPABILITIES: Record<MapProviderName, string[]> = {
-  ola: ['Autocomplete', 'Geocoding', 'Reverse geocoding', 'Routing', 'Distance matrix'],
   google: ['Autocomplete', 'Geocoding', 'Reverse geocoding', 'Routing', 'Distance matrix', 'Snap to road'],
   mappls: ['Autocomplete', 'Geocoding', 'Reverse geocoding', 'Routing', 'Distance matrix', 'Snap to road'],
 }
 
-const PROVIDERS: MapProviderName[] = ['ola', 'google', 'mappls']
+const PROVIDERS: MapProviderName[] = ['google', 'mappls']
 
 type ProviderForm = {
   apiKey: string
@@ -71,40 +65,32 @@ export const MapSettingsPage: React.FC = () => {
   const { mutate: save, isPending } = useUpdateMapSettings()
   const { mutate: test, isPending: isTesting } = useTestMapProvider()
   const { success, error } = useToast()
-  const [primaryProvider, setPrimaryProvider] = useState<MapProviderName>('ola')
+  const [primaryProvider, setPrimaryProvider] = useState<MapProviderName>('google')
   const [providers, setProviders] = useState<Record<MapProviderName, ProviderForm>>({
-    ola: emptyProvider(),
     google: emptyProvider(),
     mappls: emptyProvider(),
   })
 
   useEffect(() => {
     if (!data) return
-    setPrimaryProvider(data.primaryProvider as MapProviderName)
+    const activeKey = (data.primaryProvider === 'mappls' ? 'mappls' : 'google') as MapProviderName
+    setPrimaryProvider(activeKey)
     setProviders({
-      ola: {
-        apiKey: data.providers.ola.configured ? MASKED_SECRET : '',
-        restApiKey: '',
-        clientId: '',
-        clientSecret: '',
-        clientSdkKey: '',
-        baseUrl: data.providers.ola.baseUrl ?? '',
-      },
       google: {
-        apiKey: data.providers.google.configured ? MASKED_SECRET : '',
+        apiKey: data.providers.google?.configured ? MASKED_SECRET : '',
         restApiKey: '',
         clientId: '',
         clientSecret: '',
         clientSdkKey: '',
-        baseUrl: data.providers.google.baseUrl ?? '',
+        baseUrl: data.providers.google?.baseUrl ?? '',
       },
       mappls: {
         apiKey: '',
-        restApiKey: data.providers.mappls.configured ? MASKED_SECRET : '',
+        restApiKey: data.providers.mappls?.configured ? MASKED_SECRET : '',
         clientId: '',
         clientSecret: '',
         clientSdkKey: '',
-        baseUrl: data.providers.mappls.baseUrl ?? '',
+        baseUrl: data.providers.mappls?.baseUrl ?? '',
       },
     })
   }, [data])
@@ -121,22 +107,22 @@ export const MapSettingsPage: React.FC = () => {
             mappls: {
               restApiKey: secretForUpdate(
                 active.restApiKey,
-                data?.providers.mappls.configured ? MASKED_SECRET : '',
+                data?.providers.mappls?.configured ? MASKED_SECRET : '',
               ),
               clientId: active.clientId || undefined,
               clientSecret: secretForUpdate(
                 active.clientSecret,
-                data?.providers.mappls.configured ? MASKED_SECRET : '',
+                data?.providers.mappls?.configured ? MASKED_SECRET : '',
               ),
               clientSdkKey: active.clientSdkKey || undefined,
               baseUrl: active.baseUrl || undefined,
             },
           }
         : {
-            [primaryProvider]: {
+            google: {
               apiKey: secretForUpdate(
                 active.apiKey,
-                data?.providers[primaryProvider].configured ? MASKED_SECRET : '',
+                data?.providers.google?.configured ? MASKED_SECRET : '',
               ),
               clientSdkKey: active.clientSdkKey || undefined,
               baseUrl: active.baseUrl || undefined,
@@ -215,7 +201,7 @@ export const MapSettingsPage: React.FC = () => {
             label="Active Map Provider"
             hint="Select the primary engine for route distance, fare calculation, address search, and ETAs. System policy requires exactly ONE active provider."
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
               {PROVIDERS.map((name) => {
                 const meta = PROVIDER_METADATA[name]
                 const isSelected = primaryProvider === name
@@ -340,7 +326,11 @@ export const MapSettingsPage: React.FC = () => {
                 <Input
                   value={active.baseUrl}
                   onChange={(e) => updateProvider(primaryProvider, { baseUrl: e.target.value })}
-                  placeholder="e.g. https://api.olamaps.io (Optional)"
+                  placeholder={
+                    primaryProvider === 'google'
+                      ? 'e.g. https://maps.googleapis.com/maps/api (Optional)'
+                      : 'e.g. https://route.mappls.com/route/direction (Optional)'
+                  }
                 />
               </SettingFieldRow>
 

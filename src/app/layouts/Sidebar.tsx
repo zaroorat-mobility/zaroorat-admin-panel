@@ -74,6 +74,13 @@ const navItems: NavItem[] = [
     href: "driver-management",
     icon: Car,
     children: [
+      {
+        href: "/driver-management",
+        label: "Overview",
+        icon: LayoutDashboard,
+        permission: "drivers:read",
+        matchActive: (path: string) => path === "/driver-management" || path === "/driver-management/overview",
+      },
       { href: "/driver-management/applications", label: "Driver Applications", icon: ShieldCheck, permission: "drivers:read" },
       { href: "/driver-management/drivers", label: "Drivers", icon: Users, permission: "drivers:read" },
     ],

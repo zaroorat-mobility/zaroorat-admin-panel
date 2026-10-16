@@ -12,8 +12,6 @@ import {
   Trash2,
   RotateCcw,
   Crosshair,
-  Plus,
-  Minus,
   Maximize2,
   Link2,
   ShieldCheck,
@@ -24,17 +22,8 @@ import {
   Info,
   AlertTriangle,
 } from 'lucide-react'
-import {
-  MapContainer,
-  TileLayer,
-  Polygon,
-  Polyline,
-  Marker,
-  useMap,
-  useMapEvents,
-} from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { GoogleZoneDrawingMap } from '@/shared/components/maps/google/GoogleZoneDrawingMap'
+import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   calculatePolygonAreaKm2,
@@ -59,20 +48,6 @@ import {
 } from '../../api/surge'
 import { useToast } from '@/shared/context/toast/ToastContext'
 
-
-// Leaflet default icon fix
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
-import markerIcon from 'leaflet/dist/images/marker-icon.png'
-import markerShadow from 'leaflet/dist/images/marker-shadow.png'
-
-// @ts-expect-error leaflet icon patch
-delete L.Icon.Default.prototype._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  iconShadow: markerShadow,
-})
-
 export interface CreateSurgeZoneModalProps {
   isOpen: boolean
   onClose: () => void
@@ -84,156 +59,6 @@ export interface CreateSurgeZoneModalProps {
 
 type BaseLayerType = 'map' | 'satellite' | 'terrain'
 
-const TILE_URLS: Record<BaseLayerType, string> = {
-  map: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  terrain: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-}
-
-// Map Controller for click events and viewport updates
-function MapController({
-  cityBoundary,
-  coordinates,
-  center,
-  isDrawing,
-  onMapClick,
-  fitTrigger,
-}: {
-  cityBoundary?: number[][][] | null
-  coordinates?: number[][][] | null
-  center: LatLngPoint
-  isDrawing: boolean
-  onMapClick: (point: [number, number]) => void
-  fitTrigger: number
-}) {
-  const map = useMap()
-
-  useMapEvents({
-    click(e) {
-      if (isDrawing) {
-        onMapClick([Number(e.latlng.lng.toFixed(6)), Number(e.latlng.lat.toFixed(6))])
-      }
-    },
-  })
-
-  useEffect(() => {
-    map.invalidateSize()
-    const targetPoly = cityBoundary?.[0]?.length && cityBoundary[0].length >= 3 ? cityBoundary : coordinates
-    if (targetPoly?.[0]?.length && targetPoly[0].length >= 3) {
-      const bounds = targetPoly[0].map(([lng, lat]) => [lat, lng] as [number, number])
-      map.fitBounds(bounds, { padding: [35, 35] })
-    } else {
-      map.setView([center.lat, center.lng], 12)
-    }
-  }, [center, cityBoundary, coordinates, fitTrigger, map])
-
-  return null
-}
-
-// Map Controls: Zoom in/out and Re-center
-function MapControls({ center }: { center: LatLngPoint }) {
-  const map = useMap()
-  return (
-    <div className="absolute top-3 left-3 z-[400] flex flex-col gap-1.5 pointer-events-auto">
-      <div className="flex flex-col bg-white/95 backdrop-blur-md rounded-lg border border-slate-200/90 shadow-sm overflow-hidden">
-        <button
-          type="button"
-          onClick={() => map.zoomIn()}
-          className="p-1.5 hover:bg-slate-50 text-slate-700 transition-colors flex items-center justify-center border-b border-slate-100 cursor-pointer"
-          title="Zoom in"
-        >
-          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-        </button>
-        <button
-          type="button"
-          onClick={() => map.zoomOut()}
-          className="p-1.5 hover:bg-slate-50 text-slate-700 transition-colors flex items-center justify-center cursor-pointer"
-          title="Zoom out"
-        >
-          <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
-        </button>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => map.setView([center.lat, center.lng], 12, { animate: true })}
-        className="p-1.5 bg-white/95 backdrop-blur-md hover:bg-slate-50 border border-slate-200/90 rounded-lg text-slate-700 shadow-sm transition-colors flex items-center justify-center cursor-pointer"
-        title="Center City View"
-      >
-        <Crosshair className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  )
-}
-
-// Vertex handle icon with white circular disc and blue border
-const vertexHandleIcon = L.divIcon({
-  className: 'zone-vertex-handle',
-  html: `
-    <div style="
-      width: 14px;
-      height: 14px;
-      background: #FFFFFF;
-      border: 3px solid #2563EB;
-      border-radius: 50%;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-      cursor: grab;
-      transition: transform 0.1s ease;
-    "></div>
-  `,
-  iconSize: [14, 14],
-  iconAnchor: [7, 7],
-})
-
-// Centered Zone Badge Marker on polygon
-const createZoneBadgeIcon = (text: string) => {
-  return L.divIcon({
-    className: 'zone-center-badge',
-    html: `
-      <div style="
-        background-color: #2563EB;
-        color: #FFFFFF;
-        font-family: inherit;
-        font-size: 11px;
-        font-weight: 700;
-        padding: 4px 10px;
-        border-radius: 6px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        white-space: nowrap;
-        transform: translate(-50%, -50%);
-        pointer-events: none;
-      ">
-        ${text}
-      </div>
-    `,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
-}
-
-// City Center Label
-const createCityLabelIcon = (cityName: string) => {
-  return L.divIcon({
-    className: 'city-name-label',
-    html: `
-      <div style="
-        font-family: inherit;
-        font-weight: 800;
-        font-size: 15px;
-        color: #0f172a;
-        text-shadow: 0 0 6px #ffffff, 0 0 12px #ffffff;
-        white-space: nowrap;
-        transform: translate(-50%, -50%);
-        pointer-events: none;
-      ">
-        ${cityName}
-      </div>
-    `,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
-}
-
 export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   isOpen,
   onClose,
@@ -242,6 +67,11 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   zoneId,
   isStandalonePage = false,
 }) => {
+  const { data: mapConfig } = useMapClientConfig()
+  const googleKey =
+    mapConfig?.providers.google?.clientSdkKey ||
+    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
+    ''
   const isEdit = Boolean(zoneId)
   const qc = useQueryClient()
   const { success: showToastSuccess } = useToast()
@@ -499,17 +329,6 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
     return cityCenter
   }, [uniqueVertices, cityCenter])
 
-  // LatLng arrays for rendering
-  const cityBoundaryLatLngs = useMemo(() => {
-    if (!cityBoundary?.[0] || cityBoundary[0].length < 3) return null
-    return cityBoundary[0].map(([lng, lat]) => [lat, lng] as [number, number])
-  }, [cityBoundary])
-
-  const zonePolygonLatLngs = useMemo(() => {
-    if (!coordinates?.[0] || coordinates[0].length < 3) return null
-    return coordinates[0].map(([lng, lat]) => [lat, lng] as [number, number])
-  }, [coordinates])
-
   // Validation Flags
   const isInsideCity = useMemo(() => {
     if (!cityBoundary?.[0] || !coordinates?.[0] || coordinates[0].length < 3) return false
@@ -520,45 +339,6 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   const isAreaValid = areaKm2 > 0.05
   const allConnected = Boolean(coordinates?.[0] && coordinates[0].length >= 4)
   const isOverallValid = isInsideCity && noIntersections && isAreaValid && allConnected
-
-  // Map Click to Add Point
-  const handleMapClick = useCallback(
-    (point: [number, number]) => {
-      if (toolMode !== 'draw') return
-      const currentRing = coordinates?.[0] ? [...coordinates[0]] : []
-      if (currentRing.length >= 3) {
-        const first = currentRing[0]
-        const last = currentRing[currentRing.length - 1]
-        if (first[0] === last[0] && first[1] === last[1]) {
-          currentRing.pop()
-        }
-      }
-      currentRing.push(point)
-      if (currentRing.length >= 3) {
-        const closed = [...currentRing, [currentRing[0][0], currentRing[0][1]] as [number, number]]
-        setCoordinates([closed])
-      } else {
-        setCoordinates([currentRing])
-      }
-    },
-    [coordinates, toolMode],
-  )
-
-  // Drag vertex handle in Edit mode
-  const handleVertexDrag = useCallback(
-    (index: number, newLatLng: L.LatLng) => {
-      if (!coordinates?.[0] || coordinates[0].length < 3) return
-      const ring = coordinates[0].map(([lng, lat]) => [lng, lat] as [number, number])
-      const newLng = Number(newLatLng.lng.toFixed(6))
-      const newLat = Number(newLatLng.lat.toFixed(6))
-      ring[index] = [newLng, newLat]
-      if (index === 0) {
-        ring[ring.length - 1] = [newLng, newLat]
-      }
-      setCoordinates([ring])
-    },
-    [coordinates],
-  )
 
   // Action: Draw Circle
   const handleDrawCircle = () => {
@@ -945,148 +725,28 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
 
               {/* Map Container */}
               <div className="relative w-full h-[255px] lg:h-[265px] rounded-xl overflow-hidden border border-slate-200/90">
-                <MapContainer
-                  key={`surge-map-editor-${cityCode}-${cityCenter.lat.toFixed(4)}-${cityCenter.lng.toFixed(4)}`}
-                  center={[cityCenter.lat, cityCenter.lng]}
-                  zoom={12}
-                  style={{ width: '100%', height: '100%' }}
-                  zoomControl={false}
-                >
-                  <TileLayer url={TILE_URLS[baseLayer]} attribution="&copy; OpenStreetMap" />
-
-                  <MapController
-                    cityBoundary={cityBoundary}
-                    coordinates={coordinates}
-                    center={cityCenter}
-                    isDrawing={toolMode === 'draw'}
-                    onMapClick={handleMapClick}
-                    fitTrigger={fitTrigger}
-                  />
-
-                  <MapControls center={cityCenter} />
-
-                  {/* 1. Reference City Boundary (Blue polygon) */}
-                  {showCityBoundary && cityBoundaryLatLngs && (
-                    <Polygon
-                      positions={cityBoundaryLatLngs}
-                      pathOptions={{
-                        color: '#2563EB',
-                        weight: 2.5,
-                        fillColor: '#60A5FA',
-                        fillOpacity: 0.12,
-                        dashArray: '5, 5',
-                      }}
-                    />
-                  )}
-
-                  {/* 2. Existing Airport Zones */}
-                  {showAirportZones &&
-                    airportZones.map((z) => (
-                      <Polygon
-                        key={`ap-${z.id}`}
-                        positions={z.boundary[0].map(([lng, lat]) => [lat, lng] as [number, number])}
-                        pathOptions={{
-                          color: '#059669',
-                          weight: 2,
-                          fillColor: '#10B981',
-                          fillOpacity: 0.25,
-                        }}
-                      />
-                    ))}
-
-                  {/* 3. Existing Restricted Zones */}
-                  {showRestrictedZones &&
-                    restrictedZones.map((z) => (
-                      <Polygon
-                        key={`rz-${z.id}`}
-                        positions={z.boundary[0].map(([lng, lat]) => [lat, lng] as [number, number])}
-                        pathOptions={{
-                          color: '#D97706',
-                          weight: 2,
-                          fillColor: '#F59E0B',
-                          fillOpacity: 0.25,
-                        }}
-                      />
-                    ))}
-
-                  {/* 4. Existing Service Zones */}
-                  {showServiceZones &&
-                    serviceZones.map((z) => (
-                      <Polygon
-                        key={`sz-${z.id}`}
-                        positions={z.boundary[0].map(([lng, lat]) => [lat, lng] as [number, number])}
-                        pathOptions={{
-                          color: '#8B5CF6',
-                          weight: 2,
-                          fillColor: '#A78BFA',
-                          fillOpacity: 0.22,
-                        }}
-                      />
-                    ))}
-
-                  {/* 5. Existing Surge Zones */}
-                  {showSurgeZones &&
-                    existingSurgeZones.map((z) => (
-                      <Polygon
-                        key={`ex-surge-${z.id}`}
-                        positions={z.boundary[0].map(([lng, lat]) => [lat, lng] as [number, number])}
-                        pathOptions={{
-                          color: '#7C3AED',
-                          weight: 2,
-                          fillColor: '#C084FC',
-                          fillOpacity: 0.26,
-                        }}
-                      />
-                    ))}
-
-                  {/* 6. Active New Surge Zone Polygon */}
-                  {zonePolygonLatLngs && (
-                    <Polygon
-                      positions={zonePolygonLatLngs}
-                      pathOptions={{
-                        color: '#2563EB',
-                        weight: 2.8,
-                        fillColor: '#3B82F6',
-                        fillOpacity: 0.42,
-                      }}
-                    />
-                  )}
-
-                  {/* Drawing in-progress dashed preview line */}
-                  {coordinates?.[0] && coordinates[0].length === 2 && (
-                    <Polyline
-                      positions={coordinates[0].map(([lng, lat]) => [lat, lng] as [number, number])}
-                      pathOptions={{ color: '#2563EB', weight: 2.5, dashArray: '5, 5' }}
-                    />
-                  )}
-
-                  {/* Draggable Vertex Handles for New Zone */}
-                  {uniqueVertices.map(([lng, lat], idx) => (
-                    <Marker
-                      key={`vh-${idx}`}
-                      position={[lat, lng]}
-                      icon={vertexHandleIcon}
-                      draggable={true}
-                      eventHandlers={{
-                        dragend: (e) => handleVertexDrag(idx, e.target.getLatLng()),
-                      }}
-                    />
-                  ))}
-
-                  {/* City Center Label */}
-                  <Marker
-                    position={[cityCenter.lat + 0.005, cityCenter.lng - 0.008]}
-                    icon={createCityLabelIcon(cityName)}
-                  />
-
-                  {/* Active Zone Label Badge */}
-                  {zonePolygonLatLngs && (
-                    <Marker
-                      position={[newZoneCenter.lat, newZoneCenter.lng]}
-                      icon={createZoneBadgeIcon(name || `${cityName} Surge Zone`)}
-                    />
-                  )}
-                </MapContainer>
+                <GoogleZoneDrawingMap
+                  coordinates={coordinates}
+                  onChange={setCoordinates}
+                  cityBoundary={cityBoundary}
+                  center={cityCenter}
+                  cityName={cityName}
+                  zoneName={name || `${cityName} Surge Zone`}
+                  zoneType="SURGE"
+                  height="100%"
+                  mapType={baseLayer === 'satellite' ? 'satellite' : baseLayer === 'terrain' ? 'terrain' : 'roadmap'}
+                  apiKey={googleKey}
+                  toolMode={toolMode === 'circle' ? 'draw' : toolMode}
+                  overlayZones={[
+                    ...(showAirportZones ? airportZones.map((z) => ({ id: z.id, name: z.name, zoneType: 'AIRPORT', boundary: z.boundary })) : []),
+                    ...(showRestrictedZones ? restrictedZones.map((z) => ({ id: z.id, name: z.name, zoneType: 'RESTRICTED', boundary: z.boundary })) : []),
+                    ...(showServiceZones ? serviceZones.map((z) => ({ id: z.id, name: z.name, zoneType: 'SERVICE', boundary: z.boundary })) : []),
+                    ...(showSurgeZones ? existingSurgeZones.map((z) => ({ id: z.id, name: z.name, zoneType: 'SURGE', boundary: z.boundary })) : []),
+                  ]}
+                  showCityBoundary={showCityBoundary}
+                  showOverlayZones={true}
+                  fitTrigger={fitTrigger}
+                />
 
                 {/* Floating Layers Selector Overlay (Top Right) */}
                 <div className="absolute top-3 right-3 z-[400] bg-white/95 backdrop-blur-md rounded-xl border border-slate-200/90 shadow-md p-2.5 pointer-events-auto text-xs font-semibold space-y-1.5 min-w-[150px]">

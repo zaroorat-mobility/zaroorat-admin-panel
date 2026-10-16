@@ -8,7 +8,7 @@ interface AcknowledgementTemplateProps {
 }
 
 export const AcknowledgementTemplate: React.FC<AcknowledgementTemplateProps> = ({
-  id = 'KYC-NEW',
+  id,
   formValues
 }) => {
   return (
@@ -21,7 +21,7 @@ export const AcknowledgementTemplate: React.FC<AcknowledgementTemplateProps> = (
         </div>
         <div className="text-right text-xs space-y-0.5">
           <p><strong>Receipt Date:</strong> {new Date().toLocaleDateString('en-IN')}</p>
-          <p><strong>Reference ID:</strong> KYC-{id || Math.random().toString(36).substr(2, 9).toUpperCase()}</p>
+          <p><strong>Reference ID:</strong> {id ? `KYC-${id}` : 'Assigned after submission'}</p>
           <p><strong>Status:</strong> Pre-registered (Audit Pending)</p>
         </div>
       </div>

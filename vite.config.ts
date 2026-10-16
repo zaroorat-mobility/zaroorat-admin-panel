@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 // https://vite.dev/config/
+// Auto-reloaded for Google Maps Platform environment configuration
 export default defineConfig({
   plugins: [react()],
   resolve: {

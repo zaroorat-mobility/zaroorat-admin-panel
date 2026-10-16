@@ -9,7 +9,7 @@ export type MaskedSecret = '********' | ''
 
 export type FeatureFlagStatus = 'ON' | 'OFF' | 'PARTIAL'
 
-export type MapProviderName = 'ola' | 'google' | 'mappls'
+export type MapProviderName = 'google' | 'mappls'
 
 export type PaymentGatewayName = 'mock' | 'razorpay' | 'stripe'
 
@@ -170,7 +170,6 @@ export interface MapSettingsView {
   primaryProvider: string
   version: number
   providers: {
-    ola: MapProviderConfigView
     google: MapProviderConfigView
     mappls: MapProviderConfigView
   }
@@ -183,7 +182,6 @@ export interface UpdateMapSettingsBody {
     // `clientSdkKey` is the publishable browser key, not a server credential.
     // It is write-only here on purpose: the backend accepts it but never returns
     // it on `MapSettingsView`, so it has no place on that type.
-    ola?: { enabled?: boolean; apiKey?: string; clientSdkKey?: string; baseUrl?: string }
     google?: { enabled?: boolean; apiKey?: string; clientSdkKey?: string; baseUrl?: string }
     mappls?: {
       enabled?: boolean

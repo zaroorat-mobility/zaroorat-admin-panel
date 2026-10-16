@@ -55,6 +55,11 @@ export interface DriverKycDocument {
   docNumber?: string
   fileUrl: string
   fileId?: string
+  /// Back of a two-sided card (licence, Aadhaar, RC), when the driver supplied one.
+  backFileId?: string
+  contentType?: string
+  backContentType?: string
+  isPdf?: boolean
   issuedDate?: string
   expiryDate?: string
   verifyStatus: DocVerifyStatus
@@ -82,7 +87,9 @@ export interface VehicleInfo {
   registrationPlate: string
   registrationNumber?: string
   color?: string
-  seatsCapacity: number
+  fuelType?: string
+  photoUrl?: string
+  seatsCapacity?: number
   seatCapacity?: number
   manufacturingYear?: number
   rcNumber?: string
@@ -112,6 +119,28 @@ export interface ApplicationTimelineEvent {
   isSystem?: boolean
 }
 
+export interface ExpiryAlertsSummary {
+  expired: number
+  d30: number
+  d60: number
+  d90: number
+  total: number
+}
+
+export interface DriverBankAccountItem {
+  id: string
+  bankAccountName?: string
+  bankName?: string
+  bankIfsc?: string
+  accountNumberMasked?: string | null
+  upiId?: string
+  status: string
+  verificationStatus: string
+  payoutEnabled: boolean
+  isActive: boolean
+  isDefault: boolean
+}
+
 // ─── Driver Application (core entity) ─────────────────────────────────────
 
 export interface DriverApplicationEntity extends BaseEntity {
@@ -123,6 +152,9 @@ export interface DriverApplicationEntity extends BaseEntity {
   applicationStatus: ApplicationStatus
   source: ApplicationSource
   submittedAt: string
+  profilePhotoUrl?: string
+  documentsCount?: number
+  totalDocuments?: number
 }
 
 export interface DriverApplicationDetails extends DriverApplicationEntity {
@@ -156,6 +188,7 @@ export interface DriverApplicationDetails extends DriverApplicationEntity {
   bankIfsc?: string
   bankName?: string
   upiId?: string
+  bankAccounts?: DriverBankAccountItem[]
 
   // Address
   country?: string
@@ -194,6 +227,9 @@ export interface DriverEntity extends BaseEntity {
   totalTrips: number
   walletBalance: number
   profilePhotoUrl?: string
+  documentsCount?: number
+  totalDocuments?: number
+  licenseExpiry?: string
   joinedAt: string
   lastActiveAt?: string
   isOnline: boolean
@@ -206,6 +242,13 @@ export interface DriverDetails extends DriverEntity {
   dateOfBirth?: string
   emergencyContactName?: string
   emergencyContactNumber?: string
+  emergencyContactRelationship?: string
+  emergencyContacts?: Array<{
+    id: string
+    contactName: string
+    phoneNumber: string
+    relationship?: string | null
+  }>
   preferredLanguage?: string
   bgCheckStatus?: 'not_started' | 'in_progress' | 'clear' | 'flagged'
   country?: string
@@ -221,8 +264,18 @@ export interface DriverDetails extends DriverEntity {
   bankIfsc?: string
   bankName?: string
   upiId?: string
+  bankAccounts?: DriverBankAccountItem[]
   vehicle?: VehicleInfo
   documents: DriverKycDocument[]
+  /// The driver's own choice, made in the driver app after approval; absent until made.
+  paymentModel?: 'COMMISSION' | 'SUBSCRIPTION'
+  subscription?: {
+    planName: string
+    status: string
+    startDate?: string
+    endDate?: string
+    amount?: number
+  }
   billingMode?: 'free' | 'commission' | 'subscription'
   subscriptionType?: 'monthly' | 'weekly' | 'daily'
   earningsToday?: number

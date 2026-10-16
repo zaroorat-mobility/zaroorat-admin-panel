@@ -1,15 +1,6 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react'
-import {
-  MapContainer,
-  TileLayer,
-  Polygon,
-  Polyline,
-  Marker,
-  useMap,
-  useMapEvents,
-} from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import React, { useMemo, useState, useEffect } from 'react'
+import { GoogleZoneDrawingMap } from '@/shared/components/maps/google/GoogleZoneDrawingMap'
+import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import {
   PenTool,
   Edit2,
@@ -19,9 +10,6 @@ import {
   CheckCircle2,
   Copy,
   Check,
-  Plus,
-  Minus,
-  Crosshair,
   Hexagon,
   Scan,
   Compass,
@@ -175,273 +163,6 @@ interface Step4DefineZoneMapProps {
 
 type BaseLayerType = 'map' | 'satellite' | 'terrain'
 
-const TILE_URLS: Record<BaseLayerType, string> = {
-  satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  map: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  terrain: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-}
-
-// Controller for map events and view operations
-function MapController({
-  cityBoundary,
-  coordinates,
-  center,
-  isDrawing,
-  onMapClick,
-  fitTrigger,
-  flyToTarget,
-}: {
-  cityBoundary?: number[][][] | null
-  coordinates?: number[][][] | null
-  center: LatLngPoint
-  isDrawing: boolean
-  onMapClick: (point: [number, number]) => void
-  fitTrigger: number
-  flyToTarget?: FlyToTarget | null
-}) {
-  const map = useMap()
-
-  useMapEvents({
-    click(e) {
-      if (isDrawing) {
-        onMapClick([Number(e.latlng.lng.toFixed(6)), Number(e.latlng.lat.toFixed(6))])
-      }
-    },
-  })
-
-  // Fit bounds to city or zone on load or when fitTrigger increments
-  useEffect(() => {
-    map.invalidateSize()
-    const targetPoly = cityBoundary?.[0]?.length ? cityBoundary : coordinates
-    if (targetPoly?.[0]?.length && targetPoly[0].length >= 3) {
-      const bounds = targetPoly[0].map(([lng, lat]) => [lat, lng] as [number, number])
-      map.fitBounds(bounds, { padding: [30, 30] })
-    } else {
-      map.setView([center.lat, center.lng], 12)
-    }
-  }, [center, cityBoundary, coordinates, fitTrigger, map])
-
-  // Smooth flyTo when search result or airport locator is triggered
-  useEffect(() => {
-    if (flyToTarget && flyToTarget.timestamp > 0) {
-      map.flyTo([flyToTarget.lat, flyToTarget.lng], flyToTarget.zoom ?? 14, { duration: 1.2 })
-    }
-  }, [flyToTarget, map])
-
-  return null
-}
-
-// Map Controls component (Zoom + Locate)
-function MapControls({ center }: { center: LatLngPoint }) {
-  const map = useMap()
-
-  return (
-    <div className="absolute top-3 left-3 z-[400] flex flex-col gap-1.5 pointer-events-auto">
-      <div className="bg-white/95 backdrop-blur-md rounded-lg border border-slate-200/90 shadow-sm flex flex-col overflow-hidden">
-        <button
-          type="button"
-          onClick={() => map.zoomIn()}
-          className="p-1.5 text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-100 flex items-center justify-center cursor-pointer"
-          title="Zoom In"
-        >
-          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-        </button>
-        <button
-          type="button"
-          onClick={() => map.zoomOut()}
-          className="p-1.5 text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center cursor-pointer"
-          title="Zoom Out"
-        >
-          <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
-        </button>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => map.setView([center.lat, center.lng], 12, { animate: true })}
-        className="p-1.5 bg-white/95 backdrop-blur-md hover:bg-slate-50 border border-slate-200/90 rounded-lg text-slate-700 shadow-sm transition-colors flex items-center justify-center cursor-pointer"
-        title="Center City View"
-      >
-        <Crosshair className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  )
-}
-
-// Vertex handle icon with white circle and blue border matching screenshot
-const vertexHandleIcon = L.divIcon({
-  className: 'zone-vertex-handle',
-  html: `
-    <div style="
-      width: 14px;
-      height: 14px;
-      background: #FFFFFF;
-      border: 3px solid #2563EB;
-      border-radius: 50%;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-      cursor: grab;
-      transition: transform 0.1s ease;
-    "></div>
-  `,
-  iconSize: [14, 14],
-  iconAnchor: [7, 7],
-})
-
-// City Center Label Icon
-const createCityLabelIcon = (cityName: string) => {
-  return L.divIcon({
-    className: 'city-name-label',
-    html: `
-      <div style="
-        font-family: inherit;
-        font-weight: 800;
-        font-size: 15px;
-        color: #0f172a;
-        text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff;
-        white-space: nowrap;
-        transform: translate(-50%, -50%);
-        pointer-events: none;
-        letter-spacing: -0.01em;
-      ">
-        ${cityName || 'City'}
-      </div>
-    `,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
-}
-
-// Zone Center Badge Icon (e.g. Airport Zone, Restricted Zone, New Zone, Service Zone)
-const createZoneBadgeIcon = (
-  text: string,
-  bgColor: string,
-  textColor: string,
-  symbol?: string,
-) => {
-  return L.divIcon({
-    className: 'zone-center-badge',
-    html: `
-      <div style="
-        background-color: ${bgColor};
-        color: ${textColor};
-        font-weight: 700;
-        font-size: 11px;
-        padding: 3px 8px;
-        border-radius: 6px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        white-space: nowrap;
-        transform: translate(-50%, -50%);
-        pointer-events: none;
-      ">
-        ${symbol ? `<span style="font-size: 12px; line-height: 1;">${symbol}</span>` : ''}
-        <span>${text}</span>
-      </div>
-    `,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
-}
-
-// Airport Pin Marker Icon for Leaflet
-const createAirportPinIcon = (iata: string, name: string) => {
-  return L.divIcon({
-    className: 'airport-pin-marker',
-    html: `
-      <div style="
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        transform: translate(-50%, -100%);
-        pointer-events: auto;
-        cursor: pointer;
-      " title="${name}">
-        <div style="
-          background: #059669;
-          color: #ffffff;
-          font-weight: 800;
-          font-size: 11px;
-          padding: 4px 9px;
-          border-radius: 9999px;
-          box-shadow: 0 4px 12px rgba(5, 150, 105, 0.45);
-          display: flex;
-          align-items: center;
-          gap: 5px;
-          white-space: nowrap;
-          border: 2px solid #ffffff;
-        ">
-          <span style="font-size: 13px; line-height: 1;">✈</span>
-          <span>${iata} Airport</span>
-        </div>
-        <div style="
-          width: 0;
-          height: 0;
-          border-left: 6px solid transparent;
-          border-right: 6px solid transparent;
-          border-top: 7px solid #059669;
-          margin-top: -1px;
-        "></div>
-      </div>
-    `,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
-}
-
-// Search Place Pin Marker Icon for Leaflet
-const createSearchPinIcon = (title: string) => {
-  return L.divIcon({
-    className: 'search-pin-marker',
-    html: `
-      <div style="
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        transform: translate(-50%, -100%);
-        pointer-events: auto;
-      ">
-        <div style="
-          background: #1F2B6D;
-          color: #ffffff;
-          font-weight: 700;
-          font-size: 11px;
-          padding: 4px 9px;
-          border-radius: 8px;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.35);
-          white-space: nowrap;
-          border: 2px solid #ffffff;
-          max-width: 200px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        ">
-          📍 ${title}
-        </div>
-        <div style="
-          width: 0;
-          height: 0;
-          border-left: 5px solid transparent;
-          border-right: 5px solid transparent;
-          border-top: 6px solid #1F2B6D;
-        "></div>
-      </div>
-    `,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
-}
-
-function getCentroid(boundary: number[][][]): [number, number] {
-  if (!boundary?.[0] || boundary[0].length === 0) return [0, 0]
-  const ring = boundary[0]
-  const sum = ring.reduce(
-    (acc, [lng, lat]) => ({ lng: acc.lng + lng, lat: acc.lat + lat }),
-    { lng: 0, lat: 0 },
-  )
-  return [sum.lat / ring.length, sum.lng / ring.length]
-}
-
 export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
   coordinates,
   setCoordinates,
@@ -454,6 +175,11 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
   existingZones = [],
   onValidationChange,
 }) => {
+  const { data: mapConfig } = useMapClientConfig()
+  const googleKey =
+    mapConfig?.providers.google?.clientSdkKey ||
+    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
+    ''
   const [toolMode, setToolMode] = useState<'draw' | 'edit'>('draw')
   const [baseLayer, setBaseLayer] = useState<BaseLayerType>('satellite')
   const [fitTrigger, setFitTrigger] = useState<number>(0)
@@ -669,18 +395,6 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
     setIsSearchOpen(false)
   }
 
-  // LatLng for city boundary reference
-  const cityBoundaryLatLngs = useMemo(() => {
-    if (!cityBoundary?.[0] || cityBoundary[0].length < 3) return null
-    return cityBoundary[0].map(([lng, lat]) => [lat, lng] as [number, number])
-  }, [cityBoundary])
-
-  // LatLng for active New Zone polygon
-  const zonePolygonLatLngs = useMemo(() => {
-    if (!coordinates?.[0] || coordinates[0].length < 3) return null
-    return coordinates[0].map(([lng, lat]) => [lat, lng] as [number, number])
-  }, [coordinates])
-
   const uniqueVertices = useMemo(() => {
     if (!coordinates?.[0] || coordinates[0].length === 0) return []
     if (coordinates[0].length >= 3) {
@@ -704,21 +418,6 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
   }, [coordinates])
 
   const pointsCount = uniqueVertices.length > 0 ? uniqueVertices.length : 0
-
-  // Centroid of New Zone for badge positioning
-  const newZoneCenter = useMemo<LatLngPoint>(() => {
-    if (uniqueVertices.length > 0) {
-      const sum = uniqueVertices.reduce(
-        (acc, [lng, lat]) => ({ lng: acc.lng + lng, lat: acc.lat + lat }),
-        { lng: 0, lat: 0 },
-      )
-      return {
-        lng: sum.lng / uniqueVertices.length,
-        lat: sum.lat / uniqueVertices.length,
-      }
-    }
-    return { lng: cityCenter.lng, lat: cityCenter.lat }
-  }, [uniqueVertices, cityCenter])
 
   // Categorize real existing zones from the database
   const airportZones = useMemo(() => {
@@ -778,45 +477,6 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
   useEffect(() => {
     onValidationChange?.(isOverallValid)
   }, [isOverallValid, onValidationChange])
-
-  // Click on map to add vertex
-  const handleMapClick = useCallback(
-    (point: [number, number]) => {
-      if (toolMode !== 'draw') return
-      const currentRing = coordinates?.[0] ? [...coordinates[0]] : []
-      if (currentRing.length >= 3) {
-        const first = currentRing[0]
-        const last = currentRing[currentRing.length - 1]
-        if (first[0] === last[0] && first[1] === last[1]) {
-          currentRing.pop()
-        }
-      }
-      currentRing.push(point)
-      if (currentRing.length >= 3) {
-        const closed = [...currentRing, [currentRing[0][0], currentRing[0][1]] as [number, number]]
-        setCoordinates([closed])
-      } else {
-        setCoordinates([currentRing])
-      }
-    },
-    [coordinates, toolMode, setCoordinates],
-  )
-
-  // Drag vertex handle in Edit mode
-  const handleVertexDrag = useCallback(
-    (index: number, newLatLng: L.LatLng) => {
-      if (!coordinates?.[0] || coordinates[0].length < 3) return
-      const ring = coordinates[0].map(([lng, lat]) => [lng, lat] as [number, number])
-      const newLng = Number(newLatLng.lng.toFixed(6))
-      const newLat = Number(newLatLng.lat.toFixed(6))
-      ring[index] = [newLng, newLat]
-      if (index === 0) {
-        ring[ring.length - 1] = [newLng, newLat]
-      }
-      setCoordinates([ring])
-    },
-    [coordinates, setCoordinates],
-  )
 
   const handleDelete = () => {
     if (!coordinates?.[0] || coordinates[0].length === 0) return
@@ -1170,205 +830,30 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
           </div>
 
           {/* Map Container */}
-          <div className="relative w-full rounded-xl overflow-hidden border border-slate-200/90 bg-slate-900 shadow-inner h-[440px] [&_.leaflet-control-attribution]:hidden">
-            <MapContainer
-              key={`zone-map-editor-${cityCenter.lat.toFixed(4)}-${cityCenter.lng.toFixed(4)}`}
-              center={[cityCenter.lat, cityCenter.lng]}
-              zoom={12}
-              style={{ height: '100%', width: '100%' }}
-              zoomControl={false}
-            >
-              <TileLayer attribution="" url={TILE_URLS[baseLayer]} />
-
-              <MapController
-                cityBoundary={cityBoundary}
-                coordinates={coordinates}
-                center={cityCenter}
-                isDrawing={toolMode === 'draw'}
-                onMapClick={handleMapClick}
-                fitTrigger={fitTrigger}
-                flyToTarget={flyToTarget}
-              />
-
-              <MapControls center={cityCenter} />
-
-              {/* 1. Reference City Boundary (Blue polygon) */}
-              {showCityBoundary && cityBoundaryLatLngs && (
-                <Polygon
-                  positions={cityBoundaryLatLngs}
-                  pathOptions={{
-                    color: '#2563EB',
-                    weight: 2.5,
-                    fillColor: '#60A5FA',
-                    fillOpacity: 0.14,
-                  }}
-                />
-              )}
-
-              {/* 2. Real Airport Zones (Green) */}
-              {showAirportZones &&
-                airportZones.map((z) => (
-                  <Polygon
-                    key={`ap-${z.id}`}
-                    positions={z.boundary[0].map(([lng, lat]) => [lat, lng] as [number, number])}
-                    pathOptions={{
-                      color: '#10B981',
-                      weight: 2,
-                      fillColor: '#34D399',
-                      fillOpacity: 0.35,
-                    }}
-                  />
-                ))}
-
-              {/* 3. Real Restricted Zones (Orange) */}
-              {showRestrictedZones &&
-                restrictedZones.map((z) => (
-                  <Polygon
-                    key={`rz-${z.id}`}
-                    positions={z.boundary[0].map(([lng, lat]) => [lat, lng] as [number, number])}
-                    pathOptions={{
-                      color: '#F59E0B',
-                      weight: 2,
-                      fillColor: '#FBBF24',
-                      fillOpacity: 0.35,
-                    }}
-                  />
-                ))}
-
-              {/* 4. Real Existing Service Zones (Purple) */}
-              {showServiceZones &&
-                serviceZones.map((z) => (
-                  <Polygon
-                    key={`sz-${z.id}`}
-                    positions={z.boundary[0].map(([lng, lat]) => [lat, lng] as [number, number])}
-                    pathOptions={{
-                      color: '#8B5CF6',
-                      weight: 2,
-                      fillColor: '#A78BFA',
-                      fillOpacity: 0.28,
-                    }}
-                  />
-                ))}
-
-              {/* 5. Active New Zone Polygon (Bright Blue) */}
-              {zonePolygonLatLngs && (
-                <Polygon
-                  positions={zonePolygonLatLngs}
-                  pathOptions={{
-                    color: '#2563EB',
-                    weight: 2.8,
-                    fillColor: '#3B82F6',
-                    fillOpacity: 0.45,
-                  }}
-                />
-              )}
-
-              {/* In-progress drawing line */}
-              {coordinates?.[0] && coordinates[0].length === 2 && (
-                <Polyline
-                  positions={coordinates[0].map(([lng, lat]) => [lat, lng] as [number, number])}
-                  pathOptions={{ color: '#2563EB', weight: 2.5, dashArray: '5, 5' }}
-                />
-              )}
-
-              {/* Draggable Vertex Handles for New Zone */}
-              {uniqueVertices.map(([lng, lat], idx) => (
-                <Marker
-                  key={`vh-${idx}`}
-                  position={[lat, lng]}
-                  icon={vertexHandleIcon}
-                  draggable={true}
-                  eventHandlers={{
-                    dragend: (e) => handleVertexDrag(idx, e.target.getLatLng()),
-                  }}
-                />
-              ))}
-
-              {/* Real Labels & Badges on Map */}
-              {showLabels && (
-                <>
-                  {/* City Center Name */}
-                  <Marker
-                    position={[cityCenter.lat + 0.005, cityCenter.lng - 0.008]}
-                    icon={createCityLabelIcon(cityName)}
-                  />
-
-                  {/* Airport Zone Badges */}
-                  {showAirportZones &&
-                    airportZones.map((z) => (
-                      <Marker
-                        key={`ap-badge-${z.id}`}
-                        position={getCentroid(z.boundary)}
-                        icon={createZoneBadgeIcon(z.name, '#059669', '#FFFFFF', '✈')}
-                      />
-                    ))}
-
-                  {/* Restricted Zone Badges */}
-                  {showRestrictedZones &&
-                    restrictedZones.map((z) => (
-                      <Marker
-                        key={`rz-badge-${z.id}`}
-                        position={getCentroid(z.boundary)}
-                        icon={createZoneBadgeIcon(z.name, '#D97706', '#FFFFFF', '⛔')}
-                      />
-                    ))}
-
-                  {/* Existing Service Zone Badges */}
-                  {showServiceZones &&
-                    serviceZones.map((z) => (
-                      <Marker
-                        key={`sz-badge-${z.id}`}
-                        position={getCentroid(z.boundary)}
-                        icon={createZoneBadgeIcon(z.name, '#7C3AED', '#FFFFFF')}
-                      />
-                    ))}
-
-                  {/* New Zone Badge - offset slightly if near airport to avoid overlap */}
-                  {zonePolygonLatLngs && (
-                    <Marker
-                      position={[
-                        currentAirport && Math.abs(newZoneCenter.lat - currentAirport.lat) < 0.008
-                          ? newZoneCenter.lat - 0.0055
-                          : newZoneCenter.lat,
-                        newZoneCenter.lng,
-                      ]}
-                      icon={createZoneBadgeIcon(
-                        zoneName || (zoneType === 'AIRPORT' ? 'New Airport Zone' : 'New Zone'),
-                        '#2563EB',
-                        '#FFFFFF',
-                        zoneType === 'AIRPORT' ? '✈' : undefined,
-                      )}
-                    />
-                  )}
-
-                  {/* Airport Landmark Pin Marker - only display if there isn't already an existing airport zone badge here */}
-                  {currentAirport &&
-                    !airportZones.some((z) => {
-                      const [cLat, cLng] = getCentroid(z.boundary)
-                      return (
-                        Math.abs(cLat - currentAirport.lat) < 0.015 &&
-                        Math.abs(cLng - currentAirport.lng) < 0.015
-                      )
-                    }) && (
-                      <Marker
-                        position={[currentAirport.lat, currentAirport.lng]}
-                        icon={createAirportPinIcon(currentAirport.iata, currentAirport.name)}
-                        eventHandlers={{
-                          click: () => handleLocateAirport(),
-                        }}
-                      />
-                    )}
-
-                  {/* Temporary Search Result Pin */}
-                  {searchPin && (
-                    <Marker
-                      position={[searchPin.lat, searchPin.lng]}
-                      icon={createSearchPinIcon(searchPin.name)}
-                    />
-                  )}
-                </>
-              )}
-            </MapContainer>
+          <div className="relative w-full rounded-xl overflow-hidden border border-slate-200/90 bg-slate-900 shadow-inner h-[440px]">
+            <GoogleZoneDrawingMap
+              coordinates={coordinates}
+              onChange={setCoordinates}
+              cityBoundary={cityBoundary}
+              center={cityCenter}
+              cityName={cityName}
+              zoneName={zoneName}
+              zoneType={zoneType}
+              height="440px"
+              mapType={baseLayer === 'satellite' ? 'satellite' : baseLayer === 'terrain' ? 'terrain' : 'roadmap'}
+              apiKey={googleKey}
+              toolMode={toolMode}
+              overlayZones={[
+                ...(showAirportZones ? airportZones.map((z) => ({ id: z.id, name: z.name, zoneType: 'AIRPORT', boundary: z.boundary })) : []),
+                ...(showRestrictedZones ? restrictedZones.map((z) => ({ id: z.id, name: z.name, zoneType: 'RESTRICTED', boundary: z.boundary })) : []),
+                ...(showServiceZones ? serviceZones.map((z) => ({ id: z.id, name: z.name, zoneType: 'SERVICE', boundary: z.boundary })) : []),
+              ]}
+              showCityBoundary={showCityBoundary}
+              showOverlayZones={true}
+              flyToTarget={flyToTarget}
+              fitTrigger={fitTrigger}
+              searchPin={searchPin}
+            />
 
             {/* Top-Right Floating Checkbox Legend matching screenshot */}
             <div className="absolute top-3 right-3 z-[400] bg-white/95 backdrop-blur-md rounded-xl border border-slate-200/90 shadow-md p-2.5 pointer-events-auto text-xs font-semibold space-y-1.5 min-w-[155px]">

@@ -1,5 +1,6 @@
 import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
+import DriverManagementOverviewPage from '../pages/overview/DriverManagementOverviewPage'
 import ApplicationsListPage from '../pages/applications/ApplicationsListPage'
 import ApplicationReviewPage from '../pages/applications/ApplicationReviewPage'
 import ManualRegistrationPage from '../pages/applications/ManualRegistrationPage'
@@ -10,7 +11,8 @@ import DriverEditPage from '../pages/drivers/DriverEditPage'
 export const DriverManagementRoutes: React.FC = () => {
   return (
     <Routes>
-      <Route index element={<Navigate to="applications" replace />} />
+      <Route index element={<DriverManagementOverviewPage />} />
+      <Route path="overview" element={<DriverManagementOverviewPage />} />
 
       <Route path="applications" element={<ApplicationsListPage />} />
       <Route path="applications/new" element={<ManualRegistrationPage />} />

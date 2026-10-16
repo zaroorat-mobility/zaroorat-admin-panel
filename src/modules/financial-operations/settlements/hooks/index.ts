@@ -48,12 +48,11 @@ export const useDriverBreakdown = (driverId: string, periodStart: string, period
 export const useGenerateSettlement = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ periodStart, periodEnd, generatedBy, drivers }: {
+    mutationFn: ({ periodStart, periodEnd, drivers }: {
       periodStart: string
       periodEnd: string
-      generatedBy: string
       drivers: DriverSettlement[]
-    }) => SettlementService.generateSettlementBatch(periodStart, periodEnd, generatedBy, drivers),
+    }) => SettlementService.generateSettlementBatch(periodStart, periodEnd, drivers),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['financial'] })
   })
 }
@@ -61,8 +60,8 @@ export const useGenerateSettlement = () => {
 export const useUpdateSettlementStatus = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, status, actor }: { id: string; status: SettlementStatus; actor: string }) =>
-      SettlementService.updateSettlementStatus(id, status, actor),
+    mutationFn: ({ id, status }: { id: string; status: SettlementStatus }) =>
+      SettlementService.updateSettlementStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['financial'] })
   })
 }

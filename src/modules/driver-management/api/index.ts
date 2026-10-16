@@ -6,6 +6,7 @@ import type {
   DriverApplicationEntity,
   DriverApplicationDetails,
   VehicleEntity,
+  ExpiryAlertsSummary,
 } from '../types'
 
 export const getDrivers = async (
@@ -176,6 +177,8 @@ export interface ApplicationStats {
   approved: number
   rejected: number
   pendingReview: number
+  /// Sent back to the driver for corrections, awaiting their re-upload.
+  resubmissionRequired?: number
   underReview: number
   suspended: number
   blocked: number
@@ -186,3 +189,19 @@ export const getApplicationStats = async (): Promise<ApplicationStats> => {
   const response = await api.get<{ data: ApplicationStats }>(API_ENDPOINTS.applications.stats)
   return response.data.data
 }
+
+export const getExpiryAlerts = async (): Promise<ExpiryAlertsSummary> => {
+  const response = await api.get<{ data: ExpiryAlertsSummary }>(API_ENDPOINTS.drivers.expiryAlerts)
+  return response.data.data
+}
+
+export const verifyDriverBankAccount = async (
+  driverId: string,
+  accountId: string,
+): Promise<any> => {
+  const response = await api.post<{ data: any }>(
+    `/admin/drivers/${driverId}/bank-accounts/${accountId}/verify`,
+  )
+  return response.data.data
+}
+

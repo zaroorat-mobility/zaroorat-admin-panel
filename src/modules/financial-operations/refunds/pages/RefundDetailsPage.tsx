@@ -83,7 +83,7 @@ export const RefundDetailsPage: React.FC = () => {
 
   const handleStartReview = () => {
     startReview(
-      { id: request.id, reviewerName: 'Finance Analyst B' },
+      { id: request.id },
       {
         onSuccess: () => {
           refetch()

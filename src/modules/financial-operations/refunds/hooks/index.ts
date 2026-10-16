@@ -35,8 +35,7 @@ export const useCreateRefund = () => {
 export const useStartRefundReview = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, reviewerName }: { id: string; reviewerName: string }) =>
-      RefundService.startRefundReview(id, reviewerName),
+    mutationFn: ({ id }: { id: string }) => RefundService.startRefundReview(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial'] })
     }
@@ -50,13 +49,11 @@ export const useApproveRefund = () => {
       id,
       approvedAmount,
       notes,
-      reviewerName
     }: {
       id: string
       approvedAmount: number
       notes: string
-      reviewerName: string
-    }) => RefundService.approveRefund(id, approvedAmount, notes, reviewerName),
+    }) => RefundService.approveRefund(id, approvedAmount, notes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial'] })
     }
@@ -66,8 +63,8 @@ export const useApproveRefund = () => {
 export const useRejectRefund = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, reason, reviewerName }: { id: string; reason: string; reviewerName: string }) =>
-      RefundService.rejectRefund(id, reason, reviewerName),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      RefundService.rejectRefund(id, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial'] })
     }
@@ -77,8 +74,7 @@ export const useRejectRefund = () => {
 export const useMarkRefundProcessing = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, processorName }: { id: string; processorName: string }) =>
-      RefundService.markRefundProcessing(id, processorName),
+    mutationFn: ({ id }: { id: string }) => RefundService.markRefundProcessing(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial'] })
     }
@@ -88,8 +84,7 @@ export const useMarkRefundProcessing = () => {
 export const useMarkRefundCompleted = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, processorName }: { id: string; processorName: string }) =>
-      RefundService.markRefundCompleted(id, processorName),
+    mutationFn: ({ id }: { id: string }) => RefundService.markRefundCompleted(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial'] })
     }

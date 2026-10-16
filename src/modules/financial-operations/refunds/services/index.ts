@@ -43,10 +43,10 @@ const createRefund = async (data: CreateRefundInput): Promise<RefundRequest> => 
   return response.data.data
 }
 
-const startRefundReview = async (id: string, reviewerName: string): Promise<RefundRequest> => {
+const startRefundReview = async (id: string): Promise<RefundRequest> => {
   const response = await api.post<{ data: RefundRequest }>(
     API_ENDPOINTS.finance.refundStartReview(id),
-    { reviewerName },
+    {},
   )
   return response.data.data
 }
@@ -55,11 +55,10 @@ const approveRefund = async (
   id: string,
   approvedAmount: number,
   notes: string,
-  reviewerName: string,
 ): Promise<RefundRequest> => {
   const response = await api.post<{ data: RefundRequest }>(
     API_ENDPOINTS.finance.refundApprove(id),
-    { approvedAmount, notes, reviewerName },
+    { approvedAmount, notes },
   )
   return response.data.data
 }
@@ -67,33 +66,26 @@ const approveRefund = async (
 const rejectRefund = async (
   id: string,
   reason: string,
-  reviewerName: string,
 ): Promise<RefundRequest> => {
   const response = await api.post<{ data: RefundRequest }>(
     API_ENDPOINTS.finance.refundReject(id),
-    { reason, reviewerName },
+    { reason },
   )
   return response.data.data
 }
 
-const markRefundProcessing = async (
-  id: string,
-  processorName: string,
-): Promise<RefundRequest> => {
+const markRefundProcessing = async (id: string): Promise<RefundRequest> => {
   const response = await api.post<{ data: RefundRequest }>(
     API_ENDPOINTS.finance.refundMarkProcessing(id),
-    { actorName: processorName },
+    {},
   )
   return response.data.data
 }
 
-const markRefundCompleted = async (
-  id: string,
-  processorName: string,
-): Promise<RefundRequest> => {
+const markRefundCompleted = async (id: string): Promise<RefundRequest> => {
   const response = await api.post<{ data: RefundRequest }>(
     API_ENDPOINTS.finance.refundMarkCompleted(id),
-    { actorName: processorName },
+    {},
   )
   return response.data.data
 }
