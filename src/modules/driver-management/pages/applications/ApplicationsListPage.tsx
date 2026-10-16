@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useApplications, useDeleteApplication } from '../../hooks'
+import { useApplications, useApplicationStats, useDeleteApplication } from '../../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
 import { StatusBadge } from '@/shared/components/StatusBadge'
@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Clock,
   Ban,
+  AlertTriangle,
 } from 'lucide-react'
 import { ApplicationSourceBadge, ActionDropdown } from '../../components'
 import type { DriverApplicationEntity } from '../../types'
@@ -37,11 +38,27 @@ export const ApplicationsListPage: React.FC = () => {
     )
   })
 
-  const { data, isLoading, isError, refetch } = useApplications()
+  // ponytail: DataTable pages client-side, so only the newest 100 (backend max) are listed;
+  // add server-side paging to DataTable when applications outgrow that.
+  const { data, isLoading, isError, refetch } = useApplications({ limit: 100 })
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useApplicationStats()
   const { mutate: deleteApp, isPending: isDeleting } = useDeleteApplication()
+
+  // Keep last updated timestamp synchronized whenever realtime data arrives
+  React.useEffect(() => {
+    if (data || stats) {
+      const now = new Date()
+      setLastUpdated(
+        now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+        ', ' +
+        now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      )
+    }
+  }, [data, stats])
 
   const handleRefresh = () => {
     void refetch()
+    void refetchStats()
     const now = new Date()
     setLastUpdated(
       now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
@@ -155,12 +172,13 @@ export const ApplicationsListPage: React.FC = () => {
 
   const activeData = data?.data ?? []
 
-  // Metrics funnel calculations
-  const totalApps = activeData.length
-  const pendingReview = activeData.filter((v) => v.applicationStatus === 'pending_review').length
-  const underReview = activeData.filter((v) => v.applicationStatus === 'under_review').length
-  const approved = activeData.filter((v) => v.applicationStatus === 'approved').length
-  const rejected = activeData.filter((v) => v.applicationStatus === 'rejected').length
+  const totalApps = stats?.total ?? 0
+  const pendingReview = stats?.pendingReview ?? 0
+  const underReview = stats?.underReview ?? 0
+  const resubmissionRequired =
+    (stats as any)?.resubmissionRequired != null ? (stats as any).resubmissionRequired : '—'
+  const approved = stats?.approved ?? 0
+  const rejected = stats?.rejected ?? 0
 
   const handleDeleteConfirm = () => {
     if (deleteId) {
@@ -192,7 +210,11 @@ export const ApplicationsListPage: React.FC = () => {
             Verify driver partner applications, KYC compliance files, and transport permits.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live
+          </span>
           <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
             Last updated {lastUpdated}
           </span>
@@ -217,8 +239,8 @@ export const ApplicationsListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ─── 2. Top 5 Metric KPI Cards (Geographic Dashboard Style) ────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      {/* ─── 2. Top 6 Metric KPI Cards (Geographic Dashboard Style) ────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
         {/* Card 1: Total Applications */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-start justify-between">
@@ -228,7 +250,7 @@ export const ApplicationsListPage: React.FC = () => {
               </div>
               <div>
                 <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
-                  {isLoading ? '...' : totalApps}
+                  {statsLoading ? '...' : totalApps}
                 </p>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
                   Total Applications
@@ -250,7 +272,7 @@ export const ApplicationsListPage: React.FC = () => {
               </div>
               <div>
                 <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
-                  {isLoading ? '...' : pendingReview}
+                  {statsLoading ? '...' : pendingReview}
                 </p>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
                   Pending Review
@@ -272,7 +294,7 @@ export const ApplicationsListPage: React.FC = () => {
               </div>
               <div>
                 <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
-                  {isLoading ? '...' : underReview}
+                  {statsLoading ? '...' : underReview}
                 </p>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
                   Under Review
@@ -285,16 +307,38 @@ export const ApplicationsListPage: React.FC = () => {
           </p>
         </div>
 
+        {/* Card: Resubmission Required */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-[42px] h-[42px] rounded-full bg-orange-500 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
+                  {statsLoading ? '...' : resubmissionRequired}
+                </p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                  Resubmission Required
+                </p>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            Fix requested by reviewer
+          </p>
+        </div>
+
         {/* Card 4: Approved */}
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-[42px] h-[42px] rounded-full bg-emerald-600 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+              <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
                 <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
-                  {isLoading ? '...' : approved}
+                  {statsLoading ? '...' : approved}
                 </p>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
                   Approved
@@ -316,7 +360,7 @@ export const ApplicationsListPage: React.FC = () => {
               </div>
               <div>
                 <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
-                  {isLoading ? '...' : rejected}
+                  {statsLoading ? '...' : rejected}
                 </p>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
                   Rejected

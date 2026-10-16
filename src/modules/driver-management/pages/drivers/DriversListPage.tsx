@@ -49,6 +49,18 @@ export const DriversListPage: React.FC = () => {
   const { mutate: blockDrv, isPending: isBlocking } = useBlockDriver()
   const { mutate: activateDrv, isPending: isActivating } = useActivateDriver()
 
+  // Keep last updated timestamp synchronized whenever realtime data arrives
+  React.useEffect(() => {
+    if (data) {
+      const now = new Date()
+      setLastUpdated(
+        now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+        ', ' +
+        now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      )
+    }
+  }, [data])
+
   const handleRefresh = () => {
     void refetch()
     const now = new Date()
@@ -298,7 +310,11 @@ export const DriversListPage: React.FC = () => {
             Monitor verified partners, ratings, duty statuses, and manage operational suspensions or blocks.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live
+          </span>
           <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
             Last updated {lastUpdated}
           </span>

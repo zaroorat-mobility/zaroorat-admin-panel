@@ -1,7 +1,8 @@
 /**
  * Dashboard realtime: one Socket.IO connection to the existing backend gateway, joined to
  * the admin dashboard rooms the server grants on `dashboard.subscribe` (operations:read →
- * dashboard:ops, finance:read → dashboard:finance, checked server-side).
+ * dashboard:ops, finance:read → dashboard:finance, drivers:read|write → dashboard:drivers,
+ * checked server-side).
  *
  * Server events are invalidation hints only (ids and statuses, never numbers). Every value
  * on the dashboard is still re-read from the permission-checked REST API, so a lost or
@@ -60,8 +61,8 @@ const envelope = <T extends z.ZodRawShape>(data: T) =>
 
 const rideChanged = envelope({ rideId: z.string(), status: z.enum(['ACCEPTED', 'COMPLETED', 'CANCELLED']) })
 const requestChanged = envelope({ requestId: z.string(), status: z.enum(['SEARCHING', 'EXPIRED', 'ABANDONED']) })
-const driverStatusChanged = envelope({ driverId: z.string(), status: z.enum(['ONLINE', 'OFFLINE']) })
-const driverRegistrationChanged = envelope({ driverId: z.string(), change: z.enum(['ONBOARDED', 'VERIFIED']) })
+const driverStatusChanged = envelope({ driverId: z.string(), status: z.string().optional() })
+const driverRegistrationChanged = envelope({ driverId: z.string(), change: z.string().optional() })
 const financialsChanged = envelope({})
 
 /**
@@ -155,8 +156,10 @@ export function startDashboardRealtime(o: DashboardRealtimeOptions): () => void 
       socket.emit('dashboard.subscribe', {}, (res: SubscribeAck | undefined) => {
         if (res?.ok) {
           // Hints sent while disconnected are lost: re-read every section once, as the
-          // gateway's resync rule asks. Not on the first connect, when all just loaded.
-          if (subscribedBefore) for (const t of Object.keys(INVALIDATION_TARGETS)) schedule(t as InvalidationTarget)
+          if (subscribedBefore) {
+            for (const t of Object.keys(INVALIDATION_TARGETS)) schedule(t as InvalidationTarget)
+            void o.queryClient.invalidateQueries({ queryKey: ['driver-management'] })
+          }
           subscribedBefore = true
           o.onStatus('live', res.rooms ?? [])
         } else if (res?.error?.code === 'ROOM_ACCESS_DENIED') {
@@ -197,6 +200,35 @@ export function startDashboardRealtime(o: DashboardRealtimeOptions): () => void 
       } else if (event === 'dashboard.ride_request.changed') {
         void o.queryClient.invalidateQueries({ queryKey: ['operations', 'dispatch'] })
         void o.queryClient.invalidateQueries({ queryKey: ['operations', 'live'] })
+      } else if (event === 'dashboard.driver.status_changed') {
+        void o.queryClient.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+        void o.queryClient.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
+        void o.queryClient.invalidateQueries({ queryKey: ['driver-management', 'applications', 'stats'] })
+        const p = driverStatusChanged.safeParse(payload)
+        if (p.success && p.data.data.driverId) {
+          void o.queryClient.invalidateQueries({
+            queryKey: ['driver-management', 'drivers', 'detail', p.data.data.driverId],
+          })
+          void o.queryClient.invalidateQueries({
+            queryKey: ['driver-management', 'applications', 'detail', p.data.data.driverId],
+          })
+        }
+      } else if (event === 'dashboard.driver.registration_changed') {
+        void o.queryClient.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
+        void o.queryClient.invalidateQueries({ queryKey: ['driver-management', 'applications', 'stats'] })
+        void o.queryClient.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+        void o.queryClient.invalidateQueries({ queryKey: ['driver-management', 'vehicles'] })
+        void o.queryClient.invalidateQueries({ queryKey: ['driver-management', 'applications', 'detail'] })
+        void o.queryClient.invalidateQueries({ queryKey: ['driver-management', 'drivers', 'detail'] })
+        const p = driverRegistrationChanged.safeParse(payload)
+        if (p.success && p.data.data.driverId) {
+          void o.queryClient.invalidateQueries({
+            queryKey: ['driver-management', 'applications', 'detail', p.data.data.driverId],
+          })
+          void o.queryClient.invalidateQueries({
+            queryKey: ['driver-management', 'drivers', 'detail', p.data.data.driverId],
+          })
+        }
       }
     }
   }

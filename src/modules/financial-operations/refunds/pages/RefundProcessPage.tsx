@@ -38,7 +38,7 @@ export const RefundProcessPage: React.FC = () => {
 
   const handleMarkProcessing = () => {
     markProcessing(
-      { id: request.id, processorName: 'Finance Supervisor A' },
+      { id: request.id },
       {
         onSuccess: () => refetch()
       }
@@ -47,7 +47,7 @@ export const RefundProcessPage: React.FC = () => {
 
   const handleMarkCompleted = () => {
     markCompleted(
-      { id: request.id, processorName: 'Finance Supervisor A' },
+      { id: request.id },
       {
         onSuccess: () => navigate(`/financial-operations/refunds/${request.id}`)
       }

@@ -42,6 +42,7 @@ export const useApplication = (id: string) => {
     queryKey: QK.application(id),
     queryFn: () => DriverManagementService.getApplicationById(id),
     enabled: !!id,
+    refetchInterval: 3_000,
   })
 }
 
@@ -82,15 +83,8 @@ export const useDeleteApplication = () => {
 export const useApproveApplication = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({
-      id,
-      notes,
-      billingMode,
-    }: {
-      id: string
-      notes?: string
-      billingMode?: 'free' | 'commission' | 'subscription'
-    }) => DriverManagementService.approveApplication(id, notes, billingMode),
+    mutationFn: ({ id, notes }: { id: string; notes?: string }) =>
+      DriverManagementService.approveApplication(id, notes),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
       qc.invalidateQueries({ queryKey: QK.application(id) })
@@ -150,6 +144,18 @@ export const useVerifyApplicationDocument = () => {
   })
 }
 
+export const useVerifyDriverBankAccount = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ driverId, accountId }: { driverId: string; accountId: string }) =>
+      DriverManagementService.verifyDriverBankAccount(driverId, accountId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
+      qc.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+    },
+  })
+}
+
 // ─── Drivers Hooks ─────────────────────────────────────────────────────────
 
 export const useDrivers = (params?: QueryParams) => {
@@ -164,6 +170,7 @@ export const useDriver = (id: string) => {
     queryKey: QK.driver(id),
     queryFn: () => DriverManagementService.getDriverById(id),
     enabled: !!id,
+    refetchInterval: 3_000,
   })
 }
 

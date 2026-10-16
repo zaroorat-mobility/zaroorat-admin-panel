@@ -73,7 +73,6 @@ export const RefundReviewPage: React.FC = () => {
           id: request.id,
           approvedAmount,
           notes,
-          reviewerName: 'Finance Analyst B'
         },
         {
           onSuccess: () => navigate(`/financial-operations/refunds/${request.id}`)
@@ -84,7 +83,6 @@ export const RefundReviewPage: React.FC = () => {
         {
           id: request.id,
           reason: notes,
-          reviewerName: 'Finance Analyst B'
         },
         {
           onSuccess: () => navigate(`/financial-operations/refunds/${request.id}`)

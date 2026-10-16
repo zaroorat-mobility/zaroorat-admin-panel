@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { useCities, useServiceZones, useCity as useCityDetail } from '../hooks'
@@ -13,9 +13,7 @@ import {
   RefreshCw,
   Plus,
   MoreVertical,
-  Locate,
   ChevronDown,
-  Info,
   Loader2,
 } from 'lucide-react'
 import {
@@ -26,125 +24,11 @@ import {
   TableHead,
   TableCell,
 } from '@/shared/components/ui/Table'
-import { MapContainer, TileLayer, Polygon, Marker, useMap } from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-
-// Leaflet default icon fix
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
-import markerIcon from 'leaflet/dist/images/marker-icon.png'
-import markerShadow from 'leaflet/dist/images/marker-shadow.png'
-
-// @ts-expect-error leaflet icon patch
-delete L.Icon.Default.prototype._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  iconShadow: markerShadow,
-})
-
-// Zone color mapping by type
-const ZONE_COLORS: Record<string, { stroke: string; fill: string }> = {
-  AIRPORT:    { stroke: '#ea580c', fill: '#fed7aa' },
-  RESTRICTED: { stroke: '#dc2626', fill: '#fecaca' },
-  SERVICE:    { stroke: '#16a34a', fill: '#bbf7d0' },
-  SURGE:      { stroke: '#9333ea', fill: '#e9d5ff' },
-}
-
-// Icon SVGs per zone type
-const ZONE_ICON_SVGS: Record<string, string> = {
-  AIRPORT: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>`,
-  RESTRICTED: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>`,
-  SERVICE: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
-  SURGE: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>`,
-}
-
-const ZONE_BADGE_COLORS: Record<string, string> = {
-  AIRPORT: '#f97316',
-  RESTRICTED: '#dc2626',
-  SERVICE: '#16a34a',
-  SURGE: '#9333ea',
-}
-
-const ZONE_LABEL_SUBS: Record<string, string> = {
-  AIRPORT: 'Airport',
-  RESTRICTED: 'No service',
-  SERVICE: 'Service zone',
-  SURGE: 'Surge zone',
-}
-
-// Custom HTML icon for zone center labels
-const createZoneLabelIcon = (
-  iconSvg: string,
-  title: string,
-  sub: string,
-  badgeBg: string,
-) => {
-  return L.divIcon({
-    className: 'custom-zone-marker',
-    html: `
-      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; transform: translate(-50%, -50%);">
-        <div style="background-color: ${badgeBg}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.25); color: white; margin-bottom: 2px;">
-          ${iconSvg}
-        </div>
-        <div style="text-align: center; white-space: nowrap; pointer-events: none;">
-          <div style="font-size: 11.5px; font-weight: 700; color: #0f172a; text-shadow: 0 1px 3px rgba(255,255,255,0.95), 0 0 6px #ffffff; line-height: 1.15;">
-            ${title}
-          </div>
-          <div style="font-size: 10px; font-weight: 600; color: #475569; text-shadow: 0 1px 2px rgba(255,255,255,0.95); margin-top: 1px;">
-            ${sub}
-          </div>
-        </div>
-      </div>
-    `,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
-}
-
-// City Center Label Icon
-const createCityLabelIcon = (cityName: string) => {
-  return L.divIcon({
-    className: 'custom-city-label',
-    html: `
-      <div style="pointer-events: none; transform: translate(-50%, -50%); font-size: 15px; font-weight: 800; color: #0f172a; text-shadow: 0 1px 4px rgba(255,255,255,0.95), 0 0 8px #ffffff; letter-spacing: -0.01em;">
-        ${cityName}
-      </div>
-    `,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
-}
-
-// (vertex handles not used on dashboard map)
+import { GoogleGeographicMap } from '@/shared/components/maps/google/GoogleGeographicMap'
+import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 
 // Default world center fallback
 const DEFAULT_CENTER: [number, number] = [20.5937, 78.9629] // India center
-
-// Custom Map Controller to fly when city changes
-function MapViewController({
-  center,
-  zoom,
-}: {
-  center: [number, number]
-  zoom: number
-}) {
-  const map = useMap()
-  React.useEffect(() => {
-    map.invalidateSize()
-    const t1 = setTimeout(() => map.invalidateSize(), 150)
-    const t2 = setTimeout(() => map.invalidateSize(), 500)
-    return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-    }
-  }, [map])
-
-  React.useEffect(() => {
-    map.flyTo(center, zoom, { duration: 0.8 })
-  }, [center, zoom, map])
-  return null
-}
 
 // Compute polygon centroid from GeoJSON-style coords [lng, lat][]
 function computeCentroid(coords: number[][]): [number, number] {
@@ -180,8 +64,11 @@ export const GeographicDashboardPage: React.FC = () => {
   const [showAirportZones, setShowAirportZones] = useState(true)
   const [showRestrictedZones, setShowRestrictedZones] = useState(true)
 
-  // Map instance reference
-  const mapRef = useRef<L.Map | null>(null)
+  const { data: mapConfig } = useMapClientConfig()
+  const googleKey =
+    mapConfig?.providers.google?.clientSdkKey ||
+    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
+    ''
 
   // Auto-select first city when data loads
   React.useEffect(() => {
@@ -195,6 +82,8 @@ export const GeographicDashboardPage: React.FC = () => {
     () => rawCities.find((c) => c.code === selectedCityCode) ?? null,
     [rawCities, selectedCityCode],
   )
+
+  const { data: selectedCityDetail } = useCityDetail(selectedCity?.id || '')
 
   // Load zones WITH boundaries for the selected city
   const { zones: cityZonesWithBoundaries, isLoading: isLoadingZones } = useCityZonesWithBoundaries(
@@ -617,36 +506,8 @@ export const GeographicDashboardPage: React.FC = () => {
                 </label>
               </div>
 
-              {/* Bottom-Left Zoom & Recenter Controls + Distance Scale */}
+              {/* Bottom-Left Distance Scale */}
               <div className="absolute bottom-3.5 left-3.5 z-[1000] flex flex-col gap-2">
-                <div className="flex flex-col bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden w-8">
-                  <button
-                    type="button"
-                    onClick={() => mapRef.current?.zoomIn()}
-                    className="w-8 h-8 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                    title="Zoom In"
-                  >
-                    +
-                  </button>
-                  <div className="h-[1px] bg-slate-200 dark:bg-slate-800 w-full" />
-                  <button
-                    type="button"
-                    onClick={() => mapRef.current?.zoomOut()}
-                    className="w-8 h-8 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                    title="Zoom Out"
-                  >
-                    −
-                  </button>
-                  <div className="h-[1px] bg-slate-200 dark:bg-slate-800 w-full" />
-                  <button
-                    type="button"
-                    onClick={() => mapRef.current?.flyTo(currentCenter, 12)}
-                    className="w-8 h-8 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                    title="Recenter Map"
-                  >
-                    <Locate className="w-4 h-4" />
-                  </button>
-                </div>
 
                 {/* Distance Scale Bar */}
                 <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm px-1.5 py-1 rounded shadow-sm border border-slate-300 dark:border-slate-700 text-[10px] font-sans font-bold text-[#1F2B6D] dark:text-slate-200 pointer-events-none w-[76px]">
@@ -659,111 +520,30 @@ export const GeographicDashboardPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Bottom-Right Attribution & Info Button */}
-              <div className="absolute bottom-3.5 right-3.5 z-[1000] flex items-center gap-2">
-                <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] text-slate-500 border border-slate-200/80 dark:border-slate-800 shadow-2xs pointer-events-none">
-                  Leaflet | © OpenStreetMap contributors
-                </div>
-                <button
-                  type="button"
-                  className="w-6 h-6 rounded-full bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                  title="Layer info"
-                >
-                  <Info className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* React Leaflet Map Container */}
-              <MapContainer
-                ref={mapRef}
-                center={currentCenter}
+              {/* Production Google Maps Web SDK Map Component */}
+              <GoogleGeographicMap
+                center={{ lat: currentCenter[0], lng: currentCenter[1] }}
                 zoom={12}
-                zoomControl={false}
-                attributionControl={false}
-                style={{ height: '450px', width: '100%', minHeight: '450px' }}
-              >
-                <MapViewController center={currentCenter} zoom={12} />
-
-                {mapBaseType === 'street' && (
-                  <TileLayer
-                    url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
-                    maxZoom={19}
-                  />
-                )}
-                {mapBaseType === 'satellite' && (
-                  <TileLayer
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    attribution="&copy; Esri &mdash; Earthstar Geographics"
-                  />
-                )}
-                {mapBaseType === 'terrain' && (
-                  <TileLayer
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
-                    attribution="&copy; Esri &mdash; Topo Map"
-                  />
-                )}
-
-                {/* Render real zone polygons from API */}
-                {cityZonesWithBoundaries.map((zone) => {
-                  const zoneType = zone.zoneType
-                  const colors = ZONE_COLORS[zoneType] ?? ZONE_COLORS['SERVICE']
-
-                  // Filter by visibility toggles
-                  const isVisible =
-                    (zoneType === 'SERVICE' && showServiceZones) ||
-                    (zoneType === 'AIRPORT' && showAirportZones) ||
-                    (zoneType === 'RESTRICTED' && showRestrictedZones)
-
-                  // Filter by zone type dropdown
-                  const matchesTypeFilter =
-                    selectedZoneType === 'ALL' || selectedZoneType === zoneType
-
-                  if (!isVisible || !matchesTypeFilter) return null
-
-                  // Convert GeoJSON [lng, lat][] → Leaflet [lat, lng][]
-                  const outerRing = zone.boundary?.[0]
-                  if (!outerRing || outerRing.length < 3) return null
-
-                  const positions: [number, number][] = outerRing.map(([lng, lat]) => [lat, lng])
-                  const centroid = computeCentroid(outerRing)
-
-                  const icon = createZoneLabelIcon(
-                    ZONE_ICON_SVGS[zoneType] ?? ZONE_ICON_SVGS['SERVICE'],
-                    zone.name,
-                    ZONE_LABEL_SUBS[zoneType] ?? '',
-                    ZONE_BADGE_COLORS[zoneType] ?? '#16a34a',
-                  )
-
-                  return (
-                    <React.Fragment key={zone.id}>
-                      <Polygon
-                        positions={positions}
-                        pathOptions={{
-                          color: colors.stroke,
-                          weight: 2,
-                          fillColor: colors.fill,
-                          fillOpacity: 0.35,
-                        }}
-                      />
-                      <Marker position={centroid} icon={icon} />
-                    </React.Fragment>
-                  )
-                })}
-
-                {/* City boundary outline if city has boundary */}
-                {showCityBoundary && selectedCity?.hasBoundary && (
-                  <CityBoundaryLayer cityId={selectedCity.id} />
-                )}
-
-                {/* City center label */}
-                {selectedCity && (
-                  <Marker
-                    position={currentCenter}
-                    icon={createCityLabelIcon(selectedCity.name)}
-                  />
-                )}
-              </MapContainer>
+                height="450px"
+                cityBoundary={showCityBoundary && selectedCity?.hasBoundary ? selectedCityDetail?.boundary : null}
+                zones={cityZonesWithBoundaries.map((z) => ({
+                  id: z.id,
+                  name: z.name,
+                  zoneType: z.zoneType,
+                  boundary: z.boundary,
+                  isActive: z.isActive,
+                }))}
+                visibleZoneTypes={{
+                  SERVICE: showServiceZones,
+                  AIRPORT: showAirportZones,
+                  RESTRICTED: showRestrictedZones,
+                  SURGE: true,
+                }}
+                selectedZoneType={selectedZoneType}
+                mapType={mapBaseType === 'street' ? 'roadmap' : mapBaseType === 'satellite' ? 'satellite' : 'terrain'}
+                apiKey={googleKey}
+                onZoneClick={(zoneId) => navigate(`/geographic-management/service-zones/${zoneId}`)}
+              />
             </div>
           </div>
 
@@ -1084,32 +864,6 @@ export const GeographicDashboardPage: React.FC = () => {
         </div>
       </div>
     </PageWrapper>
-  )
-}
-
-// Lazy city boundary loader — fetches city detail boundary and renders it
-function CityBoundaryLayer({ cityId }: { cityId: string }) {
-  return <CityBoundaryLayerInner cityId={cityId} />
-}
-
-function CityBoundaryLayerInner({ cityId }: { cityId: string }) {
-  const { data: cityDetail } = useCityDetail(cityId)
-
-  if (!cityDetail?.boundary?.[0]?.length) return null
-
-  const outerRing = cityDetail.boundary[0]
-  const positions: [number, number][] = outerRing.map(([lng, lat]) => [lat, lng])
-
-  return (
-    <Polygon
-      positions={positions}
-      pathOptions={{
-        color: '#2563eb',
-        weight: 2,
-        fillColor: '#3b82f6',
-        fillOpacity: 0.08,
-      }}
-    />
   )
 }
 

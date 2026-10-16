@@ -10,6 +10,8 @@ import { cn } from '@/shared/utils'
 import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import { OSM_TILE_LAYER, resolveMapTileLayer, type MapTileLayerConfig } from '@/shared/utils/map-tiles'
 import { isValidCoordinate } from '@/shared/utils/polyline'
+import { GoogleLiveMap } from './google/GoogleLiveMap'
+import { MapplsLiveMap } from './mappls/MapplsLiveMap'
 
 // @ts-expect-error leaflet icon patch
 delete L.Icon.Default.prototype._getIconUrl
@@ -225,7 +227,7 @@ function FallbackTileLayer({
   return <TileLayer attribution={layer.attribution} url={layer.url} />
 }
 
-export const LiveMap: React.FC<LiveMapProps> = ({
+const LeafletLiveMap: React.FC<LiveMapProps> = ({
   markers = [],
   routes = [],
   center,
@@ -317,14 +319,14 @@ export const LiveMap: React.FC<LiveMapProps> = ({
       className={cn('rounded-xl overflow-hidden border border-border relative', className)}
       style={{ height }}
     >
-      {!hideNotice && usingOsmFallback && mapConfig?.primaryProvider === 'ola' && !mapConfig.providers.ola.clientSdkKey && (
+      {!hideNotice && usingOsmFallback && mapConfig?.primaryProvider === 'google' && !mapConfig.providers.google?.clientSdkKey && (
         <div className="absolute top-2 left-12 z-[1000] rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-800 shadow-sm">
-          Using OpenStreetMap — configure an Ola Maps API key under Platform → Maps.
+          Using OpenStreetMap — configure a Google Maps Client SDK key under Platform → Maps.
         </div>
       )}
-      {!hideNotice && usingOsmFallback && mapConfig?.primaryProvider === 'ola' && mapConfig.providers.ola.clientSdkKey && (
+      {!hideNotice && usingOsmFallback && mapConfig?.primaryProvider === 'google' && mapConfig.providers.google?.clientSdkKey && (
         <div className="absolute top-2 left-12 z-[1000] rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-800 shadow-sm">
-          Ola map tiles failed to load — showing OpenStreetMap fallback.
+          Google map tiles failed to load — showing OpenStreetMap fallback.
         </div>
       )}
       {!hideNotice && usingOsmFallback && mapConfig?.primaryProvider === 'mappls' && !mapConfig.providers.mappls.clientSdkKey && (
@@ -406,6 +408,54 @@ export const LiveMap: React.FC<LiveMapProps> = ({
       </MapContainer>
     </div>
   )
+}
+
+export const LiveMap: React.FC<LiveMapProps> = (props) => {
+  const { data: mapConfig } = useMapClientConfig()
+  const isMapplsPrimary = mapConfig?.primaryProvider === 'mappls'
+
+  const googleKey =
+    mapConfig?.providers.google?.clientSdkKey ||
+    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : undefined)
+
+  const mapplsKey =
+    mapConfig?.providers.mappls?.clientSdkKey ||
+    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_MAPPLS_MAP_KEY : undefined)
+
+  const isJsdom = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('jsdom')
+
+  if (!isJsdom) {
+    if (isMapplsPrimary) {
+      return (
+        <MapplsLiveMap
+          markers={props.markers}
+          routes={props.routes}
+          center={props.center}
+          zoom={props.zoom}
+          height={props.height}
+          className={props.className}
+          apiKey={mapplsKey || ''}
+          showRecenter={props.showRecenter}
+        />
+      )
+    }
+
+    return (
+      <GoogleLiveMap
+        markers={props.markers}
+        routes={props.routes}
+        center={props.center}
+        zoom={props.zoom}
+        height={props.height}
+        className={props.className}
+        apiKey={googleKey || ''}
+        showRecenter={props.showRecenter}
+        ariaLabel={props.ariaLabel}
+      />
+    )
+  }
+
+  return <LeafletLiveMap {...props} />
 }
 
 export default LiveMap

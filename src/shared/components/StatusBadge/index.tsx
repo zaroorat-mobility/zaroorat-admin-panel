@@ -13,6 +13,10 @@ export type AppStatus =
   | 'verified'
   | 'unverified'
   | 'suspended'
+  // Driver application statuses, as the backend sends them.
+  | 'pending_review'
+  | 'under_review'
+  | 'resubmission_required'
 
 export interface StatusBadgeProps {
   status: AppStatus | string
@@ -37,6 +41,9 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, customLabel })
     ongoing: { variant: 'info', label: 'Ongoing' },
     verified: { variant: 'info', label: 'Verified' }, // Mapped to info (blue) per latest requirement
     unverified: { variant: 'neutral', label: 'Unverified' },
+    pending_review: { variant: 'warning', label: 'Pending Review' },
+    under_review: { variant: 'info', label: 'Under Review' },
+    resubmission_required: { variant: 'warning', label: 'Resubmission Required' },
   }
 
   const mapped = badgeMap[normalized] || { variant: 'neutral', label: status }

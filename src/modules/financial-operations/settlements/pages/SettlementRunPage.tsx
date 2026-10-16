@@ -74,7 +74,6 @@ export const SettlementRunPage: React.FC = () => {
     await generate.mutateAsync({
       periodStart,
       periodEnd,
-      generatedBy: 'Finance Manager',
       drivers: selectedDriversData
     })
     setSuccess(true)

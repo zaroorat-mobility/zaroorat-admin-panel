@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/context/toast'
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
+import { useCities } from '@/modules/geographic-management/hooks'
 import { useTestMapProvider } from '../../hooks'
 import type { MapProviderName, TestProviderHealthResult } from '../../types'
 import { Activity, CheckCircle2, XCircle, Clock, Copy, Code2 } from 'lucide-react'
@@ -33,11 +34,22 @@ interface MapTestConsoleProps {
 export const MapTestConsole: React.FC<MapTestConsoleProps> = ({ primaryProvider, activeCredentials }) => {
   const { mutate: testProvider, isPending: isTesting } = useTestMapProvider()
   const { data: clientConfig, refetch: refetchClientConfig, isFetching: isFetchingConfig } = useMapClientConfig()
+  const { data: cities = [] } = useCities(true)
   const { success, error } = useToast()
 
   const [activeTab, setActiveTab] = useState<'health' | 'config' | 'geocoding'>('health')
   const [testResult, setTestResult] = useState<TestProviderHealthResult | null>(null)
-  const [testAddress, setTestAddress] = useState<string>('Lal Chowk, Srinagar, Jammu & Kashmir 190001')
+  const [testAddress, setTestAddress] = useState<string>('')
+
+  useEffect(() => {
+    if (!testAddress && cities.length > 0) {
+      const active = cities.find((c) => c.code !== 'GLOBAL' && c.isActive) || cities[0]
+      if (active) {
+        setTestAddress(`${active.name}, ${active.state || 'India'}`)
+      }
+    }
+  }, [cities, testAddress])
+
   const [geocodingResult, setGeocodingResult] = useState<ForwardGeocodeResult | null>(null)
   const [geocodingError, setGeocodingError] = useState<string | null>(null)
   const [isGeocoding, setIsGeocoding] = useState(false)

@@ -1,113 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet'
-import L from 'leaflet'
-import { Navigation, RefreshCw, Zap } from 'lucide-react'
-import 'leaflet/dist/leaflet.css'
+import { Navigation, RefreshCw, Zap, Loader2 } from 'lucide-react'
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
+import { GoogleLiveMap } from '@/shared/components/maps/google/GoogleLiveMap'
+import { MapplsLiveMap } from '@/shared/components/maps/mappls/MapplsLiveMap'
 import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
-import { OSM_TILE_LAYER, resolveMapTileLayer } from '@/shared/utils/map-tiles'
+import { useCities, useCity } from '@/modules/geographic-management/hooks'
 
-// Fix Leaflet default icon paths in React
-delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-})
-
-// Custom DivIcons for crisp, high-DPI custom markers
-const createCustomIcon = (color: string, label: string) =>
-  L.divIcon({
-    className: 'custom-map-pin',
-    html: `
-      <div style="position: relative; display: flex; align-items: center; justify-content: center;">
-        <div style="background-color: ${color}; width: 32px; height: 32px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 800; font-size: 11px;">
-          ${label}
-        </div>
-        <div style="position: absolute; bottom: -6px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid ${color};"></div>
-      </div>
-    `,
-    iconSize: [32, 38],
-    iconAnchor: [16, 38],
-  })
-
-const pickupIcon = createCustomIcon('#10B981', 'P')
-const dropoffIcon = createCustomIcon('#EF4444', 'D')
-const testPinIcon = createCustomIcon('#6366F1', 'T')
-
-/**
- * `provider` is the only source that verifies anything: it is the tile layer the
- * backend actually serves to browsers, built from the configured client SDK key.
- * The others are reference basemaps, named after the service that really serves
- * them — they are never presented as the provider's own tiles.
- */
-export type TileSource = 'provider' | 'osm' | 'dark' | 'satellite'
-
-type ReferenceBasemap = Exclude<TileSource, 'provider'>
-
-const REFERENCE_BASEMAPS: Record<
-  ReferenceBasemap,
-  { label: string; url: string; attribution: string }
-> = {
-  osm: {
-    label: 'OSM',
-    url: OSM_TILE_LAYER.url,
-    attribution: OSM_TILE_LAYER.attribution,
-  },
-  dark: {
-    label: 'CARTO dark',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap',
-  },
-  satellite: {
-    label: 'Esri satellite',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution:
-      'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-  },
-}
-
-interface MapStudioPreviewProps {
+export interface MapStudioPreviewProps {
   providerName: string
 }
 
-// Helper component to recenter map when center state changes
-const RecenterMap: React.FC<{ center: [number, number]; zoom: number }> = ({ center, zoom }) => {
-  const map = useMap()
-  useEffect(() => {
-    map.setView(center, zoom, { animate: true })
-  }, [center, zoom, map])
-  return null
-}
-
-// Map Click Listener to update dropoff / test coordinates
-const MapClickListener: React.FC<{ onMapClick: (lat: number, lng: number) => void }> = ({
-  onMapClick,
-}) => {
-  useMapEvents({
-    click(e) {
-      onMapClick(e.latlng.lat, e.latlng.lng)
-    },
-  })
-  return null
-}
-
-/**
- * Reports whether the provider's tiles actually loaded. Without this the preview
- * cannot tell a working SDK key from a rejected one — both leave a grey map.
- */
-const TileLoadWatcher: React.FC<{ onError: () => void }> = ({ onError }) => {
-  const map = useMap()
-  useEffect(() => {
-    map.on('tileerror', onError)
-    return () => {
-      map.off('tileerror', onError)
-    }
-  }, [map, onError])
-  return null
-}
-
-type ProviderTileState = 'loading' | 'ok' | 'unavailable' | 'error'
+type ProviderSdkState = 'loading' | 'ok' | 'unavailable'
 type RouteState = 'loading' | 'ok' | 'unavailable'
 
 interface RouteResponse {
@@ -118,51 +21,55 @@ interface RouteResponse {
 }
 
 export const MapStudioPreview: React.FC<MapStudioPreviewProps> = ({ providerName }) => {
-  // Center default: Srinagar Lal Chowk [34.0837, 74.7973]
-  const DEFAULT_CENTER: [number, number] = [34.0837, 74.7973]
-  const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER)
+  const { data: clientConfig, isLoading: isLoadingConfig } = useMapClientConfig()
+  const { data: cities = [] } = useCities(true)
+
+  const activeCity = useMemo(
+    () => cities.find((c) => c.code !== 'GLOBAL' && c.isActive) || cities[0],
+    [cities]
+  )
+  const { data: cityDetail } = useCity(activeCity?.id || '')
+
+  const resolvedCenter = useMemo<[number, number] | null>(() => {
+    if (cityDetail?.center) {
+      return [cityDetail.center.lat, cityDetail.center.lng]
+    }
+    return null
+  }, [cityDetail?.center])
+
+  const [center, setCenter] = useState<[number, number] | null>(null)
   const [zoom, setZoom] = useState<number>(13)
 
-  const { data: clientConfig, isLoading: isLoadingConfig } = useMapClientConfig()
-
-  // The exact layer the backend hands to browsers. `resolveMapTileLayer` falls
-  // back to OSM when no provider layer can be built, so an OSM url coming back
-  // means "this provider has no browser tile mechanism configured" — not success.
-  const providerLayer = useMemo(() => {
-    if (!clientConfig) return null
-    const layer = resolveMapTileLayer(clientConfig)
-    return layer.url === OSM_TILE_LAYER.url ? null : layer
-  }, [clientConfig])
-
-  const [source, setSource] = useState<TileSource>('provider')
-  const [tileFailed, setTileFailed] = useState(false)
-
-  // A new layer deserves a fresh verdict.
-  useEffect(() => {
-    setTileFailed(false)
-  }, [providerLayer?.url])
-
-  const providerTileState: ProviderTileState = isLoadingConfig
-    ? 'loading'
-    : !providerLayer
-      ? 'unavailable'
-      : tileFailed
-        ? 'error'
-        : 'ok'
-
-  // Never leave the selector pointing at a layer that does not exist.
-  const effectiveSource: TileSource = source === 'provider' && !providerLayer ? 'osm' : source
-
-  const activeLayer =
-    effectiveSource === 'provider' && providerLayer
-      ? providerLayer
-      : REFERENCE_BASEMAPS[effectiveSource as ReferenceBasemap]
-
-  // Interactive markers state
-  const [pickupPos, setPickupPos] = useState<[number, number]>([34.0837, 74.7973])
-  const [dropoffPos, setDropoffPos] = useState<[number, number]>([34.0988, 74.8065])
-  const [testPinPos] = useState<[number, number]>([34.075, 74.789])
+  // Interactive markers state dynamically initialized from active operational region
+  const [pickupPos, setPickupPos] = useState<[number, number] | null>(null)
+  const [dropoffPos, setDropoffPos] = useState<[number, number] | null>(null)
+  const [testPinPos, setTestPinPos] = useState<[number, number] | null>(null)
   const [showRoute, setShowRoute] = useState<boolean>(true)
+
+  useEffect(() => {
+    if (resolvedCenter && !center) {
+      const [lat, lng] = resolvedCenter
+      setCenter([lat, lng])
+      setPickupPos([lat, lng])
+      setDropoffPos([lat + 0.012, lng + 0.01])
+      setTestPinPos([lat - 0.008, lng - 0.008])
+    }
+  }, [resolvedCenter, center])
+
+  const providerSdkKey =
+    providerName === 'mappls'
+      ? clientConfig?.providers.mappls?.clientSdkKey ||
+        (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_MAPPLS_MAP_KEY : '') ||
+        ''
+      : clientConfig?.providers.google?.clientSdkKey ||
+        (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
+        ''
+
+  const providerSdkState: ProviderSdkState = isLoadingConfig
+    ? 'loading'
+    : providerSdkKey
+      ? 'ok'
+      : 'unavailable'
 
   // Routing comes from the configured provider via the backend, never a third party.
   const [routePath, setRoutePath] = useState<[number, number][]>([])
@@ -187,9 +94,11 @@ export const MapStudioPreview: React.FC<MapStudioPreviewProps> = ({ providerName
     return parseFloat((R * c).toFixed(2))
   }
 
-  const straightDistanceKm = calculateDistance(pickupPos, dropoffPos)
+  const straightDistanceKm =
+    pickupPos && dropoffPos ? calculateDistance(pickupPos, dropoffPos) : 0
 
   useEffect(() => {
+    if (!pickupPos || !dropoffPos) return
     let isMounted = true
     setRouteState('loading')
 
@@ -228,40 +137,34 @@ export const MapStudioPreview: React.FC<MapStudioPreviewProps> = ({ providerName
   }, [pickupPos, dropoffPos])
 
   const handleResetView = () => {
-    setCenter(DEFAULT_CENTER)
-    setZoom(13)
-    setPickupPos([34.0837, 74.7973])
-    setDropoffPos([34.0988, 74.8065])
+    if (resolvedCenter) {
+      const [lat, lng] = resolvedCenter
+      setCenter([lat, lng])
+      setZoom(13)
+      setPickupPos([lat, lng])
+      setDropoffPos([lat + 0.012, lng + 0.01])
+    }
   }
 
-  const handleMapClick = (lat: number, lng: number) => {
-    setDropoffPos([lat, lng])
-  }
-
-  const providerStatus: Record<ProviderTileState, { text: string; dot: string; tone: string }> = {
+  const providerStatus: Record<ProviderSdkState, { text: string; dot: string; tone: string }> = {
     loading: {
-      text: 'Checking provider tile configuration...',
+      text: 'Checking provider SDK configuration...',
       dot: 'bg-slate-400',
       tone: 'text-slate-300',
     },
     ok: {
-      text: `SUCCESS - ${providerName} tiles served with the configured client SDK key`,
+      text: `SUCCESS - ${providerName.toUpperCase()} Web SDK loaded with configured client SDK key`,
       dot: 'bg-emerald-400',
       tone: 'text-emerald-300',
     },
     unavailable: {
-      text: `NOT AVAILABLE - no browser tile layer configured for ${providerName}`,
+      text: `NOT AVAILABLE - no browser SDK key configured for ${providerName}`,
       dot: 'bg-amber-400',
       tone: 'text-amber-300',
     },
-    error: {
-      text: `ERROR - ${providerName} rejected the tile request (check the client SDK key)`,
-      dot: 'bg-red-400',
-      tone: 'text-red-300',
-    },
   }
 
-  const status = providerStatus[providerTileState]
+  const status = providerStatus[providerSdkState]
 
   return (
     <div className="flex flex-col h-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl overflow-hidden">
@@ -276,57 +179,17 @@ export const MapStudioPreview: React.FC<MapStudioPreviewProps> = ({ providerName
               Interactive Map Studio
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              {effectiveSource === 'provider' ? (
-                <>
-                  Tiles served by{' '}
-                  <span className="font-semibold capitalize text-primary">{providerName}</span> from
-                  the configured client SDK key
-                </>
-              ) : (
-                <>
-                  Reference basemap (
-                  {REFERENCE_BASEMAPS[effectiveSource as ReferenceBasemap].label}) — not{' '}
-                  {providerName}
-                </>
-              )}
+              Native Web SDK rendered by{' '}
+              <span className="font-semibold capitalize text-primary">{providerName}</span> using
+              configured client key
             </p>
           </div>
         </div>
 
-        {/* Tile source switcher & map controls */}
+        {/* Map controls */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center p-1 bg-slate-200/70 dark:bg-slate-900 rounded-lg text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setSource('provider')}
-              disabled={!providerLayer}
-              title={
-                providerLayer
-                  ? `Live ${providerName} tiles`
-                  : `No browser tile layer configured for ${providerName}`
-              }
-              className={`px-2.5 py-1 rounded-md transition-all capitalize disabled:opacity-40 disabled:cursor-not-allowed ${
-                effectiveSource === 'provider'
-                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
-            >
-              {providerName}
-            </button>
-            {(Object.keys(REFERENCE_BASEMAPS) as ReferenceBasemap[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setSource(key)}
-                className={`px-2.5 py-1 rounded-md transition-all ${
-                  effectiveSource === key
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                {REFERENCE_BASEMAPS[key].label}
-              </button>
-            ))}
+          <div className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold capitalize text-slate-800 dark:text-slate-200">
+            {providerName} Web SDK
           </div>
 
           <button
@@ -342,98 +205,52 @@ export const MapStudioPreview: React.FC<MapStudioPreviewProps> = ({ providerName
 
       {/* Map Display Container */}
       <div className="relative flex-1 min-h-[380px] w-full bg-slate-900">
-        <MapContainer
-          center={center}
-          zoom={zoom}
-          scrollWheelZoom={true}
-          style={{ width: '100%', height: '100%', minHeight: '380px' }}
-        >
-          <RecenterMap center={center} zoom={zoom} />
-          <MapClickListener onMapClick={handleMapClick} />
-          {effectiveSource === 'provider' ? (
-            <TileLoadWatcher onError={() => setTileFailed(true)} />
-          ) : null}
-          <TileLayer
-            key={activeLayer.url}
-            url={activeLayer.url}
-            attribution={activeLayer.attribution}
-            maxZoom={19}
+        {!center || !pickupPos || !dropoffPos ? (
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs gap-2 min-h-[380px]">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <span>Connecting to active operational region...</span>
+          </div>
+        ) : providerName === 'mappls' ? (
+          <MapplsLiveMap
+            center={center}
+            zoom={zoom}
+            markers={[
+              { id: 'pickup', lat: pickupPos[0], lng: pickupPos[1], kind: 'pickup', label: 'Pickup Location' },
+              { id: 'dropoff', lat: dropoffPos[0], lng: dropoffPos[1], kind: 'drop', label: 'Dropoff Destination' },
+              ...(testPinPos ? [{ id: 'test-pin', lat: testPinPos[0], lng: testPinPos[1], kind: 'driver' as const, label: 'Static Test Pin' }] : []),
+            ]}
+            routes={[
+              {
+                id: 'studio-route',
+                pickup: { lat: pickupPos[0], lng: pickupPos[1], label: 'Pickup' },
+                drop: { lat: dropoffPos[0], lng: dropoffPos[1], label: 'Dropoff' },
+                path: showRoute && routePath.length > 0 ? routePath.map(([lat, lng]) => ({ lat, lng })) : null,
+              },
+            ]}
+            height="100%"
+            apiKey={providerSdkKey}
           />
-
-          {/* Pickup Marker */}
-          <Marker
-            position={pickupPos}
-            icon={pickupIcon}
-            draggable={true}
-            eventHandlers={{
-              dragend: (e) => {
-                const marker = e.target
-                const pos = marker.getLatLng()
-                setPickupPos([pos.lat, pos.lng])
+        ) : (
+          <GoogleLiveMap
+            center={center}
+            zoom={zoom}
+            markers={[
+              { id: 'pickup', lat: pickupPos[0], lng: pickupPos[1], kind: 'pickup', label: 'Pickup Location' },
+              { id: 'dropoff', lat: dropoffPos[0], lng: dropoffPos[1], kind: 'drop', label: 'Dropoff Destination' },
+              ...(testPinPos ? [{ id: 'test-pin', lat: testPinPos[0], lng: testPinPos[1], kind: 'driver' as const, label: 'Static Test Pin' }] : []),
+            ]}
+            routes={[
+              {
+                id: 'studio-route',
+                pickup: { lat: pickupPos[0], lng: pickupPos[1], label: 'Pickup' },
+                drop: { lat: dropoffPos[0], lng: dropoffPos[1], label: 'Dropoff' },
+                path: showRoute && routePath.length > 0 ? routePath.map(([lat, lng]) => ({ lat, lng })) : null,
               },
-            }}
-          >
-            <Popup className="custom-popup">
-              <div className="p-1 text-xs">
-                <span className="font-bold text-emerald-600">Pickup Location</span>
-                <br />
-                {pickupPos[0].toFixed(4)}°, {pickupPos[1].toFixed(4)}°
-              </div>
-            </Popup>
-          </Marker>
-
-          {/* Dropoff Marker */}
-          <Marker
-            position={dropoffPos}
-            icon={dropoffIcon}
-            draggable={true}
-            eventHandlers={{
-              dragend: (e) => {
-                const marker = e.target
-                const pos = marker.getLatLng()
-                setDropoffPos([pos.lat, pos.lng])
-              },
-            }}
-          >
-            <Popup>
-              <div className="p-1 text-xs">
-                <span className="font-bold text-red-600">Dropoff Destination</span>
-                <br />
-                {dropoffPos[0].toFixed(4)}°, {dropoffPos[1].toFixed(4)}°
-              </div>
-            </Popup>
-          </Marker>
-
-          {/* Static test pin — not a real driver position */}
-          <Marker position={testPinPos} icon={testPinIcon}>
-            <Popup>
-              <div className="p-1 text-xs">
-                <span className="font-bold text-primary">Static test pin</span>
-                <br />
-                Fixed reference point, not a live driver
-              </div>
-            </Popup>
-          </Marker>
-
-          {/* Route line: provider geometry when available, otherwise a dashed straight line */}
-          {showRoute && (
-            <>
-              <Polyline
-                positions={routePath.length > 0 ? routePath : [pickupPos, dropoffPos]}
-                pathOptions={{ color: '#2B317A', weight: 8, opacity: 0.25 }}
-              />
-              <Polyline
-                positions={routePath.length > 0 ? routePath : [pickupPos, dropoffPos]}
-                pathOptions={{
-                  color: '#2B317A',
-                  weight: 5,
-                  opacity: 0.9,
-                  dashArray: routePath.length > 1 ? undefined : '8, 8',
-                }}
-              />
-            </>
-          )}
-        </MapContainer>
+            ]}
+            height="100%"
+            apiKey={providerSdkKey}
+          />
+        )}
 
         {/* Floating route overlay */}
         <div className="absolute top-4 left-4 z-[500] p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-lg text-xs space-y-2 max-w-xs select-none">
@@ -491,19 +308,21 @@ export const MapStudioPreview: React.FC<MapStudioPreviewProps> = ({ providerName
           )}
 
           <p className="text-[10px] text-slate-400 pt-0.5">
-            Drag a pin or click the map to request a route from the configured provider.
+            Test route calculation and interactive marker display from the configured provider.
           </p>
         </div>
 
         {/* Truthful tile status pill */}
-        <div className="absolute bottom-4 left-4 z-[500] px-3 py-1.5 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800 text-white text-[11px] font-medium flex items-center gap-2 max-w-[calc(100%-2rem)]">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${status.dot}`}></span>
-          <span className={status.tone}>{status.text}</span>
-          <span className="text-slate-400">|</span>
-          <span className="text-slate-300 font-mono shrink-0">
-            {dropoffPos[0].toFixed(4)}, {dropoffPos[1].toFixed(4)}
-          </span>
-        </div>
+        {dropoffPos && (
+          <div className="absolute bottom-4 left-4 z-[500] px-3 py-1.5 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800 text-white text-[11px] font-medium flex items-center gap-2 max-w-[calc(100%-2rem)]">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${status.dot}`}></span>
+            <span className={status.tone}>{status.text}</span>
+            <span className="text-slate-400">|</span>
+            <span className="text-slate-300 font-mono shrink-0">
+              {dropoffPos[0].toFixed(4)}, {dropoffPos[1].toFixed(4)}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

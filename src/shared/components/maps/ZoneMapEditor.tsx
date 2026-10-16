@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css'
 
 import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import { resolveMapTileLayer } from '@/shared/utils/map-tiles'
+import { GoogleZoneEditor } from './google/GoogleZoneEditor'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
@@ -250,7 +251,7 @@ function GeomanEditor({
   return null
 }
 
-export const ZoneMapEditor: React.FC<ZoneMapEditorProps> = ({
+const LeafletZoneMapEditor: React.FC<ZoneMapEditorProps> = ({
   coordinates,
   referenceCoordinates,
   center,
@@ -263,6 +264,7 @@ export const ZoneMapEditor: React.FC<ZoneMapEditorProps> = ({
   const [jsonText, setJsonText] = useState('')
   const [showJson, setShowJson] = useState(false)
   const { data: mapConfig } = useMapClientConfig()
+
   const tileLayer = useMemo(() => resolveMapTileLayer(mapConfig), [mapConfig])
 
   useEffect(() => {
@@ -358,6 +360,26 @@ export const ZoneMapEditor: React.FC<ZoneMapEditorProps> = ({
       )}
     </div>
   )
+}
+
+export const ZoneMapEditor: React.FC<ZoneMapEditorProps> = (props) => {
+  const { data: mapConfig } = useMapClientConfig()
+  const googleKey =
+    mapConfig?.providers.google?.clientSdkKey ||
+    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : undefined)
+
+  const isJsdom = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('jsdom')
+
+  if (!isJsdom) {
+    return (
+      <GoogleZoneEditor
+        {...props}
+        apiKey={googleKey || ''}
+      />
+    )
+  }
+
+  return <LeafletZoneMapEditor {...props} />
 }
 
 export default ZoneMapEditor

@@ -9,17 +9,18 @@ import {
   ShieldAlert,
   ShieldCheck,
   Calendar,
-  ChevronDown,
   UserCheck,
   RefreshCw,
   TrendingUp,
   FileWarning,
   Users,
-  ChevronRight,
   Hexagon,
+  Plus,
+  UserPlus,
 } from 'lucide-react'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
-import { useApplications, useDrivers, useVehicles, useExpiryAlerts } from '../../hooks'
+import { useApplications, useApplicationStats, useDrivers, useVehicles, useExpiryAlerts } from '../../hooks'
+import { useAuditLogs } from '@/modules/audit-log'
 import { ActionDropdown } from '../../components'
 
 // Reusable Dashboard Card Table Components
@@ -48,43 +49,15 @@ const CardTd = ({ children, className = '', onClick }: { children: React.ReactNo
   <td className={`py-4 px-4 ${className}`} onClick={onClick}>{children}</td>
 )
 
-// Reusable Quick Action Button Component
-const QuickActionButton = ({
-  icon,
-  title,
-  onClick,
-  hoverColorClass = 'hover:border-blue-400 dark:hover:border-blue-500 group-hover:text-blue-600',
-}: {
-  icon: React.ReactNode,
-  title: React.ReactNode,
-  onClick: () => void,
-  hoverColorClass?: string,
-}) => {
-  // Extract text and border hover classes for group-hover
-  const borderHoverClass = hoverColorClass.split(' ').filter(c => c.includes('border-')).join(' ')
-  const textHoverClass = hoverColorClass.split(' ').filter(c => c.includes('text-')).join(' ')
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center justify-between px-3 py-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer shadow-2xs group ${borderHoverClass}`}
-    >
-      <div className="flex items-center gap-2 text-left">
-        {icon}
-        <span className={`text-[12px] font-bold tracking-tight text-[#1F2B6D] dark:text-slate-100 transition-colors leading-[1.2] ${textHoverClass}`}>
-          {title}
-        </span>
-      </div>
-      <ChevronRight className={`w-4 h-4 text-slate-400 transition-colors shrink-0 ${textHoverClass}`} />
-    </button>
-  )
+const ACTION_LABELS: Record<string, string> = {
+  APPROVE: 'Approved',
+  REJECT: 'Rejected',
+  CREATE: 'Created',
+  UPDATE: 'Updated',
 }
 
 export const DriverManagementOverviewPage: React.FC = () => {
   const navigate = useNavigate()
-  const [selectedPeriod, setSelectedPeriod] = useState<'this_month' | 'last_month' | 'all_time'>('this_month')
-  const [dateRange] = useState('1 Oct 2026 - 31 Oct 2026')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(() => new Date().toLocaleTimeString())
 
@@ -93,6 +66,8 @@ export const DriverManagementOverviewPage: React.FC = () => {
   const { data: driversResponse, refetch: refetchDrivers } = useDrivers({ limit: 50 })
   const { data: vehiclesResponse, refetch: refetchVehicles } = useVehicles({ limit: 50 })
   const { data: expiryAlertsResponse, refetch: refetchExpiryAlerts } = useExpiryAlerts()
+  const { data: applicationStats, refetch: refetchApplicationStats } = useApplicationStats()
+  const { data: auditResponse, refetch: refetchAudit } = useAuditLogs({ entityType: 'driver', limit: 5 })
 
   const liveApplications = applicationsResponse?.data ?? []
   const liveDrivers = driversResponse?.data ?? []
@@ -105,33 +80,26 @@ export const DriverManagementOverviewPage: React.FC = () => {
       refetchDrivers(),
       refetchVehicles(),
       refetchExpiryAlerts(),
+      refetchApplicationStats(),
+      refetchAudit(),
     ])
     setLastUpdated(new Date().toLocaleTimeString())
     setTimeout(() => setIsRefreshing(false), 500)
   }
 
-  // Application Pipeline Metrics purely from live applications data (no hardcoded numbers)
+  // Application pipeline from the stats endpoint: counts every driver, not just the first page.
+  // The backend has no "pending documents" state, so that bucket stays 0.
   const pipelineMetrics = useMemo(() => {
-    const total = liveApplications.length
-    if (total === 0) {
-      return { total: 0, underReview: 0, pendingDocs: 0, approved: 0, rejected: 0 }
+    const s = applicationStats
+    if (!s) return { total: 0, underReview: 0, pendingDocs: 0, approved: 0, rejected: 0 }
+    return {
+      total: s.total,
+      underReview: s.pendingReview + s.underReview,
+      pendingDocs: 0,
+      approved: s.approved,
+      rejected: s.rejected,
     }
-    const underReview = liveApplications.filter(
-      (a) =>
-        a.applicationStatus === 'under_review' ||
-        a.applicationStatus === 'pending_review' ||
-        a.applicationStatus === 'submitted'
-    ).length
-    const pendingDocs = liveApplications.filter(
-      (a) => a.applicationStatus === 'draft' || a.applicationStatus === 'resubmission_required'
-    ).length
-    const approved = liveApplications.filter((a) => a.applicationStatus === 'approved').length
-    const rejected = liveApplications.filter((a) => a.applicationStatus === 'rejected').length
-    const unaccounted = total - (underReview + pendingDocs + approved + rejected)
-    const finalUnderReview = underReview + (unaccounted > 0 ? unaccounted : 0)
-
-    return { total, underReview: finalUnderReview, pendingDocs, approved, rejected }
-  }, [liveApplications])
+  }, [applicationStats])
 
   // Driver Fleet Status Metrics purely from live drivers data (no hardcoded numbers)
   const fleetMetrics = useMemo(() => {
@@ -166,6 +134,10 @@ export const DriverManagementOverviewPage: React.FC = () => {
     }
     return clean
   }
+
+  // "uploaded / required" exactly as the API reports it; unknown stays unknown
+  const formatDocs = (count?: number, total?: number) =>
+    count === undefined ? '—' : total === undefined ? String(count) : `${count} / ${total}`
 
   // Dynamic Expiries calculation from live backend API or live documents
   const expiryMetrics = useMemo(() => {
@@ -208,89 +180,11 @@ export const DriverManagementOverviewPage: React.FC = () => {
       checkDate(d.licenseExpiry)
     })
 
-    if (expired > 0 || d30 > 0 || d60 > 0 || d90 > 0) {
-      return { expired, d30, d60, d90 }
-    }
-
-    // Default design reference
-    return {
-      expired: 3,
-      d30: 5,
-      d60: 8,
-      d90: 12,
-    }
+    return { expired, d30, d60, d90 }
   }, [expiryAlertsResponse, liveVehicles, liveDrivers])
 
   // Recent Applications dynamically merging live applications & drivers
   const recentApplications = useMemo(() => {
-    const defaultList = [
-      {
-        id: 'app-1',
-        name: 'Saqib Mir',
-        phone: '+91 96005 774525',
-        photo: undefined,
-        appId: 'DRV_MUSFDU7F_ED56',
-        submittedDate: '3 Oct 2026',
-        submittedTime: '06:56 PM',
-        documents: '8 / 11',
-        status: 'under_review' as const,
-        statusLabel: 'Under Review',
-        avatarInitial: 'SM',
-      },
-      {
-        id: 'app-2',
-        name: 'Bilal Ahmad',
-        phone: '+91 70123 45678',
-        photo: undefined,
-        appId: 'DRV_E5F6G7H8',
-        submittedDate: '1 Oct 2026',
-        submittedTime: '11:20 AM',
-        documents: '6 / 11',
-        status: 'pending_docs' as const,
-        statusLabel: 'Pending Docs',
-        avatarInitial: 'BA',
-      },
-      {
-        id: 'app-3',
-        name: 'Aamir Rashid',
-        phone: '+91 88990 11223',
-        photo: undefined,
-        appId: 'DRV_A1B2C3D4',
-        submittedDate: '2 Oct 2026',
-        submittedTime: '04:12 PM',
-        documents: '11 / 11',
-        status: 'approved' as const,
-        statusLabel: 'Approved',
-        avatarInitial: 'AR',
-      },
-      {
-        id: 'app-4',
-        name: 'Imran Khan',
-        phone: '+91 99001 22334',
-        photo: undefined,
-        appId: 'DRV_M3N4O5P6',
-        submittedDate: '28 Sep 2026',
-        submittedTime: '02:36 PM',
-        documents: '4 / 11',
-        status: 'under_review' as const,
-        statusLabel: 'Under Review',
-        avatarInitial: 'IK',
-      },
-      {
-        id: 'app-5',
-        name: 'Rizwan Khan',
-        phone: '+91 88990 55667',
-        photo: undefined,
-        appId: 'DRV_Q7R8S9T0',
-        submittedDate: '27 Sep 2026',
-        submittedTime: '10:05 AM',
-        documents: '2 / 11',
-        status: 'rejected' as const,
-        statusLabel: 'Rejected',
-        avatarInitial: 'RK',
-      },
-    ]
-
     const unified: Array<{
       id: string
       name: string
@@ -337,9 +231,6 @@ export const DriverManagementOverviewPage: React.FC = () => {
         .substring(0, 2)
         .toUpperCase() || `A${idx + 1}`
 
-      const docsSubmitted = app.documentsCount ?? 8
-      const docsTotal = app.totalDocuments ?? 11
-
       unified.push({
         id: app.id,
         name,
@@ -347,7 +238,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
         photo: app.profilePhotoUrl,
         appId: app.applicationId || `DRV_${app.id.substring(0, 8).toUpperCase()}`,
         submittedAtRaw: !isNaN(rawDate.getTime()) ? rawDate : new Date(),
-        documents: `${docsSubmitted} / ${docsTotal}`,
+        documents: formatDocs(app.documentsCount, app.totalDocuments),
         status: statusKey,
         statusLabel: label,
         avatarInitial: initials,
@@ -384,9 +275,6 @@ export const DriverManagementOverviewPage: React.FC = () => {
         .substring(0, 2)
         .toUpperCase() || 'DR'
 
-      const docsSubmitted = driver.documentsCount ?? 11
-      const docsTotal = driver.totalDocuments ?? 11
-
       unified.push({
         id: driver.id,
         name,
@@ -394,106 +282,64 @@ export const DriverManagementOverviewPage: React.FC = () => {
         photo: driver.profilePhotoUrl,
         appId: driver.driverCode || driver.applicationId || `DRV_${driver.id.substring(0, 8).toUpperCase()}`,
         submittedAtRaw: !isNaN(rawDate.getTime()) ? rawDate : new Date(),
-        documents: `${docsSubmitted} / ${docsTotal}`,
+        documents: formatDocs(driver.documentsCount, driver.totalDocuments),
         status: statusKey,
         statusLabel: label,
         avatarInitial: initials,
       })
     })
 
-    if (unified.length > 0) {
-      const priorityOrder: Record<string, number> = {
-        'saqib mir': 1,
-        'bilal ahmad': 2,
-        'aamir rashid': 3,
-        'imran khan': 4,
-        'rizwan khan': 5,
+    unified.sort((a, b) => b.submittedAtRaw.getTime() - a.submittedAtRaw.getTime())
+
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+    return unified.slice(0, 5).map((item) => {
+      const d = item.submittedAtRaw
+      const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
+      const hours = d.getHours()
+      const mins = d.getMinutes().toString().padStart(2, '0')
+      const ampm = hours >= 12 ? 'PM' : 'AM'
+      const h12 = (hours % 12 || 12).toString().padStart(2, '0')
+      const timeStr = `${h12}:${mins} ${ampm}`
+
+      return {
+        id: item.id,
+        name: item.name,
+        phone: item.phone,
+        photo: item.photo,
+        appId: item.appId,
+        submittedDate: dateStr,
+        submittedTime: timeStr,
+        documents: item.documents,
+        status: item.status,
+        statusLabel: item.statusLabel,
+        avatarInitial: item.avatarInitial,
       }
-
-      unified.sort((a, b) => {
-        const pA = priorityOrder[a.name.toLowerCase()] ?? 99
-        const pB = priorityOrder[b.name.toLowerCase()] ?? 99
-        if (pA !== pB) return pA - pB
-        return b.submittedAtRaw.getTime() - a.submittedAtRaw.getTime()
-      })
-
-      const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-      return unified.slice(0, 5).map((item) => {
-        const d = item.submittedAtRaw
-        const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
-        const hours = d.getHours()
-        const mins = d.getMinutes().toString().padStart(2, '0')
-        const ampm = hours >= 12 ? 'PM' : 'AM'
-        const h12 = (hours % 12 || 12).toString().padStart(2, '0')
-        const timeStr = `${h12}:${mins} ${ampm}`
-
-        return {
-          id: item.id,
-          name: item.name,
-          phone: item.phone,
-          photo: item.photo,
-          appId: item.appId,
-          submittedDate: dateStr,
-          submittedTime: timeStr,
-          documents: item.documents,
-          status: item.status,
-          statusLabel: item.statusLabel,
-          avatarInitial: item.avatarInitial,
-        }
-      })
-    }
-
-    return defaultList
+    })
   }, [liveApplications, liveDrivers])
 
-  // Recent Verifications mock
-  const recentActivities = [
-    {
-      id: 'act-1',
-      time: '3 Oct 2026, 07:12 PM',
-      admin: 'Sarah Khan',
-      adminInitial: 'SK',
-      adminPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-      action: 'Document Verified',
-      actionType: 'verified',
-      driver: 'Saqib Mir',
-      details: 'Aadhaar Card verified',
-    },
-    {
-      id: 'act-2',
-      time: '3 Oct 2026, 06:58 PM',
-      admin: 'Ahmed Raza',
-      adminInitial: 'AR',
-      adminPhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-      action: 'Application Moved',
-      actionType: 'moved',
-      driver: 'Bilal Ahmad',
-      details: 'Moved to Document Review',
-    },
-    {
-      id: 'act-3',
-      time: '3 Oct 2026, 06:45 PM',
-      admin: 'Fatima Noor',
-      adminInitial: 'FN',
-      adminPhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      action: 'Document Rejected',
-      actionType: 'rejected',
-      driver: 'Imran Khan',
-      details: 'RC expired',
-    },
-    {
-      id: 'act-4',
-      time: '2 Oct 2026, 11:20 AM',
-      admin: 'Ahmed Raza',
-      adminInitial: 'AR',
-      adminPhoto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-      action: 'Application Submitted',
-      actionType: 'submitted',
-      driver: 'Aamir Rashid',
-      details: 'New application received',
-    },
-  ]
+  // Recent driver verification decisions from the audit log (needs audit:read)
+  const recentActivities = useMemo(() => {
+    const nameById = new Map<string, string>()
+    for (const a of liveApplications) nameById.set(a.id, a.driverName)
+    for (const d of liveDrivers) nameById.set(d.id, d.driverName)
+    return (auditResponse?.data ?? []).map((log) => {
+      const action = log.action.toUpperCase()
+      return {
+        id: log.id,
+        driverId: log.entityId,
+        time: new Date(log.timestamp).toLocaleString('en-IN', {
+          day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+        }),
+        admin: log.actor,
+        adminInitial: log.actor.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(),
+        action: ACTION_LABELS[action] ?? log.action,
+        actionType: action === 'APPROVE' ? 'verified' : action === 'REJECT' ? 'rejected' : action === 'CREATE' ? 'submitted' : 'moved',
+        driver: (log.entityId && nameById.get(log.entityId)) || '—',
+        details: log.notes || '—',
+      }
+    })
+  }, [auditResponse, liveApplications, liveDrivers])
 
   // Pipeline Bar Chart Heights - Dynamic based on actual real data
   const maxBarValue = useMemo(() => {
@@ -659,9 +505,16 @@ export const DriverManagementOverviewPage: React.FC = () => {
             </button>
             <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm text-xs font-semibold text-slate-700 dark:text-slate-300">
               <Calendar className="w-4 h-4 text-slate-400" />
-              <span>{dateRange}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1" />
+              <span>All time</span>
             </div>
+            <button
+              type="button"
+              onClick={() => navigate('/driver-management/applications/new')}
+              className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-4 py-2 rounded-[10px] text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Register Driver</span>
+            </button>
           </div>
         </div>
 
@@ -741,7 +594,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-[42px] h-[42px] rounded-full bg-emerald-600 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
@@ -803,14 +656,9 @@ export const DriverManagementOverviewPage: React.FC = () => {
                   Application Pipeline
                 </h3>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPeriod(prev => prev === 'this_month' ? 'last_month' : 'this_month')}
-                className="flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200/90 dark:border-slate-700 rounded-lg px-2 py-0.5 bg-white dark:bg-slate-800 shadow-2xs hover:bg-slate-50 transition-colors"
-              >
-                <span>{selectedPeriod === 'this_month' ? 'This Month' : 'Last Month'}</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
+              <span className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400">
+                All time
+              </span>
             </div>
 
             {/* Bar Chart Container */}
@@ -1063,6 +911,11 @@ export const DriverManagementOverviewPage: React.FC = () => {
                   </tr>
                 </CardThead>
                 <CardTbody>
+                  {recentApplications.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-slate-400">No applications yet</td>
+                    </tr>
+                  )}
                   {recentApplications.map((app) => (
                     <CardTr key={app.id} onClick={() => navigate(`/driver-management/applications/${app.id}`)}>
                       {/* Applicant */}
@@ -1176,20 +1029,24 @@ export const DriverManagementOverviewPage: React.FC = () => {
                   </tr>
                 </CardThead>
                 <CardTbody>
+                  {recentActivities.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-slate-400">No verification activity yet</td>
+                    </tr>
+                  )}
                   {recentActivities.map((act) => (
-                    <CardTr key={act.id}>
+                    <CardTr
+                      key={act.id}
+                      onClick={act.driverId ? () => navigate(`/driver-management/applications/${act.driverId}`) : undefined}
+                    >
                       <CardTd className="text-slate-500 font-medium whitespace-nowrap">
                         {act.time}
                       </CardTd>
                       <CardTd>
                         <div className="flex items-center gap-2.5">
-                          {act.adminPhoto ? (
-                            <img src={act.adminPhoto} alt={act.admin} className="w-7 h-7 rounded-full object-cover shrink-0 shadow-2xs" />
-                          ) : (
-                            <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold flex items-center justify-center shrink-0">
-                              {act.adminInitial}
-                            </div>
-                          )}
+                          <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold flex items-center justify-center shrink-0">
+                            {act.adminInitial}
+                          </div>
                           <span className="font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
                             {act.admin}
                           </span>
@@ -1312,46 +1169,87 @@ export const DriverManagementOverviewPage: React.FC = () => {
               </div>
             </div>
 
-            {/* 6. Quick Actions Card */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col flex-1">
-              <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
-                <div className="flex items-center gap-2.5">
-                  <Hexagon className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9]" strokeWidth={2.5} />
-                  <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Quick Actions</h3>
-                </div>
-              </div>
+            {/* 6. Quick Actions Card (Geographic Management Consistent Design) */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-sm">
+              <h3 className="text-sm font-bold text-[#1F2B6D] dark:text-white mb-3 leading-none">
+                Quick Actions
+              </h3>
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* Review Applications */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/driver-management/applications')}
+                  className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                    <FileText className="w-[18px] h-[18px]" strokeWidth={2} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                      Review Apps
+                    </p>
+                    <p className="text-[11px] text-slate-400 leading-tight truncate">
+                      Audit pending files
+                    </p>
+                  </div>
+                </button>
 
-              <div className="px-5 pb-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <QuickActionButton
-                    icon={<FileText className="w-4 h-4 text-[#2563EB] shrink-0" strokeWidth={2.5} />}
-                    title="View All Applications"
-                    hoverColorClass="hover:border-blue-400 dark:hover:border-blue-500 group-hover:text-blue-600"
-                    onClick={() => navigate('/driver-management/applications')}
-                  />
-                  <QuickActionButton
-                    icon={
-                      <div className="w-4 h-4 rounded-full bg-[#F59E0B] text-white flex items-center justify-center shrink-0 font-black text-[10px] shadow-2xs">
-                        !
-                      </div>
-                    }
-                    title={<>Review Pending<br />Documents</>}
-                    hoverColorClass="hover:border-amber-400 dark:hover:border-amber-500 group-hover:text-amber-600"
-                    onClick={() => navigate('/driver-management/applications?status=under_review')}
-                  />
-                  <QuickActionButton
-                    icon={<Users className="w-4 h-4 text-[#2563EB] shrink-0" strokeWidth={2.5} />}
-                    title="Manage Drivers"
-                    hoverColorClass="hover:border-indigo-400 dark:hover:border-indigo-500 group-hover:text-indigo-600"
-                    onClick={() => navigate('/driver-management/drivers')}
-                  />
-                  <QuickActionButton
-                    icon={<Calendar className="w-4 h-4 text-[#1F2B6D] dark:text-[#8B93D9] shrink-0" strokeWidth={2.5} />}
-                    title={<>Document Expiry<br />Report</>}
-                    hoverColorClass="hover:border-slate-400 dark:hover:border-slate-500 group-hover:text-blue-600"
-                    onClick={() => navigate('/vehicle-management/vehicles')}
-                  />
-                </div>
+                {/* Register Driver */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/driver-management/applications/new')}
+                  className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                    <UserPlus className="w-[18px] h-[18px]" strokeWidth={2} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                      Register Driver
+                    </p>
+                    <p className="text-[11px] text-slate-400 leading-tight truncate">
+                      Add driver partner
+                    </p>
+                  </div>
+                </button>
+
+                {/* Manage Drivers */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/driver-management/drivers')}
+                  className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                    <Users className="w-[18px] h-[18px]" strokeWidth={2} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                      Manage Fleet
+                    </p>
+                    <p className="text-[11px] text-slate-400 leading-tight truncate">
+                      Active drivers & duty
+                    </p>
+                  </div>
+                </button>
+
+                {/* Expiry Report */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/vehicle-management/vehicles')}
+                  className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                    <ShieldAlert className="w-[18px] h-[18px]" strokeWidth={2} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                      Expiry Alerts
+                    </p>
+                    <p className="text-[11px] text-slate-400 leading-tight truncate">
+                      Document compliance
+                    </p>
+                  </div>
+                </button>
               </div>
             </div>
 

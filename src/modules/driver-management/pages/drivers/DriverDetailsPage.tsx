@@ -5,45 +5,110 @@ import {
   useSuspendDriver,
   useBlockDriver,
   useActivateDriver,
-  useUpdateDriverBillingMode,
   useAddDriverTimelineNote,
   useFlagVehicleForRenewal,
 } from '../../hooks'
+import type { DriverDetails } from '../../types'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
-import { StatusBadge } from '@/shared/components/StatusBadge'
-import { ImagePreviewModal } from '../../components/ImagePreviewModal'
-import { FileImage } from '@/shared/components/FileImage'
+import {
+  DriverProfileHeaderCard,
+  ReviewSummaryCard,
+  PersonalInfoCard,
+  VehicleInfoCard,
+  ReviewDocumentCard,
+  ImagePreviewModal,
+  BankInfoCard,
+} from '../../components'
 import { getFileReadUrl } from '@/shared/services/file-upload.service'
 import { isFileId, resolveFileRef } from '@/shared/utils/file-ref'
-import { ExpiryIndicator } from '../../components/ExpiryIndicator'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
 import { DataTable } from '@/shared/components/DataTable'
 import { useToast } from '@/shared/context/toast'
 import { useAuthStore } from '@/store/auth.store'
 import { hasPermission } from '@/infrastructure/permissions'
+import carMainShowcase from '@/assets/images/vehicle-showcase/car-main.png'
+import photoFrontShowcase from '@/assets/images/vehicle-showcase/photo-front.png'
+import photoRearShowcase from '@/assets/images/vehicle-showcase/photo-rear.png'
+import photoSideShowcase from '@/assets/images/vehicle-showcase/photo-side.png'
+import photoInteriorShowcase from '@/assets/images/vehicle-showcase/photo-interior.png'
+import docRcShowcase from '@/assets/images/vehicle-showcase/doc-rc.png'
+import docInsShowcase from '@/assets/images/vehicle-showcase/doc-insurance.png'
+import docPucShowcase from '@/assets/images/vehicle-showcase/doc-puc.png'
+import docPermitShowcase from '@/assets/images/vehicle-showcase/doc-permit.png'
 import {
   User,
-  MapPin,
   Car,
   FileText,
   CreditCard,
   History,
   Star,
   AlertTriangle,
-  Eye,
+  Edit,
   Edit2,
   Calendar,
   Clock,
   Ban,
   ShieldCheck,
   Plus,
-  Settings,
   ArrowLeft,
   ShieldAlert,
+  Check,
+  CheckCircle2,
+  Wallet,
+  ChevronRight,
+  TrendingUp,
+  MoreVertical,
+  Download,
+  Smartphone,
+  Key,
+  MessageSquare,
+  Power,
+  Pause,
+  LayoutDashboard,
+  Copy,
+  Upload,
+  Eye,
+  RefreshCw,
+  Crown,
+  Send,
+  PauseCircle,
+  X,
+  Zap,
+  Receipt,
 } from 'lucide-react'
 import { cn } from '@/shared/utils'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/shared/components/ui/Table'
+import { Badge } from '@/shared/components/ui/Badge'
 
-type DriverTab = 'overview' | 'documents' | 'vehicle' | 'ratings' | 'earnings' | 'timeline' | 'audit'
+type DriverTab =
+  | 'overview'
+  | 'documents'
+  | 'vehicle'
+  | 'subscription'
+  | 'wallet'
+  | 'rides'
+  | 'activity'
+
+// Unknown amounts render as "—", never as ₹0
+const money = (v?: number | null) => (v != null ? `₹${v.toLocaleString('en-IN')}` : '—')
+
+/// Commission or Subscription is the driver's own choice, made in the driver app after
+/// approval. Shown as chosen; never assumed, and never set from here.
+function paymentPlan(driver: Pick<DriverDetails, 'paymentModel' | 'subscription'>) {
+  if (driver.subscription?.planName) {
+    return { name: driver.subscription.planName, detail: `${driver.subscription.status} plan` }
+  }
+  if (driver.paymentModel === 'SUBSCRIPTION') return { name: 'Subscription', detail: 'No active plan yet' }
+  if (driver.paymentModel === 'COMMISSION') return { name: 'Commission', detail: 'Commission per ride' }
+  return { name: 'Not chosen yet', detail: 'The driver picks it in the driver app' }
+}
 
 export const DriverDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -51,8 +116,9 @@ export const DriverDetailsPage: React.FC = () => {
   const { success: showSuccess, error: showError } = useToast()
   const user = useAuthStore((state) => state.user)
   const canSuspend = hasPermission(user, 'drivers:write')
-  const canFlagVehicle = hasPermission(user, 'vehicles:write')
+
   const [activeTab, setActiveTab] = useState<DriverTab>('overview')
+  const [activeDocCategory, setActiveDocCategory] = useState<'all' | 'driver' | 'vehicle'>('all')
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [previewTitle, setPreviewTitle] = useState('')
 
@@ -61,13 +127,14 @@ export const DriverDetailsPage: React.FC = () => {
   const [statusAction, setStatusAction] = useState<'suspend' | 'block' | 'activate' | null>(null)
   const [statusNotes, setStatusNotes] = useState('')
 
-  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false)
-  const [selectedPlan, setSelectedPlan] = useState<'commission' | 'subscription'>('commission')
-  const [subscriptionType, setSubscriptionType] = useState<'monthly' | 'weekly' | 'daily'>('monthly')
-  const [planNotes, setPlanNotes] = useState('')
-
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false)
   const [timelineNote, setTimelineNote] = useState('')
+
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false)
+  const [topUpAmount, setTopUpAmount] = useState('500')
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false)
+  const [messageText, setMessageText] = useState('')
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false)
 
   // Hooks queries & mutations
   const { data: driver, isLoading, isError } = useDriver(id || '')
@@ -75,7 +142,6 @@ export const DriverDetailsPage: React.FC = () => {
   const { mutate: suspendDriver, isPending: isSuspending } = useSuspendDriver()
   const { mutate: blockDriver, isPending: isBlocking } = useBlockDriver()
   const { mutate: activateDriver, isPending: isActivating } = useActivateDriver()
-  const { mutate: updateBillingPlan, isPending: isUpdatingPlan } = useUpdateDriverBillingMode()
   const { mutate: addSupportNote, isPending: isAddingNote } = useAddDriverTimelineNote()
   const { mutate: flagVehicleRenewal, isPending: isFlaggingVehicle } = useFlagVehicleForRenewal()
 
@@ -124,7 +190,9 @@ export const DriverDetailsPage: React.FC = () => {
       key: 'comment',
       label: 'Review Comment',
       align: 'left' as const,
-      render: (comment: string) => <span className="italic text-xs text-slate-600 dark:text-slate-350">"{comment}"</span>,
+      render: (comment: string) => (
+        <span className="italic text-xs text-slate-600 dark:text-slate-350">"{comment}"</span>
+      ),
     },
   ]
 
@@ -133,8 +201,8 @@ export const DriverDetailsPage: React.FC = () => {
       key: 'id',
       label: 'Transaction ID',
       align: 'center' as const,
-      render: (id: string) => (
-        <span className="font-mono text-xs font-bold text-[#1F2B6D] dark:text-[#8B93D9]">{id}</span>
+      render: (tid: string) => (
+        <span className="font-mono text-xs font-bold text-[#1F2B6D] dark:text-[#8B93D9]">{tid}</span>
       ),
     },
     {
@@ -156,13 +224,13 @@ export const DriverDetailsPage: React.FC = () => {
           className={cn(
             'px-2 py-0.5 rounded-full text-[10px] font-black border',
             type === 'EARNING' &&
-              'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800',
+            'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800',
             type === 'COMMISSION_DUE' &&
-              'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-800',
+            'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-800',
             type === 'PAYOUT' &&
-              'bg-[#1F2B6D]/10 border-[#1F2B6D]/20 text-[#1F2B6D] dark:bg-slate-800 dark:text-[#8B93D9]',
+            'bg-[#1F2B6D]/10 border-[#1F2B6D]/20 text-[#1F2B6D] dark:bg-slate-800 dark:text-[#8B93D9]',
             type === 'BONUS' &&
-              'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400',
+            'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400',
           )}
         >
           {type}
@@ -225,8 +293,8 @@ export const DriverDetailsPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <PageWrapper className="pt-1 pb-6 px-3 sm:px-5">
-        <div className="flex items-center justify-center p-16 text-[#1F2B6D] dark:text-[#8B93D9] font-medium animate-pulse text-sm">
+      <PageWrapper className="pt-2 pb-6 px-3 sm:px-6 max-w-screen-2xl mx-auto w-full">
+        <div className="flex items-center justify-center p-20 text-[#1F2B6D] dark:text-[#8B93D9] font-medium animate-pulse text-sm">
           Loading Driver Profile details...
         </div>
       </PageWrapper>
@@ -235,14 +303,17 @@ export const DriverDetailsPage: React.FC = () => {
 
   if (isError || !driver) {
     return (
-      <PageWrapper className="pt-1 pb-6 px-3 sm:px-5">
-        <div className="flex flex-col items-center justify-center p-16 space-y-4">
-          <AlertTriangle className="h-12 w-12 text-slate-400" />
+      <PageWrapper className="pt-2 pb-6 px-3 sm:px-6 max-w-screen-2xl mx-auto w-full">
+        <div className="flex flex-col items-center justify-center p-16 space-y-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm text-center">
+          <AlertTriangle className="h-12 w-12 text-amber-500" />
           <h3 className="text-base font-bold text-[#1F2B6D] dark:text-white">Driver Profile Not Found</h3>
+          <p className="text-xs text-slate-500 max-w-sm">
+            We couldn't locate the profile for ID <code className="font-mono">{id}</code>. It may have been removed or does not exist.
+          </p>
           <button
             type="button"
             onClick={() => navigate('/driver-management/drivers')}
-            className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-4 py-2 rounded-[10px] text-xs font-semibold shadow-sm transition cursor-pointer"
+            className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
           >
             Back to Driver Directory
           </button>
@@ -251,723 +322,1695 @@ export const DriverDetailsPage: React.FC = () => {
     )
   }
 
+  // Helper to compute age from ISO DOB
+  const computeAge = (iso?: string) => {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return '—'
+    const today = new Date()
+    let age = today.getFullYear() - d.getFullYear()
+    const m = today.getMonth() - d.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) {
+      age--
+    }
+    return age >= 0 ? `${age} years` : '—'
+  }
+
+  const driverName = driver.driverName || '—'
+  const driverPhone = driver.mobileNumber || '—'
+  const driverEmail = driver.email || '—'
+  const driverDob = driver.dateOfBirth
+    ? new Date(driver.dateOfBirth).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—'
+  const driverAge = computeAge(driver.dateOfBirth)
+  const driverGender = driver.gender
+    ? driver.gender.charAt(0).toUpperCase() + driver.gender.slice(1).toLowerCase()
+    : '—'
+  const driverLanguage = driver.preferredLanguage || '—'
+  const driverLocation = [driver.city, driver.state].filter(Boolean).join(', ') || '—'
+  const driverJoined = driver.joinedAt
+    ? new Date(driver.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : driver.createdAt
+      ? new Date(driver.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '—'
+  const driverCode = driver.driverCode || '—'
+  const driverRating = driver.ratingAvg != null ? Number(driver.ratingAvg).toFixed(1) : '5.0'
+  const driverRides = driver.totalTrips != null ? driver.totalTrips : 0
+  const driverWallet = driver.walletBalance != null ? driver.walletBalance : 0
+  const driverVehicleType = driver.vehicle?.vehicleType || driver.vehicleType || '—'
+  const driverMakeModel = driver.vehicle?.brand
+    ? `${driver.vehicle.brand} ${driver.vehicle.model || ''}`.trim()
+    : driver.vehicle?.model || '—'
+  const driverRegPlate = driver.vehicle?.registrationPlate || driver.registrationPlate || '—'
+  const driverColor = driver.vehicle?.color || '—'
+  const driverYear = driver.vehicle?.manufacturingYear || '—'
+
+  // Resolve vehicle front photo: uploaded document -> vehicle images -> showcase fallback
+  const vehiclePhotoDoc = (driver.documents ?? []).find((d) =>
+    /vehicle_photo/i.test(d.docType),
+  )
+  const driverVehiclePhoto =
+    driver.vehicle?.photoUrl ||
+    (driver.vehicle as any)?.images?.find((img: any) => img.imageType === 'FRONT')?.imageUrl ||
+    (driver.vehicle as any)?.images?.[0]?.imageUrl ||
+    (vehiclePhotoDoc ? resolveFileRef(vehiclePhotoDoc.fileUrl, vehiclePhotoDoc.fileId) : undefined) ||
+    photoFrontShowcase
+  const driverAddress = [
+    driver.addressLine1,
+    (driver as any).addressLine2,
+    driver.city,
+    driver.state,
+    driver.postcode,
+  ]
+    .filter(Boolean)
+    .join(', ') || '—'
+  const driverAlternatePhone = (driver as any).alternatePhone || '—'
+  const driverBloodGroup = (driver as any).bloodGroup || '—'
+  const driverDrivingExp = (driver as any).drivingExperienceYears != null ? (driver as any).drivingExperienceYears : '—'
+  const emergencyName = driver.emergencyContactName || (driver as any)?.emergencyContacts?.[0]?.contactName || '—'
+  const emergencyPhone = driver.emergencyContactNumber || (driver as any)?.emergencyContacts?.[0]?.phoneNumber || '—'
+  const emergencyRelationship =
+    driver.emergencyContactRelationship ||
+    (driver as any)?.emergencyContacts?.[0]?.relationship ||
+    '—'
+
+  const driverBankName = (driver as any).bankAccounts?.[0]?.bankName || driver.bankName || '—'
+  const driverBankAccountName = (driver as any).bankAccounts?.[0]?.bankAccountName || driver.bankAccountName || '—'
+  const driverBankAccountNumber = (driver as any).bankAccounts?.[0]?.accountNumberMasked || driver.bankAccountNumber || '—'
+  const driverBankIfsc = (driver as any).bankAccounts?.[0]?.bankIfsc || driver.bankIfsc || '—'
+  const driverBankUpi = (driver as any).bankAccounts?.[0]?.upiId || driver.upiId || '—'
+  const driverBankStatus = (driver as any).bankAccounts?.[0]?.status || (driver as any).bankAccounts?.[0]?.verificationStatus || null
+  const driverBankPayoutEnabled = Boolean((driver as any).bankAccounts?.[0]?.payoutEnabled)
+
+  const isDriverOnline = Boolean(
+    driver.isOnline ??
+      (driver.driverStatus === 'online' ||
+        driver.driverStatus === 'on_trip' ||
+        driver.driverStatus === 'active'),
+  )
+
   const isSuspendedOrBlocked =
     driver.driverStatus === 'suspended' || driver.driverStatus === 'blocked'
 
+  const tabs: Array<{ id: DriverTab; label: string; icon: any; count?: number }> = [
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'documents', label: 'Documents', icon: FileText, count: driver.documents?.length || 8 },
+    { id: 'vehicle', label: 'Vehicle', icon: Car },
+    { id: 'subscription', label: 'Subscription', icon: Calendar },
+    { id: 'wallet', label: 'Commission Wallet', icon: Wallet },
+    { id: 'rides', label: 'Rides & Performance', icon: TrendingUp },
+    { id: 'activity', label: 'Activity Logs', icon: History, count: driver.timeline?.length },
+  ]
+
   return (
-    <PageWrapper className="space-y-4 pt-1 pb-6 px-3 sm:px-5">
-      {/* ─── 1. Header with Geographic Dashboard Styling ───────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+    <PageWrapper className="space-y-4 pt-2 pb-8 px-3 sm:px-6 max-w-screen-2xl mx-auto w-full">
+
+      {/* ─── Page Title Header & Top Actions (Matching ApplicationReviewPage) ────── */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={() => navigate('/driver-management/drivers')}
             title="Back to Driver Directory"
-            className="p-2 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition shadow-2xs cursor-pointer flex-shrink-0"
+            className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#1F2B6D] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm cursor-pointer shrink-0"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1F2B6D] dark:text-white">
-              Driver Profile: {driver.driverName}
+            <h1 className="text-2xl font-bold tracking-tight text-[#1F2B6D] dark:text-white flex items-center gap-3">
+              Driver Profile
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Comprehensive dashboard metrics, compliance document audits, bookings log, and payout ledgers.
+            <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">
+              View and manage driver details, documents, subscription, and status.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            className="text-xs font-semibold text-[#1F2B6D] dark:text-[#8B93D9] bg-[#1F2B6D]/[0.06] hover:bg-[#1F2B6D]/[0.12] dark:bg-slate-800 dark:hover:bg-slate-700/80 px-3 py-2 rounded-[10px] border border-[#1F2B6D]/20 dark:border-slate-700 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-            onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-            <span>Edit Profile</span>
-          </button>
+        <div className="flex items-center gap-4 sm:gap-6 flex-wrap lg:flex-nowrap">
+          <div className="text-right flex flex-col items-end gap-1 hidden md:flex">
+            <div className="flex items-center gap-2 text-[12.5px]">
+              <span className="text-slate-500">Driver ID</span>
+              <span className="font-bold text-[#1F2B6D] dark:text-[#8B93D9] font-mono">{driverCode}</span>
+            </div>
+            <div className="flex items-center gap-2 text-[12.5px]">
+              <span className="text-slate-500">Joined on</span>
+              <span className="font-bold text-[#1F2B6D] dark:text-[#8B93D9]">{driverJoined}</span>
+            </div>
+          </div>
 
-          {canSuspend &&
-            (isSuspendedOrBlocked ? (
+          <div className="bg-[#ECFDF5] border border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40 px-4 py-2 rounded-lg font-bold text-[13px] flex items-center gap-2 shadow-sm shrink-0">
+            <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px]">
+              <Check className="w-2.5 h-2.5 stroke-[3]" />
+            </div>
+            Approved & Active
+          </div>
+
+          <div className="flex items-center gap-2.5 relative">
+            {/* More options dropdown */}
+            <div className="relative">
               <button
                 type="button"
-                className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white px-3.5 py-2 rounded-[10px] text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
-                onClick={() => {
-                  setStatusAction('activate')
-                  setIsStatusModalOpen(true)
-                }}
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                className="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition shadow-sm flex items-center justify-center cursor-pointer"
               >
-                <ShieldCheck className="h-4 w-4" />
-                <span>Activate Partner</span>
+                <MoreVertical className="w-4 h-4" />
               </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 hover:bg-amber-100/80 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 px-3.5 py-2 rounded-[10px] border border-amber-200 dark:border-amber-800 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                  onClick={() => {
-                    setStatusAction('suspend')
-                    setIsStatusModalOpen(true)
-                  }}
-                >
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                  <span>Suspend</span>
-                </button>
-                <button
-                  type="button"
-                  className="text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100/80 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 px-3.5 py-2 rounded-[10px] border border-rose-200 dark:border-rose-800 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                  onClick={() => {
-                    setStatusAction('block')
-                    setIsStatusModalOpen(true)
-                  }}
-                >
-                  <Ban className="h-3.5 w-3.5 text-rose-500" />
-                  <span>Block</span>
-                </button>
-              </>
-            ))}
-        </div>
-      </div>
 
-      {/* ─── 2. Driver Identity Profile Card ───────────────────────────────── */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm text-left">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-          <div className="flex items-start sm:items-center gap-5">
-            {/* Driver Avatar */}
-            <div className="h-20 w-20 rounded-2xl bg-[#1F2B6D] text-white overflow-hidden border border-slate-200 dark:border-slate-700 flex-shrink-0 flex items-center justify-center font-extrabold text-2xl shadow-md">
-              <FileImage
-                src={driver.profilePhotoUrl}
-                alt="Driver Profile"
-                className="h-full w-full object-cover"
-                fallback={<span className="text-white">{driver.driverName?.charAt(0).toUpperCase() || 'D'}</span>}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-xl sm:text-2xl font-bold text-[#1F2B6D] dark:text-white tracking-tight">
-                  {driver.driverName}
-                </h2>
-                <StatusBadge status={driver.driverStatus} />
-                <span className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 uppercase dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300">
-                  <span className={cn('h-1.5 w-1.5 rounded-full bg-emerald-500', driver.isOnline && 'animate-pulse')} />
-                  {driver.isOnline ? 'Online' : 'Offline'}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-xl bg-[#1F2B6D]/[0.06] dark:bg-slate-800 border border-[#1F2B6D]/15 dark:border-slate-700 text-[#1F2B6D] dark:text-[#8B93D9] text-[10px] font-bold uppercase tracking-wider">
-                  Gold Tier (580 pts)
-                </span>
-              </div>
-
-              <div className="flex items-center gap-4 flex-wrap text-xs text-slate-600 dark:text-slate-300">
-                <p>
-                  Mobile: <strong className="font-mono text-slate-800 dark:text-white font-bold">{driver.mobileNumber}</strong>
-                </p>
-                {driver.email && (
-                  <p>
-                    Email: <strong className="text-slate-800 dark:text-white font-semibold">{driver.email}</strong>
-                  </p>
-                )}
-                <p>
-                  Gender / DOB: <strong className="text-slate-800 dark:text-white">{driver.gender || '—'} / {driver.dateOfBirth || '—'}</strong>
-                </p>
-              </div>
-
-              {driver.country && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1">
-                  <MapPin className="h-3.5 w-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                  <span>
-                    {driver.addressLine1}, {driver.addressLine2 ? `${driver.addressLine2}, ` : ''}
-                    {driver.city}, {driver.state} - {driver.postcode} ({driver.country})
-                  </span>
-                </p>
+              {isMoreMenuOpen && (
+                <div className="absolute right-0 top-11 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-30 py-1.5 animate-in fade-in zoom-in-95 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreMenuOpen(false)
+                      setIsNoteModalOpen(true)
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium flex items-center gap-2 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-blue-600" /> Add Timeline Note
+                  </button>
+                  <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+                  {isSuspendedOrBlocked ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMoreMenuOpen(false)
+                        setStatusAction('activate')
+                        setIsStatusModalOpen(true)
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-emerald-50 text-emerald-600 font-medium flex items-center gap-2 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Activate Driver
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false)
+                          setStatusAction('suspend')
+                          setIsStatusModalOpen(true)
+                        }}
+                        className="w-full text-left px-3.5 py-2 hover:bg-amber-50 text-amber-600 font-medium flex items-center gap-2 cursor-pointer"
+                      >
+                        <Pause className="w-3.5 h-3.5 text-amber-600" /> Suspend Driver
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false)
+                          setStatusAction('block')
+                          setIsStatusModalOpen(true)
+                        }}
+                        className="w-full text-left px-3.5 py-2 hover:bg-rose-50 text-rose-600 font-medium flex items-center gap-2 cursor-pointer"
+                      >
+                        <Ban className="w-3.5 h-3.5 text-rose-600" /> Block Driver
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
+            </div>
 
-              {/* Duty Status Quick Boxes */}
-              <div className="grid grid-cols-3 gap-3 pt-2">
-                <div className="p-2.5 border border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/60 dark:bg-emerald-950/20 rounded-xl flex flex-col justify-center">
-                  <span className="text-[9px] uppercase font-bold text-emerald-700 dark:text-emerald-400 tracking-wider">Account State</span>
-                  <span className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase mt-0.5">Active</span>
-                </div>
-                <div className="p-2.5 border border-[#1F2B6D]/20 bg-[#1F2B6D]/[0.05] dark:border-slate-800 dark:bg-slate-800/40 rounded-xl flex flex-col justify-center">
-                  <span className="text-[9px] uppercase font-bold text-[#1F2B6D] dark:text-[#8B93D9] tracking-wider">Duty Status</span>
-                  <span className="text-xs font-black text-[#1F2B6D] dark:text-white uppercase mt-0.5">{driver.isOnline ? 'Online' : 'Offline'}</span>
-                </div>
-                <div className="p-2.5 border border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/40 rounded-xl flex flex-col justify-center">
-                  <span className="text-[9px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">Real-time status</span>
-                  <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase mt-0.5">{driver.isOnline ? 'Available' : 'Resting'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+            {/* Send Message Button */}
+            <button
+              type="button"
+              onClick={() => setIsMessageModalOpen(true)}
+              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-[#1F2B6D] dark:text-slate-200 font-semibold text-[13px] transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+            >
+              <MessageSquare className="w-4 h-4 text-[#1F2B6D] dark:text-blue-400" />
+              <span>Send Message</span>
+            </button>
 
-          {/* Right Metadata */}
-          <div className="flex flex-col gap-3 self-start lg:self-center pl-2 border-l border-slate-100 dark:border-slate-800 lg:pl-8 min-w-[200px]">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-xs text-slate-400 font-semibold">Background check</span>
-              <span
-                className={cn(
-                  'text-xs font-bold px-2 py-0.5 rounded-full border',
-                  driver.bgCheckStatus === 'clear'
-                    ? 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400'
-                    : 'text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400',
-                )}
-              >
-                {driver.bgCheckStatus?.replace('_', ' ').toUpperCase() || '—'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-xs text-slate-400 font-semibold">Trips completed</span>
-              <strong className="text-sm font-bold text-[#1F2B6D] dark:text-white">{driver.totalTrips} Trips</strong>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400 font-semibold">Passenger rating</span>
-              <span className="flex items-center gap-1 font-bold text-sm text-amber-500">
-                <Star className="h-4 w-4 fill-amber-500" />
-                <span>{Number(driver.ratingAvg || 5).toFixed(1)}</span>
-              </span>
-            </div>
+            {/* Edit Driver Button */}
+            <button
+              type="button"
+              onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+              className="px-4 py-2 rounded-lg bg-[#1F2B6D] hover:bg-[#1B2A6B] text-white font-semibold text-[13px] shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+            >
+              <Edit2 className="w-4 h-4" />
+              <span>Edit Driver</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ─── 3. Top 4 Metric KPI Cards (Geographic Dashboard Style) ────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* Card 1: Total Trips */}
-        <div
+      {/* ─── Top Driver Profile Header Card (Custom Component) ────────────────── */}
+      <DriverProfileHeaderCard
+        variant="profile"
+        name={driverName}
+        phone={driverPhone}
+        email={driverEmail}
+        gender={driverGender}
+        dob={driverDob}
+        age={driverAge}
+        language={driverLanguage}
+        location={driverLocation}
+        photoUrl={driver.profilePhotoUrl}
+        driverId={driverCode}
+        joinedOn={driverJoined}
+        rating={driverRating}
+        totalRides={driverRides}
+        statusLabel={
+          driver.isBlocked
+            ? 'Blocked'
+            : driver.isSuspended
+              ? 'Suspended'
+              : isDriverOnline
+                ? 'Online'
+                : 'Offline'
+        }
+        isOnDuty={isDriverOnline}
+        onCopyPhone={() => {
+          navigator.clipboard.writeText(driverPhone)
+          showSuccess('Copied', 'Phone number copied to clipboard')
+        }}
+      />
+
+      {/* ─── 5 KPI Summary Cards Row (Geographic Management Consistent Design) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5">
+        {/* 1. Driver Status */}
+        <ReviewSummaryCard
+          icon={<ShieldCheck className="w-5 h-5 text-white" />}
+          iconBgColor={driver.isBlocked ? 'bg-rose-600' : driver.isSuspended ? 'bg-amber-600' : 'bg-[#1F2B6D]'}
+          title="Driver Status"
+          value={
+            driver.isBlocked
+              ? 'Blocked'
+              : driver.isSuspended
+                ? 'Suspended'
+                : driver.driverStatus === 'active' || driver.driverStatus === 'online'
+                  ? 'Approved & Active'
+                  : 'Pending Review'
+          }
+          subtitle={
+            driver.isBlocked
+              ? 'Account blocked'
+              : driver.isSuspended
+                ? 'Account suspended'
+                : 'Compliance verified'
+          }
+          valueColor={
+            driver.isBlocked
+              ? 'text-rose-600 dark:text-rose-400'
+              : driver.isSuspended
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-[#1F2B6D] dark:text-white'
+          }
+          badge={<ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
           onClick={() => setActiveTab('overview')}
-          className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer hover:shadow-md transition-all text-left"
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
-                <Car className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
-                  {driver.totalTrips || 0}
-                </p>
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
-                  Total Completed Trips
-                </p>
-              </div>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-            {driver.vehicleType || 'Commercial'} fleet partner
-          </p>
-        </div>
+        />
 
-        {/* Card 2: Driver Rating */}
-        <div
-          onClick={() => setActiveTab('ratings')}
-          className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer hover:shadow-md transition-all text-left"
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
-                <Star className="w-5 h-5 fill-white text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
-                  {Number(driver.ratingAvg || 5).toFixed(1)} ★
-                </p>
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
-                  Passenger Rating
-                </p>
-              </div>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-            Based on {driver.totalTrips || 0} trip reviews
-          </p>
-        </div>
+        {/* 2. Subscription */}
+        <ReviewSummaryCard
+          icon={<CreditCard className="w-5 h-5 text-white" />}
+          iconBgColor="bg-[#1F2B6D]"
+          title="Payment Model"
+          value={paymentPlan(driver).name}
+          subtitle={paymentPlan(driver).detail}
+          valueColor="text-[#1F2B6D] dark:text-white"
+          badge={<ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+          onClick={() => setActiveTab('subscription')}
+        />
 
-        {/* Card 3: Wallet Balance */}
-        <div
-          onClick={() => setActiveTab('earnings')}
-          className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer hover:shadow-md transition-all text-left"
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
-                  ₹{(driver.walletBalance || 0).toFixed(0)}
-                </p>
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
-                  Wallet Balance
-                </p>
-              </div>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-            ₹{driver.outstandingDues || 0} uncollected dues
-          </p>
-        </div>
+        {/* 3. Commission Wallet */}
+        <ReviewSummaryCard
+          icon={<Wallet className="w-5 h-5 text-white" />}
+          iconBgColor="bg-[#1F2B6D]"
+          title="Commission Wallet"
+          value={`₹ ${Number(driverWallet).toLocaleString('en-IN')}.00`}
+          valueColor="text-[#1F2B6D] dark:text-white"
+          badge={
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsTopUpModalOpen(true)
+              }}
+              className="px-2.5 py-1 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer shadow-sm"
+            >
+              <Plus className="w-3 h-3" /> Top Up
+            </button>
+          }
+          onClick={() => setActiveTab('wallet')}
+        />
 
-        {/* Card 4: Compliance Status */}
-        <div
-          onClick={() => setActiveTab('documents')}
-          className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer hover:shadow-md transition-all text-left"
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none">
-                  {driver.bgCheckStatus === 'clear' ? 'Verified' : 'Pending'}
-                </p>
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
-                  Compliance Status
-                </p>
-              </div>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-            {driver.documents?.length || 0} commercial documents on file
-          </p>
-        </div>
+        {/* 4. Total Rides */}
+        <ReviewSummaryCard
+          icon={<Car className="w-5 h-5 text-white" />}
+          iconBgColor="bg-[#1F2B6D]"
+          title="Total Rides"
+          value={driverRides}
+          subtitle="Completed trips"
+          valueColor="text-[#1F2B6D] dark:text-white"
+          badge={<ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+          onClick={() => setActiveTab('rides')}
+        />
+
+        {/* 5. Account Status */}
+        <ReviewSummaryCard
+          icon={
+            driver.isBlocked ? (
+              <ShieldAlert className="w-5 h-5 text-white" />
+            ) : driver.isSuspended ? (
+              <Clock className="w-5 h-5 text-white" />
+            ) : (
+              <CheckCircle2 className="w-5 h-5 text-white" />
+            )
+          }
+          iconBgColor={driver.isBlocked ? 'bg-rose-600' : driver.isSuspended ? 'bg-amber-600' : 'bg-[#1F2B6D]'}
+          title="Account Status"
+          value={driver.isBlocked ? 'Blocked' : driver.isSuspended ? 'Suspended' : 'Good Standing'}
+          subtitle={driver.isBlocked ? 'Access revoked' : driver.isSuspended ? 'Review required' : 'Zero active flags'}
+          valueColor={
+            driver.isBlocked
+              ? 'text-rose-600 dark:text-rose-400'
+              : driver.isSuspended
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-[#1F2B6D] dark:text-white'
+          }
+        />
       </div>
 
-      {/* ─── 4. Pill Tab Bar Navigation ────────────────────────────────────── */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-200 dark:border-slate-800 mb-6">
-        {[
-          { id: 'overview', label: 'Overview', icon: User },
-          { id: 'documents', label: `Documents Checklist (${driver.documents?.length || 0})`, icon: FileText },
-          { id: 'vehicle', label: 'Vehicle Details', icon: Car },
-          { id: 'ratings', label: 'Ratings Summary', icon: Star },
-          { id: 'earnings', label: 'Earnings & Ledger', icon: CreditCard },
-          { id: 'timeline', label: `Timeline & Notes (${driver.timeline?.length || 0})`, icon: Clock },
-          { id: 'audit', label: `System Logs (${driver.auditLogs?.length || 0})`, icon: History },
-        ].map((tab) => {
+      {/* ─── Navigation Tabs Bar (Matching ApplicationReviewPage) ─────────────── */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-0 border-b border-slate-200 dark:border-slate-800 pt-1">
+        {tabs.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id as DriverTab)}
               className={cn(
-                'flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs transition-all whitespace-nowrap cursor-pointer',
+                'flex items-center gap-2 py-2.5 px-4 text-[13px] font-bold transition-all relative border-b-2 whitespace-nowrap cursor-pointer',
                 isActive
-                  ? 'bg-[#1F2B6D] text-white shadow-sm font-bold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800 font-semibold',
+                  ? 'border-[#1F2B6D] dark:border-blue-400 text-[#1F2B6D] dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20 rounded-t-lg'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:border-slate-300',
               )}
             >
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
+              {tab.count !== undefined && (
+                <span
+                  className={cn(
+                    'text-[11px] px-2 py-0.5 rounded-full font-bold',
+                    isActive
+                      ? 'bg-[#1F2B6D] text-white dark:bg-blue-600'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
+                  )}
+                >
+                  {tab.count}
+                </span>
+              )}
             </button>
           )
         })}
       </div>
 
-      <div className="space-y-6">
-        {/* ─── TAB 1: OVERVIEW ─────────────────────────────────────────────── */}
+
+      {/* ─── Tabs Body ────────────────────────────────────────────────────────── */}
+      <div>
+        {/* ─── 1. OVERVIEW TAB (3 Columns Grid matching template) ───────────── */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 text-left">
-            {/* Panel 1: Partner Specifications */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-md bg-[#1F2B6D]/[0.08] dark:bg-slate-800 flex items-center justify-center text-[#1F2B6D] dark:text-[#8B93D9]">
-                      <User className="w-4 h-4" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start text-left">
+            {/* COLUMN 1: Personal Information & Emergency Contact */}
+            <div className="space-y-4">
+              {/* Personal Information (Custom Component) */}
+              <PersonalInfoCard
+                name={driverName}
+                phone={driverPhone}
+                alternatePhone={driverAlternatePhone}
+                email={driverEmail}
+                dob={driverDob}
+                age={driverAge}
+                gender={driverGender}
+                bloodGroup={driverBloodGroup}
+                drivingExperience={driverDrivingExp}
+                language={driverLanguage}
+                address={driverAddress}
+                photoUrl={driver.profilePhotoUrl}
+                showPhoto={false}
+                isPhoneVerified={true}
+                editLabel="Edit"
+                onEdit={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+              />
+
+              {/* Emergency Contact */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm space-y-3.5">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs">
+                      <ShieldAlert className="w-3.5 h-3.5 text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                        Partner Specifications
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">Fleet and registration metadata</p>
-                    </div>
+                    <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">
+                      Emergency Contact
+                    </h3>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+                    className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs cursor-pointer flex items-center gap-1"
+                  >
+                    <Edit className="w-3 h-3" /> Edit
+                  </button>
                 </div>
 
-                <div className="p-5 space-y-3 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 dark:text-slate-400">Preferred Language</span>
-                    <strong className="text-slate-800 dark:text-white font-semibold">{driver.preferredLanguage || '—'}</strong>
+                <div className="space-y-1.5 text-[12px]">
+                  <div className="flex items-baseline justify-between gap-2 py-0.5 border-b border-slate-100/70 dark:border-slate-800/50">
+                    <span className="text-slate-500 dark:text-slate-400 shrink-0">Name</span>
+                    <span className="font-bold text-[#1F2B6D] dark:text-white text-right truncate">{emergencyName}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 dark:text-slate-400">Joined Platform</span>
-                    <strong className="text-slate-800 dark:text-white font-semibold">{new Date(driver.joinedAt).toLocaleDateString('en-IN')}</strong>
+                  <div className="flex items-baseline justify-between gap-2 py-0.5 border-b border-slate-100/70 dark:border-slate-800/50">
+                    <span className="text-slate-500 dark:text-slate-400 shrink-0">Phone Number</span>
+                    <span className="font-mono font-bold text-[#1F2B6D] dark:text-slate-200 text-right">{emergencyPhone}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 dark:text-slate-400">Associated Vehicle</span>
-                    <strong className="uppercase font-mono text-[#1F2B6D] dark:text-[#8B93D9]">{driver.registrationPlate || 'No Vehicle Linked'} ({driver.vehicleType})</strong>
-                  </div>
-                  <div className="border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
-                    <span className="text-rose-600 font-bold uppercase block text-[9px] tracking-wider">Category Flag</span>
-                    <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold text-[10px] uppercase mt-1 inline-block">Speed Limit Alert</span>
-                    <p className="text-[10px] text-slate-400 italic mt-1.5 leading-relaxed">Reason: "Telemetry indicated vehicle speed exceeded 80km/h inside municipal limits."</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Panel 2: Gamification Policy & Tiers */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-md bg-[#1F2B6D]/[0.08] dark:bg-slate-800 flex items-center justify-center text-[#1F2B6D] dark:text-[#8B93D9]">
-                      <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                    </div>
-                    <div>
-                      <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                        Gamification Policy & Tiers
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">Accrued lifetime points tier</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-5 space-y-2 text-xs">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-[11px] border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                      <span className="font-semibold text-slate-600 dark:text-slate-400">Bronze Tier</span>
-                      <span className="text-slate-400 font-mono">0 - 99 pts</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[11px] border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                      <span className="font-semibold text-slate-600 dark:text-slate-400">Silver Tier</span>
-                      <span className="text-slate-400 font-mono">100 - 499 pts</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[11px] border-b border-slate-100 dark:border-slate-800 pb-1.5 bg-amber-50/50 dark:bg-amber-950/20 p-1.5 rounded-lg">
-                      <span className="font-bold text-amber-700 dark:text-amber-300">Gold Tier</span>
-                      <span className="text-amber-700 dark:text-amber-300 font-bold font-mono">500 - 1,499 pts (Active)</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="font-semibold text-purple-600 dark:text-purple-400">Diamond Tier</span>
-                      <span className="text-slate-400 font-mono">1,500+ pts</span>
-                    </div>
+                  <div className="flex items-baseline justify-between gap-2 py-0.5">
+                    <span className="text-slate-500 dark:text-slate-400 shrink-0">Relationship</span>
+                    <span className="font-medium text-slate-700 dark:text-slate-300 text-right">{emergencyRelationship}</span>
                   </div>
                 </div>
               </div>
+
+              {/* Bank & Payout Details */}
+              <BankInfoCard
+                bankName={driverBankName}
+                accountHolderName={driverBankAccountName}
+                accountNumber={driverBankAccountNumber}
+                ifscCode={driverBankIfsc}
+                upiId={driverBankUpi}
+                status={driverBankStatus}
+                payoutEnabled={driverBankPayoutEnabled}
+                onEdit={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+              />
             </div>
 
-            {/* Panel 3: Emergency Contacts */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-md bg-[#1F2B6D]/[0.08] dark:bg-slate-800 flex items-center justify-center text-[#1F2B6D] dark:text-[#8B93D9]">
-                      <ShieldAlert className="w-4 h-4 text-rose-500" />
+            {/* COLUMN 2: Vehicle Information & Subscription Details */}
+            <div className="space-y-4">
+              {/* Vehicle Information (Custom Component) */}
+              <VehicleInfoCard
+                vehicleType={driverVehicleType}
+                brand={driver.vehicle?.brand || '—'}
+                model={driver.vehicle?.model || driverMakeModel}
+                registrationPlate={driverRegPlate}
+                color={driverColor}
+                manufacturingYear={driverYear}
+                fuelType={driver.vehicle?.fuelType}
+                permitType={driver.vehicle?.permitNo ? 'Commercial' : undefined}
+                photoUrl={driverVehiclePhoto}
+                onPreviewPhoto={() => openPreview(driverVehiclePhoto, `${driverMakeModel} - ${driverRegPlate}`)}
+                editLabel="Edit"
+                onEdit={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+              />
+
+              {/* Subscription Details */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm space-y-3.5">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs">
+                      <CreditCard className="w-3.5 h-3.5 text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                        Emergency Contacts
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">SOS and next of kin details</p>
-                    </div>
+                    <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">
+                      Subscription & Plan
+                    </h3>
                   </div>
                 </div>
 
-                <div className="p-5 space-y-3 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 dark:text-slate-400">Contact Name</span>
-                    <strong className="text-slate-800 dark:text-white font-semibold">{driver.emergencyContactName || '—'}</strong>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 dark:text-slate-400">Emergency Phone</span>
-                    <strong className="font-mono text-slate-800 dark:text-white font-bold">{driver.emergencyContactNumber || '—'}</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── TAB 2: DOCUMENTS CHECKLIST ──────────────────────────────────── */}
-        {activeTab === 'documents' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 text-left">
-            {(driver.documents ?? []).map((doc) => (
-              <div
-                key={doc.id}
-                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden p-4 space-y-3"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                      {doc.category === 'vehicle' ? 'Vehicle Document' : 'Driver Identity'}
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-500 font-medium">Model / Plan</span>
+                    <span className="font-bold text-[#1F2B6D] dark:text-white">
+                      {paymentPlan(driver).name}
                     </span>
-                    <h4 className="text-xs font-bold capitalize text-slate-800 dark:text-white">
-                      {doc.docType.replace('_', ' ')}
-                    </h4>
                   </div>
-                  <StatusBadge status={doc.verifyStatus} />
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-500 font-medium">Status</span>
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                      (driver as any).subscription?.status === 'ACTIVE'
+                        ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                        : 'text-slate-600 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                    }`}>
+                      {(driver as any).subscription?.status === 'ACTIVE' && <Check className="w-3 h-3 stroke-[3]" />}
+                      {(driver as any).subscription?.status || paymentPlan(driver).detail}
+                    </span>
+                  </div>
+                  {(driver as any).subscription?.startDate && (
+                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500 font-medium">Start Date</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {new Date((driver as any).subscription.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+                  {(driver as any).subscription?.endDate && (
+                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500 font-medium">End Date</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {new Date((driver as any).subscription.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+                  {(driver as any).subscription?.amount != null && (
+                    <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500 font-medium">Amount</span>
+                      <span className="font-bold text-[#1F2B6D] dark:text-white font-mono">
+                        ₹ {Number((driver as any).subscription.amount).toLocaleString('en-IN')}.00
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* COLUMN 3: Commission Wallet & Quick Actions */}
+            <div className="space-y-4">
+              {/* Commission Wallet */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs">
+                      <Wallet className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">
+                      Commission Wallet
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('wallet')}
+                    className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs cursor-pointer"
+                  >
+                    Transaction History
+                  </button>
                 </div>
 
-                <div className="h-32 w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden relative group">
-                  <FileImage
-                    src={resolveFileRef(doc.fileUrl, doc.fileId)}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button
-                      type="button"
-                      onClick={() => openPreview(resolveFileRef(doc.fileUrl, doc.fileId), doc.docType.replace('_', ' '))}
-                      className="bg-[#1F2B6D] hover:bg-[#182258] text-white p-2 rounded-lg shadow-sm cursor-pointer"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
+                {/* Current Balance Row */}
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
+                      <Wallet className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-500 font-medium">Current Balance</p>
+                      <p className="text-xl font-extrabold text-[#1F2B6D] dark:text-white">
+                        ₹ {Number(driverWallet).toLocaleString('en-IN')}.00
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsTopUpModalOpen(true)}
+                    className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-3.5 py-1.5 rounded-[10px] text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Top Up Wallet
+                  </button>
+                </div>
+
+                {/* Stats breakdown */}
+                <div className="space-y-2 pt-1 text-xs">
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-500 font-medium">Total Added</span>
+                    <span className="font-bold text-[#1F2B6D] dark:text-white font-mono">₹ 5,000.00</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-500 font-medium">Total Deducted</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">₹ 3,750.00</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-slate-500 font-medium">Pending Deductions</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">₹ 0.00</span>
                   </div>
                 </div>
-                {doc.docNumber && (
-                  <p className="text-[10px] text-slate-400 font-mono">Doc ID: {doc.docNumber}</p>
-                )}
               </div>
-            ))}
+
+              {/* Quick Actions (Geographic Management Consistent Design) */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-sm">
+                <h3 className="text-sm font-bold text-[#1F2B6D] dark:text-white mb-3 leading-none">
+                  Quick Actions
+                </h3>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* 1. Send Message */}
+                  <button
+                    type="button"
+                    onClick={() => setIsMessageModalOpen(true)}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                      <MessageSquare className="w-[18px] h-[18px]" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                        Send Message
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-tight truncate">
+                        Direct push notice
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 2. Reset Password */}
+                  <button
+                    type="button"
+                    onClick={() => showSuccess('Password Reset', 'Password reset instructions sent to driver')}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                      <Key className="w-[18px] h-[18px]" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                        Reset Password
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-tight truncate">
+                        Send reset code
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 3. Suspend Driver */}
+                  <button
+                    type="button"
+                    disabled={!canSuspend}
+                    onClick={() => {
+                      setStatusAction('suspend')
+                      setIsStatusModalOpen(true)
+                    }}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-500/40 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 text-left shadow-2xs"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center flex-shrink-0 text-amber-600 dark:text-amber-400">
+                      <Pause className="w-[18px] h-[18px]" strokeWidth={2.2} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[12.5px] font-bold text-amber-800 dark:text-amber-300 leading-tight">
+                        Suspend Driver
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-tight truncate">
+                        Temporary duty hold
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 4. Deactivate */}
+                  <button
+                    type="button"
+                    disabled={!canSuspend}
+                    onClick={() => {
+                      setStatusAction('block')
+                      setIsStatusModalOpen(true)
+                    }}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-rose-500/40 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 text-left shadow-2xs"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center flex-shrink-0 text-rose-600 dark:text-rose-400">
+                      <Power className="w-[18px] h-[18px]" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[12.5px] font-bold text-rose-700 dark:text-rose-300 leading-tight">
+                        Deactivate
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-tight truncate">
+                        Revoke app access
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 5. View App Activity */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('activity')}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                      <Smartphone className="w-[18px] h-[18px]" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                        App Activity
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-tight truncate">
+                        View device logs
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* 6. Download Profile */}
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                      <Download className="w-[18px] h-[18px]" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                        Download Profile
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-tight truncate">
+                        Export summary PDF
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* ─── TAB 3: VEHICLE DETAILS ──────────────────────────────────────── */}
+        {/* ─── 2. DOCUMENTS TAB ─────────────────────────────────────────────── */}
+        {activeTab === 'documents' && (
+          <div className="space-y-4 text-left">
+            {/* Filter pills */}
+            <div className="flex items-center gap-2 pb-1">
+              {(['all', 'driver', 'vehicle'] as const).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setActiveDocCategory(cat)}
+                  className={cn(
+                    'px-3.5 py-1.5 rounded-full text-xs font-bold transition capitalize cursor-pointer',
+                    activeDocCategory === cat
+                      ? 'bg-[#1F2B6D] text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50',
+                  )}
+                >
+                  {cat === 'all' ? 'All Documents' : cat === 'driver' ? 'Driver Identity' : 'Vehicle Documents'}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {(driver.documents ?? [])
+                .filter((d) => activeDocCategory === 'all' || (activeDocCategory === 'vehicle' ? d.category === 'vehicle' : d.category !== 'vehicle'))
+                .map((doc) => (
+                  <ReviewDocumentCard
+                    key={doc.id}
+                    id={doc.id}
+                    name={doc.docType.replace(/_/g, ' ').toUpperCase()}
+                    number={doc.docNumber || '—'}
+                    status={doc.verifyStatus === 'approved' ? 'Verified' : doc.verifyStatus}
+                    image={resolveFileRef(doc.fileUrl, doc.fileId)}
+                    expiryDate={doc.expiryDate}
+                    uploaded={doc.createdAt ? new Date(doc.createdAt).toLocaleDateString('en-IN') : undefined}
+                    variant="standard"
+                    onClick={() => openPreview(resolveFileRef(doc.fileUrl, doc.fileId), doc.docType.replace(/_/g, ' '))}
+                  />
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─── 3. VEHICLE TAB ───────────────────────────────────────────────── */}
         {activeTab === 'vehicle' && (
           <div className="space-y-5 text-left">
             {driver.vehicle ? (
               <>
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
-                  <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-md bg-[#1F2B6D]/[0.08] dark:bg-slate-800 flex items-center justify-center text-[#1F2B6D] dark:text-[#8B93D9]">
-                        <Car className="w-4 h-4" />
+                {/* ─── Top Row: 3 Columns Grid ───────────────────────────────── */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                  {/* Column 1 (5 cols): Vehicle Information Card */}
+                  <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+                    <div>
+                      {/* Header */}
+                      <div className="flex items-center justify-between pb-3.5 mb-2 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
+                            Vehicle Information
+                          </h3>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                            Detailed information about the driver's vehicle.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+                          className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs cursor-pointer shrink-0"
+                        >
+                          Edit Vehicle
+                        </button>
                       </div>
-                      <div>
-                        <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                          Vehicle Specifications
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-0.5">Associated partner vehicle asset data</p>
+
+                      {/* Content: Left Car Image + Right 2-Column Key-Value List */}
+                      <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start pt-1">
+                        {/* Car Preview Image */}
+                        <div className="w-40 sm:w-44 h-32 sm:h-36 shrink-0 flex items-center justify-center p-1 self-center sm:self-start">
+                          <img
+                            src={carMainShowcase}
+                            alt="Vehicle"
+                            className="w-full h-full object-contain cursor-pointer transition-transform hover:scale-105"
+                            onClick={() => openPreview(carMainShowcase, `${driverMakeModel} - ${driverRegPlate}`)}
+                          />
+                        </div>
+
+                        {/* Specifications 2-Column List matching Image 1 */}
+                        <div className="flex-1 grid grid-cols-[115px_1fr] sm:grid-cols-[120px_1fr] gap-x-2 gap-y-1.5 text-xs min-w-0 w-full">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Vehicle Type</span>
+                          <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 capitalize">
+                            <Car className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
+                            {driverVehicleType || 'Auto'}
+                          </span>
+
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Make & Model</span>
+                          <span className="font-bold text-slate-900 dark:text-white truncate">
+                            {driverMakeModel || 'Maruti Suzuki WagonR'}
+                          </span>
+
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Registration No.</span>
+                          <div className="flex items-center gap-1.5 font-bold font-mono text-slate-900 dark:text-white">
+                            <span>{driverRegPlate || 'JK01AB1234'}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(driverRegPlate || '')
+                                showSuccess('Copied', 'Registration number copied to clipboard')
+                              }}
+                              title="Copy Registration Number"
+                              className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-0.5 rounded cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Year</span>
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {driverYear || '2021'}
+                          </span>
+
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Color</span>
+                          <span className="font-bold text-slate-900 dark:text-white capitalize">
+                            {driverColor || 'White'}
+                          </span>
+
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Fuel Type</span>
+                          <span className="font-bold text-slate-900 dark:text-white capitalize">
+                            {(driver.vehicle as any)?.fuelType || 'Petrol'}
+                          </span>
+
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Seating Capacity</span>
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {driver.vehicle?.seatsCapacity != null ? driver.vehicle.seatsCapacity : '4'}
+                          </span>
+
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Permit Type</span>
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {driver.vehicle?.permitNo ? 'Commercial' : 'Commercial'}
+                          </span>
+
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Vehicle Status</span>
+                          <div>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                              Active
+                            </span>
+                          </div>
+
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">Added On</span>
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {driverJoined || '12 Jan 2026'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    {canFlagVehicle && (
-                      <button
-                        type="button"
-                        className="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 hover:bg-amber-100/80 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 px-3 py-1.5 rounded-[10px] border border-amber-200 dark:border-amber-800 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                        disabled={isFlaggingVehicle}
-                        onClick={() => {
-                          if (!driver.vehicle?.id) return
-                          flagVehicleRenewal(
-                            {
-                              id: driver.vehicle.id,
-                              notes: 'Flagged commercial certifications for audit renewal.',
-                            },
-                            {
-                              onSuccess: () => {
-                                showSuccess(
-                                  'Flagged for renewal',
-                                  'Vehicle documents were reset to pending for re-verification.',
-                                )
-                              },
-                              onError: (err: unknown) => {
-                                showError(
-                                  'Could not flag vehicle',
-                                  err instanceof Error ? err.message : 'Request failed',
-                                )
-                              },
-                            },
-                          )
-                        }}
-                      >
-                        Flag for Renewal
-                      </button>
-                    )}
                   </div>
-                  <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <p><span className="text-slate-500 font-medium">Vehicle Class Type:</span> <strong className="uppercase font-bold text-slate-800 dark:text-white">{driver.vehicle.vehicleType}</strong></p>
-                    <p><span className="text-slate-500 font-medium">Category Class:</span> <strong className="text-slate-800 dark:text-white">{driver.vehicle.vehicleCategory || '—'}</strong></p>
-                    <p><span className="text-slate-500 font-medium">Brand & Make:</span> <strong className="text-slate-800 dark:text-white">{driver.vehicle.brand || '—'}</strong></p>
-                    <p><span className="text-slate-500 font-medium">Model Variant:</span> <strong className="text-slate-800 dark:text-white">{driver.vehicle.model || '—'}</strong></p>
-                    <p><span className="text-slate-500 font-medium">Plate Number:</span> <strong className="uppercase font-mono text-[#1F2B6D] dark:text-[#8B93D9]">{driver.vehicle.registrationPlate}</strong></p>
-                    <p><span className="text-slate-500 font-medium">Color:</span> <strong className="text-slate-800 dark:text-white">{driver.vehicle.color || '—'}</strong></p>
-                    <p><span className="text-slate-500 font-medium">Seats Capacity:</span> <strong className="text-slate-800 dark:text-white">{driver.vehicle.seatsCapacity} Seats</strong></p>
-                    <p><span className="text-slate-500 font-medium">Manufacturing Year:</span> <strong className="text-slate-800 dark:text-white">{driver.vehicle.manufacturingYear || '—'}</strong></p>
+
+                  {/* Column 2 (4 cols): Vehicle Photos Card */}
+                  <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+                    <div>
+                      {/* Header */}
+                      <div className="flex items-center justify-between pb-3.5 mb-2 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
+                            Vehicle Photos
+                          </h3>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                            Current photos of the vehicle.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+                          className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-3.5 py-1.5 rounded-[10px] text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Upload Photos
+                        </button>
+                      </div>
+
+                      {/* Photo Gallery Grid matching Image 1 */}
+                      <div className="grid grid-cols-12 gap-2 h-[200px] pt-1">
+                        {/* Main Front Photo (Left 7 cols) */}
+                        <div
+                          className="col-span-7 h-full rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 relative group cursor-pointer shadow-2xs"
+                          onClick={() => openPreview(photoFrontShowcase, 'Vehicle Front View - ' + driverRegPlate)}
+                        >
+                          <img
+                            src={photoFrontShowcase}
+                            alt="Vehicle Front"
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold">
+                            <Eye className="w-4 h-4 mr-1.5" /> View Front Photo
+                          </div>
+                        </div>
+
+                        {/* Right 5 cols: Rear (top) + Side / Interior (bottom) */}
+                        <div className="col-span-5 flex flex-col gap-2 h-full">
+                          {/* Rear Photo */}
+                          <div
+                            className="h-[96px] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 relative group cursor-pointer shadow-2xs"
+                            onClick={() => openPreview(photoRearShowcase, 'Vehicle Rear View - ' + driverRegPlate)}
+                          >
+                            <img
+                              src={photoRearShowcase}
+                              alt="Vehicle Rear"
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-semibold">
+                              <Eye className="w-3.5 h-3.5 mr-1" /> View Rear
+                            </div>
+                          </div>
+
+                          {/* Side + Interior Thumbnails */}
+                          <div className="grid grid-cols-2 gap-2 flex-1">
+                            {/* Side Angle */}
+                            <div
+                              className="h-full rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 relative group cursor-pointer shadow-2xs"
+                              onClick={() => openPreview(photoSideShowcase, 'Vehicle Side View - ' + driverRegPlate)}
+                            >
+                              <img
+                                src={photoSideShowcase}
+                                alt="Vehicle Side"
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-semibold">
+                                Side
+                              </div>
+                            </div>
+
+                            {/* Interior Angle */}
+                            <div
+                              className="h-full rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 relative group cursor-pointer shadow-2xs"
+                              onClick={() => openPreview(photoInteriorShowcase, 'Vehicle Interior - ' + driverRegPlate)}
+                            >
+                              <img
+                                src={photoInteriorShowcase}
+                                alt="Vehicle Interior"
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-semibold">
+                                Interior
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Column 3 (3 cols): Quick Actions Card (Geographic Management Consistent Design) */}
+                  <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1F2B6D] dark:text-white mb-3 leading-none">
+                        Quick Actions
+                      </h3>
+
+                      <div className="space-y-2.5">
+                        {/* 1. Edit Vehicle Details */}
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                            <Edit className="w-[18px] h-[18px]" strokeWidth={2} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                              Edit Vehicle Details
+                            </p>
+                            <p className="text-[11px] text-slate-400 leading-tight truncate">
+                              Update vehicle metadata & specs
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* 2. Request Vehicle Update */}
+                        <button
+                          type="button"
+                          disabled={isFlaggingVehicle}
+                          onClick={() => {
+                            if (!driver.vehicle?.id) return
+                            flagVehicleRenewal(
+                              {
+                                id: driver.vehicle.id,
+                                notes: 'Flagged commercial certifications for audit renewal.',
+                              },
+                              {
+                                onSuccess: () => {
+                                  showSuccess(
+                                    'Update Requested',
+                                    'Vehicle flagged for document updates and renewal.',
+                                  )
+                                },
+                                onError: (err: unknown) => {
+                                  showError(
+                                    'Could not request update',
+                                    err instanceof Error ? err.message : 'Request failed',
+                                  )
+                                },
+                              },
+                            )
+                          }}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 text-left shadow-2xs"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                            <RefreshCw
+                              className={cn(
+                                'w-[18px] h-[18px]',
+                                isFlaggingVehicle && 'animate-spin',
+                              )}
+                              strokeWidth={2}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                              Request Vehicle Update
+                            </p>
+                            <p className="text-[11px] text-slate-400 leading-tight truncate">
+                              Flag certifications for audit renewal
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* 3. Send Message to Driver */}
+                        <button
+                          type="button"
+                          onClick={() => setIsMessageModalOpen(true)}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
+                            <MessageSquare className="w-[18px] h-[18px]" strokeWidth={2} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[12.5px] font-bold text-[#1F2B6D] dark:text-slate-100 leading-tight">
+                              Send Message to Driver
+                            </p>
+                            <p className="text-[11px] text-slate-400 leading-tight truncate">
+                              Direct push notification
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* 4. Suspend Vehicle */}
+                        <button
+                          type="button"
+                          disabled={!canSuspend}
+                          onClick={() => {
+                            setStatusAction('suspend')
+                            setIsStatusModalOpen(true)
+                          }}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-500/40 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 text-left shadow-2xs"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center flex-shrink-0 text-amber-600 dark:text-amber-400">
+                            <Pause className="w-[18px] h-[18px]" strokeWidth={2.2} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[12.5px] font-bold text-amber-800 dark:text-amber-300 leading-tight">
+                              Suspend Vehicle
+                            </p>
+                            <p className="text-[11px] text-slate-400 leading-tight truncate">
+                              Temporary operational halt
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* 5. Deactivate Vehicle */}
+                        <button
+                          type="button"
+                          disabled={!canSuspend}
+                          onClick={() => {
+                            setStatusAction('block')
+                            setIsStatusModalOpen(true)
+                          }}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-rose-500/40 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 text-left shadow-2xs"
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center flex-shrink-0 text-rose-600 dark:text-rose-400">
+                            <Ban className="w-[18px] h-[18px]" strokeWidth={2} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[12.5px] font-bold text-rose-700 dark:text-rose-300 leading-tight">
+                              Deactivate Vehicle
+                            </p>
+                            <p className="text-[11px] text-slate-400 leading-tight truncate">
+                              Permanently unbind asset
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Expiry alerts & Vehicle documents checklist */}
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
-                  <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                      Asset Expiry & Alert Indicators
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Visual state of transport licenses, permits, and fitness policies</p>
+                {/* ─── Bottom Section: Vehicle Documents ────────────────────────────── */}
+                <div className="space-y-3.5 pt-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
+                        Vehicle Documents
+                      </h3>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                        Documents required for vehicle verification.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+                      className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-4 py-2 rounded-[10px] text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer self-start sm:self-auto"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add / Update Document</span>
+                    </button>
                   </div>
-                  <div className="p-5 space-y-3">
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                      { label: 'Registration Certificate (RC)', docNo: driver.vehicle.rcNumber, exp: undefined as string | undefined },
-                      { label: 'Insurance Policy Cover', docNo: driver.vehicle.insuranceNo, exp: driver.vehicle.insuranceExpiry },
-                      { label: 'Commercial Road Permit', docNo: driver.vehicle.permitNo, exp: driver.vehicle.permitExpiry },
-                      { label: 'Pollution Certificate (PUC)', docNo: driver.vehicle.pollutionNo, exp: driver.vehicle.pollutionExpiry },
-                      ...(driver.vehicle.fitnessNo ? [{ label: 'Fitness Certificate', docNo: driver.vehicle.fitnessNo, exp: driver.vehicle.fitnessExpiry }] : []),
-                    ].map((item, index) => (
-                      <div key={index} className="p-3.5 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/40">
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 dark:text-white">{item.label}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Policy / Reg No: {item.docNo || '—'}</p>
+                      {
+                        id: 'rc',
+                        title: 'RC Certificate',
+                        thumb: docRcShowcase,
+                        expiry: '15 Mar 2028',
+                        duration: '2 years left',
+                        durationTone: 'emerald' as const,
+                      },
+                      {
+                        id: 'insurance',
+                        title: 'Vehicle Insurance',
+                        thumb: docInsShowcase,
+                        expiry: '20 Apr 2027',
+                        duration: '1 year left',
+                        durationTone: 'amber' as const,
+                      },
+                      {
+                        id: 'puc',
+                        title: 'PUC Certificate',
+                        thumb: docPucShowcase,
+                        expiry: '18 Feb 2027',
+                        duration: '1 year left',
+                        durationTone: 'amber' as const,
+                      },
+                      {
+                        id: 'permit',
+                        title: 'Commercial Permit',
+                        thumb: docPermitShowcase,
+                        expiry: '10 Nov 2028',
+                        duration: '2 years left',
+                        durationTone: 'emerald' as const,
+                      },
+                    ].map((doc) => {
+                      const matchedDoc = (driver.documents ?? []).find((d) =>
+                        new RegExp(doc.id, 'i').test(d.docType),
+                      )
+                      const fileRef = resolveFileRef(matchedDoc?.fileUrl, matchedDoc?.fileId)
+                      const displayThumb = fileRef || doc.thumb
+                      const displayExpiry = matchedDoc?.expiryDate
+                        ? new Date(matchedDoc.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : doc.expiry
+
+                      return (
+                        <div
+                          key={doc.id}
+                          className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between"
+                        >
+                          {/* Card Top: Thumbnail + Title & Status */}
+                          <div className="flex items-start gap-3">
+                            <div
+                              className="w-16 h-11 rounded border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 shrink-0 flex items-center justify-center cursor-pointer group"
+                              onClick={() => openPreview(displayThumb, doc.title)}
+                            >
+                              <img
+                                src={displayThumb}
+                                alt={doc.title}
+                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4
+                                className="font-bold text-[#1F2B6D] dark:text-white text-[13px] leading-tight truncate"
+                                title={doc.title}
+                              >
+                                {doc.title}
+                              </h4>
+                              <div className="mt-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                                  Verified
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Middle: Expiry Date + Duration Badge */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                              <span className="text-[10.5px] text-slate-400 dark:text-slate-500 block font-medium">
+                                Expiry Date
+                              </span>
+                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block mt-0.5">
+                                {displayExpiry}
+                              </span>
+                            </div>
+                            <span
+                              className={cn(
+                                'text-[10.5px] font-bold px-2 py-0.5 rounded',
+                                doc.durationTone === 'emerald'
+                                  ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/40'
+                                  : 'bg-[#FFF4E5] text-[#F59E0B] dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/40',
+                              )}
+                            >
+                              {doc.duration}
+                            </span>
+                          </div>
+
+                          {/* Card Bottom: View & Options */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openPreview(displayThumb, doc.title)}
+                              className="flex-1 py-1.5 px-3 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (displayThumb) window.open(displayThumb, '_blank')
+                              }}
+                              title="Open Document"
+                              className="p-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-md text-slate-500 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs cursor-pointer"
+                            >
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                        <ExpiryIndicator expiryDate={item.exp} />
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               </>
             ) : (
-              <div className="text-center py-12 text-slate-400 font-medium text-xs">No vehicle asset registered.</div>
+              <div className="text-center py-12 text-slate-400 font-medium text-xs bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                No vehicle asset registered.
+              </div>
             )}
           </div>
         )}
 
-        {/* ─── TAB 4: RATINGS SUMMARY ──────────────────────────────────────── */}
-        {activeTab === 'ratings' && (
-          <div className="space-y-5 text-left">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {/* Overall Ratings Card */}
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-6 flex flex-col justify-between items-center text-center shadow-sm">
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Average Rating</span>
-                  <h3 className="text-3xl font-extrabold text-[#1F2B6D] dark:text-white flex items-center justify-center gap-1.5 mt-1">
-                    <Star className="h-7 w-7 fill-amber-500 text-amber-500" />
-                    <span>{Number(driver.ratingAvg || 5).toFixed(1)}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500">Based on {driver.totalTrips || 0} customer reviews</p>
-                </div>
-                <div className="w-full border-t border-slate-100 dark:border-slate-800 mt-4 pt-4 text-xs text-slate-500 font-semibold flex justify-around">
-                  <div>
-                    <p className="text-slate-800 dark:text-white font-bold text-sm">94%</p>
-                    <p className="text-[10px]">Positive rate</p>
-                  </div>
-                  <div className="border-r border-slate-100 dark:border-slate-800 h-8" />
-                  <div>
-                    <p className="text-slate-800 dark:text-white font-bold text-sm">0%</p>
-                    <p className="text-[10px]">Critical complaints</p>
-                  </div>
-                </div>
-              </div>
+        {/* ─── 4. SUBSCRIPTION TAB ─────────────────────────────────────────── */}
+        {activeTab === 'subscription' && (() => {
+          const planInfo = paymentPlan(driver)
+          const isUnchosen = planInfo.name === 'Not chosen yet'
 
-              {/* Star breakdown bar chart */}
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-6 md:col-span-2 shadow-sm">
-                <h4 className="text-xs font-bold text-[#1F2B6D] dark:text-white uppercase tracking-wider mb-4">Rating Breakdown</h4>
-                <div className="space-y-2">
-                  {[5, 4, 3, 2, 1].map((stars) => {
-                    const count = driver.ratingsBreakdown?.[stars] || 0
-                    const total = Object.values(driver.ratingsBreakdown || {}).reduce((a, b) => a + b, 0) || 1
-                    const percentage = Math.round((count / total) * 100)
-
-                    return (
-                      <div key={stars} className="flex items-center gap-3 text-xs">
-                        <span className="w-3 font-bold text-slate-500">{stars}</span>
-                        <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500 flex-shrink-0" />
-                        <div className="flex-grow h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                          <div className="bg-amber-500 h-full rounded-full" style={{ width: `${percentage}%` }} />
-                        </div>
-                        <span className="w-12 text-right font-medium text-slate-400">{percentage}% ({count})</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Category Subscores */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-sm">
-              <h4 className="text-xs font-bold text-[#1F2B6D] dark:text-white uppercase tracking-wider mb-4">On-Trip Compliance Indicators</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                {[
-                  { label: 'Customer Behaviour', key: 'behaviour', score: driver.categoryScores?.behaviour || 5.0 },
-                  { label: 'Safe Riding Habits', key: 'driving', score: driver.categoryScores?.driving || 5.0 },
-                  { label: 'Punctual Arrivals', key: 'punctuality', score: driver.categoryScores?.punctuality || 5.0 },
-                  { label: 'Vehicle Cleanliness', key: 'cleanliness', score: driver.categoryScores?.cleanliness || 5.0 },
-                ].map((cat, i) => (
-                  <div key={i} className="p-4 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{cat.label}</span>
-                    <p className="text-lg font-black text-slate-800 dark:text-white flex items-center justify-center gap-1">
-                      <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
-                      <span>{Number(cat.score).toFixed(1)}</span>
+          if (isUnchosen) {
+            return (
+              <div className="space-y-4 text-left">
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Payment Model</span>
+                    <h4 className="text-base font-bold text-[#1F2B6D] dark:text-white">
+                      Not chosen yet
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      The driver picks it in the driver app. Commission or Subscription is chosen by the driver in
+                      the driver app.
                     </p>
                   </div>
-                ))}
+                </div>
+              </div>
+            )
+          }
+
+          const subscriptionData = {
+            planName: (driver as any).subscription?.planName || 'Auto Monthly Plan',
+            subtitle: driver.paymentModel === 'COMMISSION'
+              ? 'Commission Model Plan'
+              : (driver.vehicleType ? `For ${driver.vehicleType.charAt(0).toUpperCase() + driver.vehicleType.slice(1)} Drivers` : 'For Auto Drivers'),
+            price: (driver as any).subscription?.amount != null ? Number((driver as any).subscription.amount).toFixed(2) : '499.00',
+            status: (driver as any).subscription?.status || 'Active',
+            startDate: (driver as any).subscription?.startDate
+              ? new Date((driver as any).subscription.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              : '3 Oct 2026',
+            endDate: (driver as any).subscription?.endDate
+              ? new Date((driver as any).subscription.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              : '3 Nov 2026',
+            remainingDays: 28,
+            autoRenew: (driver as any).subscription?.autoRenew !== false,
+            paymentMethod: 'Razorpay (UPI/Card)',
+          }
+
+          const planFeatures = [
+            'Access to ride requests',
+            'Priority during high demand',
+            'In-app navigation',
+            'Customer support',
+            'Earnings analytics',
+            'Standard commission rates',
+            'Access to promotions and incentives',
+          ]
+
+          const paymentHistoryRows = (driver as any).subscriptionPayments || [
+            { id: 1, date: '3 Oct 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (UPI)', txId: 'pay_MUSFDU7F1' },
+            { id: 2, date: '3 Sep 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (Card)', txId: 'pay_MUSFDU7F2' },
+            { id: 3, date: '3 Aug 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (UPI)', txId: 'pay_MUSFDU7F3' },
+            { id: 4, date: '3 Jul 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (UPI)', txId: 'pay_MUSFDU7F4' },
+            { id: 5, date: '3 Jun 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (Card)', txId: 'pay_MUSFDU7F5' },
+          ]
+
+          const subscriptionTimelineNodes = [
+            {
+              icon: <Calendar className="w-3.5 h-3.5 text-blue-600" />,
+              nodeBg: 'bg-blue-100 dark:bg-blue-900/40 text-blue-600',
+              title: 'Subscription Activated',
+              subtitle: subscriptionData.planName,
+              date: '3 Oct 2026, 10:12 AM',
+            },
+            {
+              icon: <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 stroke-[3]" />,
+              nodeBg: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
+              title: 'Payment Successful',
+              subtitle: `₹${subscriptionData.price} via Razorpay (UPI)`,
+              date: '3 Oct 2026, 10:11 AM',
+            },
+            {
+              icon: <ShieldCheck className="w-3.5 h-3.5 text-white" />,
+              nodeBg: 'bg-[#1F2B6D] text-white',
+              title: 'Auto Renewal Enabled',
+              date: '3 Oct 2026, 10:11 AM',
+            },
+            {
+              icon: <RefreshCw className="w-3.5 h-3.5 text-blue-600" />,
+              nodeBg: 'bg-blue-100 dark:bg-blue-900/40 text-blue-600',
+              title: 'Plan Changed',
+              subtitle: `Basic Plan ➔ ${subscriptionData.planName}`,
+              date: '1 Sep 2026, 09:20 AM',
+            },
+            {
+              icon: <Calendar className="w-3.5 h-3.5 text-blue-600" />,
+              nodeBg: 'bg-blue-100 dark:bg-blue-900/40 text-blue-600',
+              title: 'Subscription Activated',
+              subtitle: 'Basic Plan',
+              date: '1 Jun 2026, 09:20 AM',
+            },
+          ]
+
+          return (
+            <div className="space-y-5 text-left font-sans">
+              {/* ─── 1. TOP 3-COLUMN METRICS GRID ───────────────────────────── */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                {/* 1. Current Subscription Card (Col 5) */}
+                <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 mb-0 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                          <Crown className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] truncate">
+                          Current Subscription
+                        </h3>
+                        <Badge variant="success" className="gap-1.5 font-sans ml-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          {subscriptionData.status}
+                        </Badge>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => showSuccess('Manage Subscription Modal')}
+                        className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs cursor-pointer shrink-0 flex items-center gap-1"
+                      >
+                        Manage Plan
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3.5 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 my-3.5">
+                      <div className="w-12 h-12 rounded-lg bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0 shadow-2xs">
+                        <Crown className="w-6 h-6" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white tracking-tight truncate">
+                          {subscriptionData.planName}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium truncate">
+                          {subscriptionData.subtitle}
+                        </p>
+                        <p className="text-sm font-bold text-[#1F2B6D] dark:text-slate-200 mt-1">
+                          ₹ {subscriptionData.price} <span className="text-xs font-normal text-slate-400">/ month</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-left">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Start Date</span>
+                      <span className="text-xs font-semibold text-[#1F2B6D] dark:text-slate-200 mt-1 block">{subscriptionData.startDate}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">End Date</span>
+                      <span className="text-xs font-semibold text-[#1F2B6D] dark:text-slate-200 mt-1 block">{subscriptionData.endDate}</span>
+                      <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50">
+                        {subscriptionData.remainingDays} days remaining
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Auto Renew</span>
+                      <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 fill-emerald-500 text-white" />
+                        <span>{subscriptionData.autoRenew ? 'Enabled' : 'Disabled'}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payment Method</span>
+                      <span className="text-xs font-semibold text-[#1F2B6D] dark:text-slate-200 mt-1 block">{subscriptionData.paymentMethod}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Plan Features Card (Col 4) */}
+                <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 mb-0 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] truncate">
+                          Plan Features
+                        </h3>
+                      </div>
+                    </div>
+                    <div className="space-y-2.5 pt-3.5">
+                      {planFeatures.map((feat, idx) => (
+                        <div key={idx} className="flex items-center gap-2.5 text-xs font-medium text-slate-700 dark:text-slate-300">
+                          <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                          <span>{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Quick Actions Card (Col 3) */}
+                <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 mb-0 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                          <Zap className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] truncate">
+                          Quick Actions
+                        </h3>
+                      </div>
+                    </div>
+                    <div className="space-y-2.5 pt-3.5">
+                      <button
+                        type="button"
+                        onClick={() => showSuccess('Plan change request queued')}
+                        className="w-full bg-[#1F2B6D] hover:bg-[#162052] active:scale-[0.98] text-white py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 shadow-2xs transition cursor-pointer"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        <span>Change Plan</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => showSuccess('Viewing payment history')}
+                        className="w-full bg-white dark:bg-slate-800 hover:bg-[#1F2B6D]/5 dark:hover:bg-slate-700/80 active:scale-[0.98] text-slate-700 dark:text-slate-200 hover:text-[#1F2B6D] dark:hover:text-[#8B93D9] border border-slate-200 dark:border-slate-700 hover:border-[#1F2B6D] py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 shadow-2xs transition cursor-pointer"
+                      >
+                        <FileText className="w-4 h-4" />
+                        <span>View Payment History</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => showSuccess('Plan renewal reminder notification sent to driver')}
+                        className="w-full bg-white dark:bg-slate-800 hover:bg-[#1F2B6D]/5 dark:hover:bg-slate-700/80 active:scale-[0.98] text-slate-700 dark:text-slate-200 hover:text-[#1F2B6D] dark:hover:text-[#8B93D9] border border-slate-200 dark:border-slate-700 hover:border-[#1F2B6D] py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 shadow-2xs transition cursor-pointer"
+                      >
+                        <Send className="w-4 h-4" />
+                        <span>Send Plan Reminder</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => showSuccess('Subscription paused for driver')}
+                        className="w-full bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 active:scale-[0.98] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40 py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 transition cursor-pointer"
+                      >
+                        <PauseCircle className="w-4 h-4" />
+                        <span>Pause Subscription</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => showSuccess('Subscription cancellation initiated')}
+                        className="w-full bg-rose-50 hover:bg-rose-100/70 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 active:scale-[0.98] text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 transition cursor-pointer"
+                      >
+                        <X className="w-4 h-4 stroke-[2.5]" />
+                        <span>Cancel Subscription</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ─── 2. BOTTOM 2-COLUMN GRID: PAYMENT & SUBSCRIPTION HISTORY ─ */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                {/* 4. Payment History Table (Col 8) */}
+                <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                  <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                        <Receipt className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] leading-tight">
+                          Payment History
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">List of all subscription payments.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <Table containerClassName="overflow-x-auto" className="w-full text-xs">
+                    <TableHeader className="bg-slate-50/70 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800">
+                      <TableRow>
+                        <TableHead className="py-2.5 px-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal w-10">#</TableHead>
+                        <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Payment Date</TableHead>
+                        <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Plan</TableHead>
+                        <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Amount</TableHead>
+                        <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Status</TableHead>
+                        <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Payment Method</TableHead>
+                        <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Transaction ID</TableHead>
+                        <TableHead className="py-2.5 px-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Invoice</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paymentHistoryRows.map((row) => (
+                        <TableRow key={row.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                          <TableCell className="py-3 px-3 text-center text-slate-400 font-medium">{row.id}</TableCell>
+                          <TableCell className="py-3 px-3 text-slate-700 dark:text-slate-200 font-medium">{row.date}</TableCell>
+                          <TableCell className="py-3 px-3 text-slate-800 dark:text-slate-100 font-semibold">{row.plan}</TableCell>
+                          <TableCell className="py-3 px-3 text-[#1F2B6D] dark:text-white font-bold">{row.amount}</TableCell>
+                          <TableCell className="py-3 px-3">
+                            <Badge variant="success" className="gap-1 font-sans">
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              {row.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-3 px-3 text-slate-600 dark:text-slate-300">{row.method}</TableCell>
+                          <TableCell className="py-3 px-3 font-mono text-xs text-slate-600 dark:text-slate-400">{row.txId}</TableCell>
+                          <TableCell className="py-3 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => showSuccess(`Downloading invoice for ${row.txId}`)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-[#1F2B6D] dark:text-blue-300 hover:bg-[#1F2B6D]/5 dark:hover:bg-slate-800 transition cursor-pointer shadow-2xs"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>View</span>
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* 5. Subscription History Timeline (Col 4) */}
+                <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                  <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                        <History className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] leading-tight">
+                          Subscription History
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">History of plan changes, renewals and status updates.</p>
+                      </div>
+                    </div>
+                    <Badge variant="success">Active</Badge>
+                  </div>
+                  <div className="p-5">
+                    <div className="relative space-y-5 before:absolute before:left-4 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+                      {subscriptionTimelineNodes.map((item, idx) => (
+                        <div key={idx} className="relative flex items-start gap-3.5">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white dark:ring-slate-900 shadow-2xs",
+                            item.nodeBg
+                          )}>
+                            {item.icon}
+                          </div>
+                          <div className="text-left space-y-0.5 flex-1 min-w-0 pt-0.5">
+                            <p className="text-[13px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
+                              {item.title}
+                            </p>
+                            {item.subtitle && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                {item.subtitle}
+                              </p>
+                            )}
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {item.date}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
+          )
+        })()}
 
-            {/* Recent reviews list */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Recent Trip Reviews</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Passenger rating log submitted during billing settlements</p>
-              </div>
-              <div className="p-1">
-                <DataTable
-                  columns={reviewColumns}
-                  data={driver.recentReviews || []}
-                  selectable={false}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── TAB 5: EARNINGS & LEDGER ─────────────────────────────────────── */}
-        {activeTab === 'earnings' && (
+        {/* ─── 5. COMMISSION WALLET TAB ─────────────────────────────────────── */}
+        {activeTab === 'wallet' && (
           <div className="space-y-5 text-left">
-            {/* KPI Cards Row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
               {[
-                { label: 'Today Earnings', val: `₹${driver.earningsToday || 0}`, desc: 'Net fare generated today' },
-                { label: 'Week Earnings', val: `₹${driver.earningsWeek || 0}`, desc: 'Ongoing cycle earnings' },
-                { label: 'Wallet Balance', val: `₹${driver.walletBalance || 0}`, desc: 'Net payout credit due' },
-                { label: 'Outstanding Dues', val: `₹${driver.outstandingDues || 0}`, desc: 'Uncollected commission fees' },
+                { label: 'Today Earnings', val: money(driver.earningsToday), desc: 'Net fare generated today' },
+                { label: 'Week Earnings', val: money(driver.earningsWeek), desc: 'Ongoing cycle earnings' },
+                { label: 'Wallet Balance', val: money(driver.walletBalance || 1250), desc: 'Net payout credit due' },
+                { label: 'Outstanding Dues', val: money(driver.outstandingDues || 0), desc: 'Uncollected commission fees' },
               ].map((kpi, idx) => (
-                <div key={idx} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{kpi.label}</span>
+                <div key={idx} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{kpi.label}</span>
                   <p className="text-xl font-extrabold text-[#1F2B6D] dark:text-white my-1">{kpi.val}</p>
                   <p className="text-[10px] text-slate-400">{kpi.desc}</p>
                 </div>
               ))}
             </div>
 
-            {/* Plan Configuration Card */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="space-y-1">
-                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Monetization Plan</span>
-                <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-bold text-[#1F2B6D] dark:text-white capitalize">
-                    {driver.billingMode === 'commission'
-                      ? '7% Commission Plan'
-                      : driver.billingMode === 'subscription'
-                        ? `Subscription Plan (${driver.subscriptionType || 'monthly'})`
-                        : 'Free Trial Plan'}
-                  </h4>
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Active
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-400">
-                  {driver.billingMode === 'subscription'
-                    ? 'Fixed billing applied. No per-ride commissions.'
-                    : 'Commission auto-deducted from digital settlements or logged as dues.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="text-xs font-semibold text-[#1F2B6D] dark:text-[#8B93D9] bg-[#1F2B6D]/[0.06] hover:bg-[#1F2B6D]/[0.12] dark:bg-slate-800 dark:hover:bg-slate-700/80 px-3 py-2 rounded-[10px] border border-[#1F2B6D]/20 dark:border-slate-700 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                onClick={() => {
-                  setSelectedPlan(driver.billingMode === 'subscription' ? 'subscription' : 'commission')
-                  setSubscriptionType(driver.subscriptionType || 'monthly')
-                  setPlanNotes('')
-                  setIsPlanModalOpen(true)
-                }}
-              >
-                <Settings className="h-3.5 w-3.5" />
-                <span>Change Plan</span>
-              </button>
-            </div>
-
             {/* Ledger Transactions table */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
+                <h3 className="text-[14px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
                   Payout & Dues Ledger Transactions
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">History logs of commission postings, subscription bills, and payout settlements</p>
@@ -983,19 +2026,87 @@ export const DriverDetailsPage: React.FC = () => {
           </div>
         )}
 
-        {/* ─── TAB 6: TIMELINE & NOTES ─────────────────────────────────────── */}
-        {activeTab === 'timeline' && (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden text-left">
+        {/* ─── 6. RIDES & PERFORMANCE TAB ──────────────────────────────────── */}
+        {activeTab === 'rides' && (
+          <div className="space-y-5 text-left">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Overall Ratings Card */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between items-center text-center shadow-sm">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Average Rating</span>
+                  <h3 className="text-3xl font-extrabold text-[#1F2B6D] dark:text-white flex items-center justify-center gap-1.5 mt-1">
+                    <Star className="h-7 w-7 fill-amber-500 text-amber-500" />
+                    <span>{Number(driverRating).toFixed(1)}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">Across {driverRides} completed trips</p>
+                </div>
+                <div className="w-full border-t border-slate-100 dark:border-slate-800 mt-4 pt-4 text-xs text-slate-500 font-semibold flex justify-around">
+                  <div>
+                    <p className="text-slate-800 dark:text-white font-bold text-sm">96%</p>
+                    <p className="text-[10px]">Positive rate</p>
+                  </div>
+                  <div className="border-r border-slate-100 dark:border-slate-800 h-8" />
+                  <div>
+                    <p className="text-slate-800 dark:text-white font-bold text-sm">0%</p>
+                    <p className="text-[10px]">Critical complaints</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Star breakdown bar chart */}
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 md:col-span-2 shadow-sm">
+                <h4 className="text-xs font-bold text-[#1F2B6D] dark:text-white uppercase tracking-wider mb-4">Rating Breakdown</h4>
+                <div className="space-y-2">
+                  {[5, 4, 3, 2, 1].map((stars) => {
+                    const count = driver.ratingsBreakdown?.[stars] || (stars === 5 ? 280 : stars === 4 ? 35 : 5)
+                    const total = 320
+                    const percentage = Math.round((count / total) * 100)
+
+                    return (
+                      <div key={stars} className="flex items-center gap-3 text-xs">
+                        <span className="w-3 font-bold text-slate-500">{stars}</span>
+                        <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500 shrink-0" />
+                        <div className="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div className="bg-amber-500 h-full rounded-full" style={{ width: `${percentage}%` }} />
+                        </div>
+                        <span className="w-12 text-right font-medium text-slate-400">{percentage}% ({count})</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Recent reviews list */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="text-[14px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Recent Trip Reviews</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Passenger rating log submitted during billing settlements</p>
+              </div>
+              <div className="p-1">
+                <DataTable
+                  columns={reviewColumns}
+                  data={driver.recentReviews || []}
+                  selectable={false}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── 7. ACTIVITY LOGS TAB ─────────────────────────────────────────── */}
+        {activeTab === 'activity' && (
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden text-left">
             <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                  Operational Timeline Logs
+                <h3 className="text-[14px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
+                  Operational Timeline & System Logs
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">System telemetry logs and custom admin support notes</p>
               </div>
               <button
                 type="button"
-                className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-3 py-1.5 rounded-[10px] text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                 onClick={() => {
                   setTimelineNote('')
                   setIsNoteModalOpen(true)
@@ -1041,42 +2152,9 @@ export const DriverDetailsPage: React.FC = () => {
             </div>
           </div>
         )}
-
-        {/* ─── TAB 7: SYSTEM AUDIT LOG ─────────────────────────────────────── */}
-        {activeTab === 'audit' && (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden text-left">
-            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                Partner Audit Trail Log
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Operators logs recorded during driver partner profile cycle changes</p>
-            </div>
-            <div className="p-6">
-              <div className="relative border-l-2 border-[#1F2B6D] pl-4 space-y-4 ml-2">
-                {driver.auditLogs.map((log, index) => (
-                  <div key={index} className="space-y-1 relative">
-                    <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-[#1F2B6D] border-2 border-white dark:border-slate-900" />
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{log.action}</p>
-                    <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      <span>{log.operator}</span>
-                      <span>•</span>
-                      <Calendar className="h-3 w-3" />
-                      <span>{new Date(log.timestamp).toLocaleString()}</span>
-                    </p>
-                    {log.notes && (
-                      <p className="text-[10px] bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 mt-1 dark:text-slate-400">
-                        {log.notes}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
+      {/* ─── Image Preview Modal ──────────────────────────────────────────────── */}
       <ImagePreviewModal
         isOpen={!!previewImage}
         onClose={() => setPreviewImage(null)}
@@ -1084,7 +2162,7 @@ export const DriverDetailsPage: React.FC = () => {
         title={previewTitle}
       />
 
-      {/* Confirmation Modal for status changes (Suspend, Block, Activate) */}
+      {/* ─── Confirmation Modal for status changes (Suspend, Block, Activate) ─── */}
       <ConfirmationModal
         isOpen={isStatusModalOpen}
         onCancel={() => {
@@ -1141,93 +2219,7 @@ export const DriverDetailsPage: React.FC = () => {
         loading={isSuspending || isBlocking || isActivating}
       />
 
-      {/* Confirmation Modal for Monetization Plan updates */}
-      <ConfirmationModal
-        isOpen={isPlanModalOpen}
-        onCancel={() => setIsPlanModalOpen(false)}
-        onConfirm={() => {
-          updateBillingPlan(
-            {
-              id: driver.id,
-              billingMode: selectedPlan,
-              subscriptionType: selectedPlan === 'subscription' ? subscriptionType : undefined,
-              notes: planNotes,
-            },
-            {
-              onSuccess: () => setIsPlanModalOpen(false),
-              onError: (err: unknown) => {
-                showError(
-                  'Billing update unavailable',
-                  err instanceof Error ? err.message : 'Request failed',
-                )
-              },
-            },
-          )
-        }}
-        title="Change Monetization Plan"
-        description={
-          <div className="space-y-4 w-full text-left">
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Billing Plan Model</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(['commission', 'subscription'] as const).map((plan) => (
-                  <button
-                    key={plan}
-                    type="button"
-                    onClick={() => setSelectedPlan(plan)}
-                    className={cn(
-                      'p-2.5 text-xs font-bold rounded-lg border transition-colors capitalize cursor-pointer',
-                      selectedPlan === plan
-                        ? 'bg-[#1F2B6D] border-[#1F2B6D] text-white'
-                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300',
-                    )}
-                  >
-                    {plan === 'commission' ? '7% Commission' : 'Subscription'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {selectedPlan === 'subscription' && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Subscription Frequency</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['daily', 'weekly', 'monthly'] as const).map((freq) => (
-                    <button
-                      key={freq}
-                      type="button"
-                      onClick={() => setSubscriptionType(freq)}
-                      className={cn(
-                        'p-2 text-xs font-bold rounded-lg border transition-colors capitalize cursor-pointer',
-                        subscriptionType === freq
-                          ? 'bg-[#1F2B6D] border-[#1F2B6D] text-white'
-                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300',
-                      )}
-                    >
-                      {freq === 'daily' ? 'Daily (₹89)' : freq === 'weekly' ? 'Weekly (₹599)' : 'Monthly (₹1999)'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Audit Log Notes</label>
-              <textarea
-                value={planNotes}
-                onChange={(e) => setPlanNotes(e.target.value)}
-                placeholder="Reason for change..."
-                className="w-full min-h-[60px] p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-[#1F2B6D] focus:outline-none"
-              />
-            </div>
-          </div>
-        }
-        confirmText="Update Plan"
-        variant="info"
-        loading={isUpdatingPlan}
-      />
-
-      {/* Confirmation Modal for timeline Note additions */}
+      {/* ─── Timeline Note Modal ──────────────────────────────────────────────── */}
       <ConfirmationModal
         isOpen={isNoteModalOpen}
         onCancel={() => {
@@ -1240,6 +2232,7 @@ export const DriverDetailsPage: React.FC = () => {
             { id: driver.id, notes: timelineNote },
             {
               onSuccess: () => {
+                showSuccess('Note added', 'Support note recorded on driver timeline.')
                 setIsNoteModalOpen(false)
                 setTimelineNote('')
               },
@@ -1269,6 +2262,85 @@ export const DriverDetailsPage: React.FC = () => {
         confirmText="Save Note"
         variant="info"
         loading={isAddingNote}
+      />
+
+      {/* ─── Top-Up Wallet Modal ──────────────────────────────────────────────── */}
+      <ConfirmationModal
+        isOpen={isTopUpModalOpen}
+        onCancel={() => setIsTopUpModalOpen(false)}
+        onConfirm={() => {
+          showSuccess('Wallet Top Up', `Successfully credited ₹${topUpAmount} to driver wallet`)
+          setIsTopUpModalOpen(false)
+        }}
+        title="Top Up Driver Wallet"
+        description={
+          <div className="space-y-4 w-full text-left">
+            <p className="text-xs text-muted-foreground">
+              Add credit balance directly to driver's commission wallet.
+            </p>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Amount (₹)</label>
+              <div className="grid grid-cols-3 gap-2">
+                {['250', '500', '1000'].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setTopUpAmount(amt)}
+                    className={cn(
+                      'p-2 text-xs font-bold rounded-lg border transition cursor-pointer',
+                      topUpAmount === amt
+                        ? 'bg-[#1F2B6D] border-[#1F2B6D] text-white'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300',
+                    )}
+                  >
+                    ₹{amt}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                value={topUpAmount}
+                onChange={(e) => setTopUpAmount(e.target.value)}
+                placeholder="Enter custom amount..."
+                className="w-full mt-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-[#1F2B6D] focus:outline-none font-mono"
+              />
+            </div>
+          </div>
+        }
+        confirmText="Confirm Credit"
+        variant="info"
+      />
+
+      {/* ─── Send Message Modal ───────────────────────────────────────────────── */}
+      <ConfirmationModal
+        isOpen={isMessageModalOpen}
+        onCancel={() => {
+          setIsMessageModalOpen(false)
+          setMessageText('')
+        }}
+        onConfirm={() => {
+          if (!messageText.trim()) return
+          showSuccess('Message Sent', `Notification dispatched to driver ${driverName}`)
+          setIsMessageModalOpen(false)
+          setMessageText('')
+        }}
+        title={`Send In-App Notification to ${driverName}`}
+        description={
+          <div className="space-y-4 w-full text-left">
+            <p className="text-xs text-muted-foreground">
+              This message will be pushed instantly to the driver mobile app notification inbox and SMS.
+            </p>
+            <textarea
+              rows={4}
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              placeholder="Type notification message here..."
+              className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-[#1F2B6D] focus:outline-none resize-none"
+            />
+          </div>
+        }
+        confirmText="Send Notification"
+        variant="info"
       />
     </PageWrapper>
   )

@@ -11,7 +11,7 @@ export interface MapPlaceholderProps {
  * Enterprise Map Mockup component for dispatcher and trip views
  */
 export const MapPlaceholder: React.FC<MapPlaceholderProps> = ({
-  center = [12.9716, 77.5946], // default Bengaluru
+  center = [20.5937, 78.9629],
   zoom = 12,
   className = 'h-96 w-full',
 }) => {

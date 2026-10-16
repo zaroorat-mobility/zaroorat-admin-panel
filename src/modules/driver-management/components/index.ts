@@ -10,5 +10,9 @@ export { VehicleInfoStep } from './form-steps/VehicleInfoStep'
 export { VehicleDocsStep } from './form-steps/VehicleDocsStep'
 export { BankDetailsStep } from './form-steps/BankDetailsStep'
 export { ReviewSubmitStep } from './form-steps/ReviewSubmitStep'
-
-
+export { ReviewSummaryCard } from './ReviewSummaryCard'
+export { ReviewDocumentCard } from './ReviewDocumentCard'
+export { PersonalInfoCard } from './PersonalInfoCard'
+export { VehicleInfoCard } from './VehicleInfoCard'
+export { DriverProfileHeaderCard } from './DriverProfileHeaderCard'
+export { BankInfoCard } from './BankInfoCard'

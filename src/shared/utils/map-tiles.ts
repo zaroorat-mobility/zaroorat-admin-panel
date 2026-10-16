@@ -12,7 +12,6 @@ export interface MapClientConfig {
   /** Optional ready-to-use tile layer from backend (highest priority). */
   tileUrl?: string
   providers: {
-    ola: MapProviderClientConfig
     google: MapProviderClientConfig
     mappls: MapProviderClientConfig
   }
@@ -21,20 +20,25 @@ export interface MapClientConfig {
 export interface MapTileLayerConfig {
   url: string
   attribution: string
+  subdomains?: string[] | string
 }
 
-export const OSM_TILE_LAYER: MapTileLayerConfig = {
-  url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+const getEnvGoogleKey = (): string =>
+  typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_MAPS_API_KEY
+    ? String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY).trim()
+    : ''
+
+export const DEFAULT_GOOGLE_TILE_LAYER: MapTileLayerConfig = {
+  url: `https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}${getEnvGoogleKey() ? `&key=${encodeURIComponent(getEnvGoogleKey())}` : ''}`,
+  attribution: '&copy; Google Maps',
+  subdomains: ['0', '1', '2', '3'],
 }
+
+/** Fallback layer alias defaulting to Google Maps */
+export const OSM_TILE_LAYER: MapTileLayerConfig = DEFAULT_GOOGLE_TILE_LAYER
 
 const MAPPLS_TILES_BASE = 'https://apis.mappls.com/advancedmaps/v1'
 const MAPPLS_DEFAULT_TILE_LAYER = 'bhuvan_imagery'
-
-function appendQueryParam(url: string, key: string, value: string): string {
-  const separator = url.includes('?') ? '&' : '?'
-  return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`
-}
 
 function buildProviderTileLayer(
   providerKey: keyof MapClientConfig['providers'],
@@ -43,42 +47,35 @@ function buildProviderTileLayer(
   if (!provider.enabled) return null
 
   if (provider.tileUrl?.trim()) {
-    // Ola authenticates tiles via api_key query param; Mappls embeds the license key in the path.
-    let url = provider.tileUrl.trim()
-    if (provider.clientSdkKey?.trim() && providerKey === 'ola') {
-      url = appendQueryParam(url, 'api_key', provider.clientSdkKey.trim())
-    }
+    const url = provider.tileUrl.trim()
     return {
       url,
       attribution:
-        providerKey === 'ola'
-          ? '&copy; Ola Maps'
-          : providerKey === 'mappls'
-            ? '&copy; MapmyIndia'
-            : '&copy; Google Maps',
+        providerKey === 'mappls'
+          ? '&copy; MapmyIndia'
+          : '&copy; Google Maps',
+      subdomains: providerKey === 'google' ? ['0', '1', '2', '3'] : ['a', 'b', 'c'],
     }
   }
 
   const base = provider.baseUrl?.trim().replace(/\/$/, '')
-  if (!base) return null
 
   switch (providerKey) {
+    case 'google': {
+      const key = provider.clientSdkKey?.trim() || getEnvGoogleKey()
+      const keyParam = key ? `&key=${encodeURIComponent(key)}` : ''
+      return {
+        url: `https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}${keyParam}`,
+        attribution: '&copy; Google Maps',
+        subdomains: ['0', '1', '2', '3'],
+      }
+    }
     case 'mappls': {
       if (!provider.clientSdkKey?.trim()) return null
-      const tilesBase = base.includes('route.mappls.com') ? MAPPLS_TILES_BASE : base
+      const tilesBase = base && base.includes('route.mappls.com') ? MAPPLS_TILES_BASE : (base || MAPPLS_TILES_BASE)
       return {
         url: `${tilesBase}/${provider.clientSdkKey.trim()}/${MAPPLS_DEFAULT_TILE_LAYER}/{z}/{x}/{y}.png`,
         attribution: '&copy; MapmyIndia',
-      }
-    }
-    case 'ola': {
-      if (!provider.clientSdkKey?.trim()) return null
-      const stylePath =
-        provider.tileUrl?.trim() ||
-        `${base}/tiles/v1/styles/default-light-standard/{z}/{x}/{y}.png`
-      return {
-        url: appendQueryParam(stylePath, 'api_key', provider.clientSdkKey.trim()),
-        attribution: '&copy; Ola Maps',
       }
     }
     default:
@@ -87,7 +84,7 @@ function buildProviderTileLayer(
 }
 
 export function resolveMapTileLayer(config?: MapClientConfig | null): MapTileLayerConfig {
-  if (!config) return OSM_TILE_LAYER
+  if (!config) return DEFAULT_GOOGLE_TILE_LAYER
 
   if (config.tileUrl?.trim()) {
     return {
@@ -96,10 +93,10 @@ export function resolveMapTileLayer(config?: MapClientConfig | null): MapTileLay
     }
   }
 
-  const providerKey = config.primaryProvider as keyof MapClientConfig['providers']
-  const primary = config.providers[providerKey]
+  const providerKey = (config.primaryProvider || 'google') as keyof MapClientConfig['providers']
+  const primary = config.providers?.[providerKey]
   const primaryLayer = primary ? buildProviderTileLayer(providerKey, primary) : null
   if (primaryLayer) return primaryLayer
 
-  return OSM_TILE_LAYER
+  return DEFAULT_GOOGLE_TILE_LAYER
 }

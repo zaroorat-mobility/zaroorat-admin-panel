@@ -30,7 +30,7 @@ export const SettlementDetailsPage: React.FC = () => {
   if (!batch) return <div className="p-8 text-center text-slate-500">Settlement batch not found.</div>
 
   const handleStatusChange = (status: 'pending' | 'processing' | 'completed' | 'failed') => {
-    updateStatus.mutate({ id: batch.id, status, actor: 'Finance Manager' })
+    updateStatus.mutate({ id: batch.id, status })
   }
 
   const tabs = [

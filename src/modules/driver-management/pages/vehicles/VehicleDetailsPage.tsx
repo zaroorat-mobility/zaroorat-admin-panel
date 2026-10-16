@@ -10,7 +10,7 @@ import { FileImage } from '@/shared/components/FileImage'
 import { useToast } from '@/shared/context/toast'
 import { useAuthStore } from '@/store/auth.store'
 import { hasPermission } from '@/infrastructure/permissions'
-import { User, AlertTriangle } from 'lucide-react'
+import { User, AlertTriangle, Car } from 'lucide-react'
 
 export const VehicleDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -92,15 +92,25 @@ export const VehicleDetailsPage: React.FC = () => {
             <CardHeader>
               <CardTitle>Fleet Specs Identification</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <p><span className="text-slate-500 font-medium">Vehicle Class Type:</span> <strong className="uppercase">{vehicle.vehicleType}</strong></p>
-              <p><span className="text-slate-500 font-medium">Category:</span> <strong>{vehicle.vehicleCategory || '—'}</strong></p>
-              <p><span className="text-slate-500 font-medium">Brand & Model:</span> <strong>{vehicle.brand} {vehicle.model}</strong></p>
-              <p><span className="text-slate-500 font-medium">Plate Number:</span> <strong className="uppercase">{vehicle.registrationPlate}</strong></p>
-              <p><span className="text-slate-500 font-medium">Seats Capacity:</span> <strong>{vehicle.seatsCapacity} Seats</strong></p>
-              <p><span className="text-slate-500 font-medium">Exterior Color:</span> <strong>{vehicle.color || '—'}</strong></p>
-              <p><span className="text-slate-500 font-medium">Manufacturing Year:</span> <strong>{vehicle.manufacturingYear || '—'}</strong></p>
-              <p><span className="text-slate-500 font-medium">RC Number:</span> <strong>{vehicle.rcNumber || '—'}</strong></p>
+            <CardContent className="flex flex-col sm:flex-row gap-6 items-start">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs flex-1">
+                <p><span className="text-slate-500 font-medium">Vehicle Class Type:</span> <strong className="uppercase">{vehicle.vehicleType}</strong></p>
+                <p><span className="text-slate-500 font-medium">Category:</span> <strong>{vehicle.vehicleCategory || '—'}</strong></p>
+                <p><span className="text-slate-500 font-medium">Brand & Model:</span> <strong>{vehicle.brand} {vehicle.model}</strong></p>
+                <p><span className="text-slate-500 font-medium">Plate Number:</span> <strong className="uppercase font-mono text-[#1F2B6D] dark:text-[#8B93D9]">{vehicle.registrationPlate}</strong></p>
+                <p><span className="text-slate-500 font-medium">Seats Capacity:</span> <strong>{vehicle.seatsCapacity ?? '—'} Seats</strong></p>
+                <p><span className="text-slate-500 font-medium">Exterior Color:</span> <strong>{vehicle.color || '—'}</strong></p>
+                <p><span className="text-slate-500 font-medium">Manufacturing Year:</span> <strong>{vehicle.manufacturingYear || '—'}</strong></p>
+                <p><span className="text-slate-500 font-medium">RC Number:</span> <strong>{vehicle.rcNumber || '—'}</strong></p>
+              </div>
+              <div className="w-full sm:w-48 h-32 rounded-xl bg-slate-50 dark:bg-slate-800/40 p-1 flex items-center justify-center border border-slate-200 dark:border-slate-800 overflow-hidden shrink-0">
+                <FileImage
+                  src={vehicle.photoUrl}
+                  alt={vehicle.registrationPlate}
+                  className="w-full h-full object-cover rounded-lg"
+                  fallback={<Car className="w-10 h-10 text-slate-300 dark:text-slate-600" />}
+                />
+              </div>
             </CardContent>
           </Card>
 
