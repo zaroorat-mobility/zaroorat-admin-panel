@@ -26,6 +26,8 @@ export type IntegrationHealthStatus = 'HEALTHY' | 'WARNING' | 'CRITICAL' | 'DOWN
 export interface GeneralSettings {
   platformName: SettingField<string>
   logoUrl: SettingField<string>
+  customerLogoUrl?: SettingField<string>
+  driverLogoUrl?: SettingField<string>
   supportPhone: SettingField<string>
   supportEmail: SettingField<string>
   defaultLanguage: SettingField<string>
@@ -36,6 +38,8 @@ export interface GeneralSettings {
 export interface UpdateGeneralSettingsBody {
   platformName?: string
   logoUrl?: string
+  customerLogoUrl?: string
+  driverLogoUrl?: string
   supportPhone?: string
   supportEmail?: string
   defaultLanguage?: string

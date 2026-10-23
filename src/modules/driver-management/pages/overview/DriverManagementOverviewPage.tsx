@@ -22,32 +22,15 @@ import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { useApplications, useApplicationStats, useDrivers, useVehicles, useExpiryAlerts } from '../../hooks'
 import { useAuditLogs } from '@/modules/audit-log'
 import { ActionDropdown } from '../../components'
-
-// Reusable Dashboard Card Table Components
-const CardTable = ({ children }: { children: React.ReactNode }) => (
-  <div className="overflow-x-auto px-1">
-    <table className="w-full text-left text-[12.5px]">{children}</table>
-  </div>
-)
-const CardThead = ({ children }: { children: React.ReactNode }) => (
-  <thead className="text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
-    {children}
-  </thead>
-)
-const CardTh = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <th className={`pb-3 px-4 font-semibold ${className}`}>{children}</th>
-)
-const CardTbody = ({ children }: { children: React.ReactNode }) => (
-  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">{children}</tbody>
-)
-const CardTr = ({ children, onClick, className = '' }: { children: React.ReactNode; onClick?: () => void; className?: string }) => (
-  <tr onClick={onClick} className={`hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors ${onClick ? 'cursor-pointer' : ''} ${className}`}>
-    {children}
-  </tr>
-)
-const CardTd = ({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: (e: React.MouseEvent) => void }) => (
-  <td className={`py-4 px-4 ${className}`} onClick={onClick}>{children}</td>
-)
+import {
+  CardTable,
+  CardThead,
+  CardTh,
+  CardTbody,
+  CardTr,
+  CardTd,
+  CardTableButton,
+} from '@/shared/components/ui/CardTable'
 
 const ACTION_LABELS: Record<string, string> = {
   APPROVE: 'Approved',
@@ -966,19 +949,19 @@ export const DriverManagementOverviewPage: React.FC = () => {
                       <CardTd className="text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-2">
                           {app.status === 'under_review' || app.status === 'pending_docs' ? (
-                            <button
+                            <CardTableButton
+                              variant="primary"
                               onClick={() => navigate(`/driver-management/applications/${app.id}`)}
-                              className="px-4 py-1.5 rounded-md text-[11.5px] font-bold bg-[#1F2B6D] hover:bg-[#182258] text-white shadow-2xs transition-colors"
                             >
                               Review
-                            </button>
+                            </CardTableButton>
                           ) : (
-                            <button
+                            <CardTableButton
+                              variant="outline"
                               onClick={() => navigate(`/driver-management/applications/${app.id}`)}
-                              className="px-4 py-1.5 rounded-md text-[11.5px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#1F2B6D] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
                             >
                               View
-                            </button>
+                            </CardTableButton>
                           )}
 
                           <ActionDropdown
@@ -1084,7 +1067,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
                   <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Documents Expiry Alerts</h3>
                 </div>
                 <button
-                  onClick={() => navigate('/vehicle-management/vehicles')}
+                  onClick={() => navigate('/driver-management/documents')}
                   className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
                 >
                   View All
@@ -1097,7 +1080,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
 
                   {/* 1. Expired Documents */}
                   <div
-                    onClick={() => navigate('/vehicle-management/vehicles')}
+                    onClick={() => navigate('/driver-management/documents')}
                     className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50/80 dark:bg-rose-950/20 hover:bg-rose-100/60 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-4">
@@ -1114,7 +1097,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
 
                   {/* 2. Expiring in 30 days */}
                   <div
-                    onClick={() => navigate('/vehicle-management/vehicles')}
+                    onClick={() => navigate('/driver-management/documents')}
                     className="flex items-center justify-between p-3.5 rounded-xl bg-orange-50/80 dark:bg-amber-950/20 hover:bg-orange-100/60 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-4">
@@ -1133,7 +1116,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
 
                   {/* 3. Expiring in 60 days */}
                   <div
-                    onClick={() => navigate('/vehicle-management/vehicles')}
+                    onClick={() => navigate('/driver-management/documents')}
                     className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50/50 dark:bg-yellow-950/20 hover:bg-amber-100/60 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-4">
@@ -1150,7 +1133,7 @@ export const DriverManagementOverviewPage: React.FC = () => {
 
                   {/* 4. Expiring in 90 days */}
                   <div
-                    onClick={() => navigate('/vehicle-management/vehicles')}
+                    onClick={() => navigate('/driver-management/documents')}
                     className="flex items-center justify-between p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/20 hover:bg-blue-100/60 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-4">

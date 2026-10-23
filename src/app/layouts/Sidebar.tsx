@@ -83,6 +83,7 @@ const navItems: NavItem[] = [
       },
       { href: "/driver-management/applications", label: "Driver Applications", icon: ShieldCheck, permission: "drivers:read" },
       { href: "/driver-management/drivers", label: "Drivers", icon: Users, permission: "drivers:read" },
+      { href: "/driver-management/documents", label: "Document Expiry", icon: FileText, permission: "documents:read" },
     ],
   },
   {
@@ -194,7 +195,6 @@ const navItems: NavItem[] = [
       { href: "/referral-management/driver/history", label: "Driver history", icon: History, permission: "referrals:read" },
     ],
   },
-  { href: "/document-controller", label: "Document Controller", icon: FileText, permission: "documents:read" },
   { href: "/carpooling", label: "Carpooling Rules", icon: Car, permission: "carpooling:read" },
   { href: "/audit-log", label: "Audit Log", icon: FileText, permission: "audit:read" },
   {

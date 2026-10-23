@@ -235,6 +235,14 @@ export interface DriverEntity extends BaseEntity {
   isOnline: boolean
   isSuspended?: boolean
   isBlocked?: boolean
+  rowIndex?: number
+  vehicleMake?: string
+  vehicleModel?: string
+  subscription?: {
+    status?: 'active' | 'expired' | 'none' | string
+    planName?: string
+    expiryDate?: string
+  }
 }
 
 export interface DriverDetails extends DriverEntity {

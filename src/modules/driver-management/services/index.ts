@@ -144,6 +144,13 @@ const flagVehicleForRenewal = async (id: string, notes?: string) => {
   return driversApi.flagVehicleForRenewal(id, notes)
 }
 
+const updateDriver = async (
+  id: string,
+  data: Record<string, unknown>,
+): Promise<DriverDetails> => {
+  return driversApi.updateDriver(id, data)
+}
+
 export const DriverManagementService = {
   getApplications,
   getApplicationById,
@@ -157,6 +164,7 @@ export const DriverManagementService = {
   verifyApplicationDocument,
   getDrivers,
   getDriverById,
+  updateDriver,
   suspendDriver: (id: string, notes?: string) => updateDriverStatus(id, 'suspended', notes),
   blockDriver: (id: string, notes?: string) => updateDriverStatus(id, 'blocked', notes),
   activateDriver: (id: string, notes?: string) => updateDriverStatus(id, 'active', notes),

@@ -210,6 +210,18 @@ export const useActivateDriver = () => {
   })
 }
 
+export const useUpdateDriver = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      DriverManagementService.updateDriver(id, data),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+      qc.invalidateQueries({ queryKey: QK.driver(id) })
+    },
+  })
+}
+
 export const useUpdateDriverBillingMode = () => {
   const qc = useQueryClient()
   return useMutation({

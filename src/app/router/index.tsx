@@ -135,12 +135,12 @@ export const AppRouter: React.FC = () => {
           }
         />
 
-        {/* Document Controller Expiry and Compliance Verification */}
+        {/* Document Controller Expiry and Compliance Verification (Redirect to Driver Management) */}
         <Route
           path="document-controller/*"
           element={
             <RequirePermission requiredPermission="documents:read">
-              <DocumentControllerRoutes />
+              <Navigate to="/driver-management/documents" replace />
             </RequirePermission>
           }
         />

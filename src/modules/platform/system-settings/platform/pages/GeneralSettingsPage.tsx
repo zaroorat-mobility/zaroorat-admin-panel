@@ -4,6 +4,7 @@ import { Input } from '@/shared/components/ui/Input'
 import { useToast } from '@/shared/context/toast'
 import { useGeneralSettings, useUpdateGeneralSettings } from '@/modules/platform/system-settings/hooks'
 import {
+  LogoUploadField,
   SettingFieldRow,
   SettingsError,
   SettingsFormActions,
@@ -17,6 +18,8 @@ export const GeneralSettingsPage: React.FC = () => {
   const [form, setForm] = useState({
     platformName: '',
     logoUrl: '',
+    customerLogoUrl: '',
+    driverLogoUrl: '',
     supportPhone: '',
     supportEmail: '',
     defaultLanguage: '',
@@ -29,6 +32,8 @@ export const GeneralSettingsPage: React.FC = () => {
     setForm({
       platformName: data.platformName.value,
       logoUrl: data.logoUrl.value,
+      customerLogoUrl: data.customerLogoUrl?.value || '',
+      driverLogoUrl: data.driverLogoUrl?.value || '',
       supportPhone: data.supportPhone.value,
       supportEmail: data.supportEmail.value,
       defaultLanguage: data.defaultLanguage.value,
@@ -54,13 +59,49 @@ export const GeneralSettingsPage: React.FC = () => {
 
   return (
     <Card className="premium-card w-full max-w-3xl">
-      <CardContent className="p-6 space-y-4">
+      <CardContent className="p-6 space-y-6">
         <SettingFieldRow label="Platform name" source={data.platformName.source}>
           <Input value={form.platformName} onChange={set('platformName')} />
         </SettingFieldRow>
-        <SettingFieldRow label="Logo URL" source={data.logoUrl.source}>
-          <Input value={form.logoUrl} onChange={set('logoUrl')} placeholder="https://..." />
-        </SettingFieldRow>
+
+        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-6">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              Mobile App Branding & Icons
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Customize real-time icons and logos for Customer and Driver applications independently.
+            </p>
+          </div>
+
+          <SettingFieldRow
+            label="Customer App Icon / Logo"
+            source={data.customerLogoUrl?.source || data.logoUrl.source}
+          >
+            <LogoUploadField
+              appName="Customer App"
+              brandBgColor="#1F2B6D"
+              brandLabel="Customer Navy Theme (#1F2B6D)"
+              fallbackBadge="Bundled AppIcon.svg (Default)"
+              value={form.customerLogoUrl}
+              onChange={(url) => setForm((prev) => ({ ...prev, customerLogoUrl: url }))}
+            />
+          </SettingFieldRow>
+
+          <SettingFieldRow
+            label="Driver App Icon / Logo"
+            source={data.driverLogoUrl?.source || data.logoUrl.source}
+          >
+            <LogoUploadField
+              appName="Driver App"
+              brandBgColor="#0F172A"
+              brandLabel="Driver Dark Theme (#0F172A)"
+              fallbackBadge="Bundled ZarooratLogo2.png (Default)"
+              value={form.driverLogoUrl}
+              onChange={(url) => setForm((prev) => ({ ...prev, driverLogoUrl: url }))}
+            />
+          </SettingFieldRow>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <SettingFieldRow label="Support phone" source={data.supportPhone.source}>
             <Input value={form.supportPhone} onChange={set('supportPhone')} />

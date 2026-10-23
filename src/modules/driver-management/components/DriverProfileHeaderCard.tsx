@@ -58,7 +58,7 @@ export const DriverProfileHeaderCard: React.FC<DriverProfileHeaderCardProps> = (
   joinedOn,
   rating = '4.8',
   totalRides,
-  statusLabel = 'Active Driver',
+  statusLabel,
   isOnDuty = true,
 }) => {
   const isProfileMode = variant === 'profile' || !!driverId
@@ -93,9 +93,25 @@ export const DriverProfileHeaderCard: React.FC<DriverProfileHeaderCardProps> = (
               {name}
             </h2>
 
-            {isProfileMode && statusLabel && (
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0] dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            {isProfileMode && statusLabel && statusLabel !== 'Online' && statusLabel !== 'Offline' && (
+              <span
+                className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                  statusLabel === 'Blocked'
+                    ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/40'
+                    : statusLabel === 'Suspended'
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40'
+                      : 'bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0] dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    statusLabel === 'Blocked'
+                      ? 'bg-rose-500'
+                      : statusLabel === 'Suspended'
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                  }`}
+                />
                 {statusLabel}
               </span>
             )}
