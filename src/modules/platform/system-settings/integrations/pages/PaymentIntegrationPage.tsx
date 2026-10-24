@@ -2,8 +2,12 @@ import React, { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/shared/components/ui/Card'
 import { Input } from '@/shared/components/ui/Input'
 import { useToast } from '@/shared/context/toast'
-import { usePaymentSettings, useTestPaymentIntegration, useUpdatePaymentSettings } from '@/modules/platform/system-settings/hooks'
-import type { PaymentGatewayName } from '@/modules/platform/system-settings/types'
+import {
+  usePaymentSettings,
+  useTestPaymentIntegration,
+  useUpdatePaymentSettings,
+} from '@/modules/platform/system-settings/hooks'
+import type { PaymentEnvironment, PaymentGatewayName } from '@/modules/platform/system-settings/types'
 import {
   ConfiguredBadge,
   SecretField,
@@ -19,36 +23,111 @@ export const PaymentIntegrationPage: React.FC = () => {
   const { mutate: save, isPending } = useUpdatePaymentSettings()
   const { mutate: test, isPending: isTesting } = useTestPaymentIntegration()
   const { success, error } = useToast()
-  const [defaultGateway, setDefaultGateway] = useState<PaymentGatewayName>('mock')
+
+  const [activeProvider, setActiveProvider] = useState<PaymentGatewayName>('mock')
   const [defaultCurrency, setDefaultCurrency] = useState('INR')
+
+  // Razorpay
   const [razorpayKeyId, setRazorpayKeyId] = useState('')
   const [razorpayKeySecret, setRazorpayKeySecret] = useState('')
+  const [razorpayWebhookSecret, setRazorpayWebhookSecret] = useState('')
+  const [razorpayEnvironment, setRazorpayEnvironment] = useState<PaymentEnvironment>('sandbox')
+
+  // Stripe
   const [stripeSecretKey, setStripeSecretKey] = useState('')
-  const [webhookSecret, setWebhookSecret] = useState('')
+  const [stripeWebhookSecret, setStripeWebhookSecret] = useState('')
+  const [stripeEnvironment, setStripeEnvironment] = useState<PaymentEnvironment>('sandbox')
+
+  // Safely extract normalized configs with guaranteed properties
+  const razorpayConfig = {
+    keyId: data?.providers?.razorpay?.keyId ?? data?.razorpay?.keyId ?? '',
+    keySecret: data?.providers?.razorpay?.keySecret ?? data?.razorpay?.keySecret ?? '',
+    webhookSecret: data?.providers?.razorpay?.webhookSecret ?? data?.razorpay?.webhookSecret ?? '',
+    configured: Boolean(data?.providers?.razorpay?.configured ?? data?.razorpay?.configured),
+    webhookConfigured: Boolean(
+      data?.providers?.razorpay?.webhookConfigured ?? data?.razorpay?.webhookConfigured,
+    ),
+    environment: (data?.providers?.razorpay?.environment ??
+      data?.razorpay?.environment ??
+      'sandbox') as PaymentEnvironment,
+    enabled: Boolean(data?.providers?.razorpay?.enabled ?? data?.razorpay?.enabled ?? true),
+  }
+
+  const stripeConfig = {
+    secretKey: data?.providers?.stripe?.secretKey ?? data?.stripe?.secretKey ?? '',
+    webhookSecret: data?.providers?.stripe?.webhookSecret ?? data?.stripe?.webhookSecret ?? '',
+    configured: Boolean(data?.providers?.stripe?.configured ?? data?.stripe?.configured),
+    webhookConfigured: Boolean(
+      data?.providers?.stripe?.webhookConfigured ?? data?.stripe?.webhookConfigured,
+    ),
+    environment: (data?.providers?.stripe?.environment ??
+      data?.stripe?.environment ??
+      'sandbox') as PaymentEnvironment,
+    enabled: Boolean(data?.providers?.stripe?.enabled ?? data?.stripe?.enabled ?? true),
+  }
+
+  const isConfigured =
+    activeProvider === 'mock'
+      ? true
+      : activeProvider === 'razorpay'
+        ? razorpayConfig.configured
+        : stripeConfig.configured
+
+  const isWebhookConfigured =
+    activeProvider === 'razorpay'
+      ? razorpayConfig.webhookConfigured
+      : stripeConfig.webhookConfigured
 
   useEffect(() => {
     if (!data) return
-    setDefaultGateway(data.defaultGateway)
-    setDefaultCurrency(data.defaultCurrency)
-    setRazorpayKeyId(data.razorpay.keyId === '********' ? '********' : '')
-    setRazorpayKeySecret(data.razorpay.keySecret)
-    setStripeSecretKey(data.stripe.secretKey)
-    setWebhookSecret('')
+    const currentProvider = data.activeProvider ?? data.defaultGateway ?? 'mock'
+    setActiveProvider(currentProvider)
+    setDefaultCurrency(data.defaultCurrency ?? 'INR')
+
+    const rzp = data.providers?.razorpay ?? data.razorpay
+    if (rzp) {
+      setRazorpayKeyId(rzp.keyId === '********' ? '********' : rzp.keyId ?? '')
+      setRazorpayKeySecret(rzp.keySecret ?? '')
+      setRazorpayWebhookSecret(rzp.webhookSecret ?? '')
+      setRazorpayEnvironment(rzp.environment ?? 'sandbox')
+    }
+
+    const str = data.providers?.stripe ?? data.stripe
+    if (str) {
+      setStripeSecretKey(str.secretKey ?? '')
+      setStripeWebhookSecret(str.webhookSecret ?? '')
+      setStripeEnvironment(str.environment ?? 'sandbox')
+    }
   }, [data])
 
   const handleSave = () => {
     save(
       {
-        defaultGateway,
+        activeProvider,
+        defaultGateway: activeProvider,
         defaultCurrency,
-        razorpayKeyId: secretForUpdate(razorpayKeyId, data?.razorpay.keyId ?? ''),
-        razorpayKeySecret: secretForUpdate(razorpayKeySecret, data?.razorpay.keySecret ?? ''),
-        stripeSecretKey: secretForUpdate(stripeSecretKey, data?.stripe.secretKey ?? ''),
-        webhookSecret: webhookSecret || undefined,
         expectedVersion: data?.version,
+        providers: {
+          razorpay: {
+            environment: razorpayEnvironment,
+            keyId: secretForUpdate(razorpayKeyId, razorpayConfig.keyId),
+            keySecret: secretForUpdate(razorpayKeySecret, razorpayConfig.keySecret),
+            webhookSecret: secretForUpdate(razorpayWebhookSecret, razorpayConfig.webhookSecret),
+          },
+          stripe: {
+            environment: stripeEnvironment,
+            secretKey: secretForUpdate(stripeSecretKey, stripeConfig.secretKey),
+            webhookSecret: secretForUpdate(stripeWebhookSecret, stripeConfig.webhookSecret),
+          },
+        },
+        // Legacy flat fields for backward compatibility
+        razorpayKeyId: secretForUpdate(razorpayKeyId, razorpayConfig.keyId),
+        razorpayKeySecret: secretForUpdate(razorpayKeySecret, razorpayConfig.keySecret),
+        stripeSecretKey: secretForUpdate(stripeSecretKey, stripeConfig.secretKey),
+        webhookSecret: secretForUpdate(razorpayWebhookSecret, razorpayConfig.webhookSecret),
       },
       {
-        onSuccess: () => success('Settings saved', 'Payment settings were updated.'),
+        onSuccess: () => success('Settings saved', 'Payment integration settings were updated.'),
         onError: (err) =>
           error('Save failed', err instanceof Error ? err.message : 'Could not save settings'),
       },
@@ -56,12 +135,15 @@ export const PaymentIntegrationPage: React.FC = () => {
   }
 
   const handleTest = () => {
-    test(undefined, {
-      onSuccess: (result) =>
-        result.ok ? success('Test passed', result.message) : error('Test failed', result.message),
-      onError: (err) =>
-        error('Test failed', err instanceof Error ? err.message : 'Could not test integration'),
-    })
+    test(
+      { provider: activeProvider },
+      {
+        onSuccess: (result) =>
+          result.ok ? success('Test passed', result.message) : error('Test failed', result.message),
+        onError: (err) =>
+          error('Test failed', err instanceof Error ? err.message : 'Could not test integration'),
+      },
+    )
   }
 
   if (isLoading) return <SettingsLoading />
@@ -69,56 +151,133 @@ export const PaymentIntegrationPage: React.FC = () => {
 
   return (
     <Card className="premium-card max-w-3xl">
-      <CardContent className="p-6 space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <ConfiguredBadge configured={data.configured} />
-          {data.webhookConfigured ? (
-            <span className="text-xs text-muted-foreground">Webhook configured</span>
+      <CardContent className="p-6 space-y-5">
+        <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-border">
+          <ConfiguredBadge configured={Boolean(isConfigured)} />
+          {isWebhookConfigured ? (
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              Webhook configured
+            </span>
           ) : (
-            <span className="text-xs text-amber-600">Webhook not configured</span>
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+              Webhook not configured
+            </span>
           )}
         </div>
-        <SettingFieldRow label="Default gateway">
+
+        <SettingFieldRow
+          label="Active Payment Gateway"
+          hint="The primary gateway used for all new ride transactions, wallet top-ups, and subscriptions."
+        >
           <select
-            value={defaultGateway}
-            onChange={(e) => setDefaultGateway(e.target.value as PaymentGatewayName)}
-            className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm dark:bg-slate-900"
+            value={activeProvider}
+            onChange={(e) => setActiveProvider(e.target.value as PaymentGatewayName)}
+            className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm font-medium dark:bg-slate-900 cursor-pointer"
           >
-            <option value="mock">mock</option>
-            <option value="razorpay">razorpay</option>
-            <option value="stripe">stripe</option>
+            <option value="mock">mock (Testing without external gateways)</option>
+            <option value="razorpay">razorpay (Default for India / UPI / NetBanking)</option>
+            <option value="stripe">stripe (International Cards)</option>
           </select>
         </SettingFieldRow>
-        <SettingFieldRow label="Default currency">
-          <Input value={defaultCurrency} onChange={(e) => setDefaultCurrency(e.target.value)} maxLength={3} />
+
+        <SettingFieldRow label="Default Currency">
+          <Input
+            value={defaultCurrency}
+            onChange={(e) => setDefaultCurrency(e.target.value)}
+            maxLength={3}
+          />
         </SettingFieldRow>
-        <SettingFieldRow label="Razorpay key ID">
-          <Input value={razorpayKeyId === '********' ? '' : razorpayKeyId} onChange={(e) => setRazorpayKeyId(e.target.value)} placeholder={data.razorpay.configured ? '••••••••' : 'Enter key ID'} />
-        </SettingFieldRow>
-        <SecretField
-          label="Razorpay key secret"
-          value={razorpayKeySecret}
-          onChange={setRazorpayKeySecret}
-          configured={data.razorpay.configured}
-        />
-        <SecretField
-          label="Stripe secret key"
-          value={stripeSecretKey}
-          onChange={setStripeSecretKey}
-          configured={data.stripe.configured}
-        />
-        <SecretField
-          label="Webhook secret"
-          value={webhookSecret}
-          onChange={setWebhookSecret}
-          configured={data.webhookConfigured}
-          placeholder="Enter webhook secret"
-        />
+
+        {/* Razorpay Configuration */}
+        <div className="pt-4 border-t border-border space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              Razorpay Configuration
+            </h3>
+            <ConfiguredBadge configured={Boolean(razorpayConfig.configured)} />
+          </div>
+
+          <SettingFieldRow label="Razorpay Environment">
+            <select
+              value={razorpayEnvironment}
+              onChange={(e) => setRazorpayEnvironment(e.target.value as PaymentEnvironment)}
+              className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm font-medium dark:bg-slate-900 cursor-pointer"
+            >
+              <option value="sandbox">Sandbox / Test</option>
+              <option value="live">Live / Production</option>
+            </select>
+          </SettingFieldRow>
+
+          <SettingFieldRow label="Razorpay Key ID">
+            <Input
+              value={razorpayKeyId === '********' ? '' : razorpayKeyId}
+              onChange={(e) => setRazorpayKeyId(e.target.value)}
+              placeholder={
+                razorpayConfig.configured ? '••••••••••••••••' : 'Enter Razorpay Key ID (rzp_...)'
+              }
+            />
+          </SettingFieldRow>
+
+          <SecretField
+            label="Razorpay Key Secret"
+            value={razorpayKeySecret}
+            onChange={setRazorpayKeySecret}
+            configured={razorpayConfig.configured}
+            placeholder="Enter Razorpay Key Secret"
+          />
+
+          <SecretField
+            label="Razorpay Webhook Secret"
+            value={razorpayWebhookSecret}
+            onChange={setRazorpayWebhookSecret}
+            configured={razorpayConfig.webhookConfigured}
+            placeholder="Enter Razorpay Webhook Secret"
+          />
+        </div>
+
+        {/* Stripe Configuration */}
+        <div className="pt-4 border-t border-border space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              Stripe Configuration
+            </h3>
+            <ConfiguredBadge configured={Boolean(stripeConfig.configured)} />
+          </div>
+
+          <SettingFieldRow label="Stripe Environment">
+            <select
+              value={stripeEnvironment}
+              onChange={(e) => setStripeEnvironment(e.target.value as PaymentEnvironment)}
+              className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm font-medium dark:bg-slate-900 cursor-pointer"
+            >
+              <option value="sandbox">Sandbox / Test</option>
+              <option value="live">Live / Production</option>
+            </select>
+          </SettingFieldRow>
+
+          <SecretField
+            label="Stripe Secret Key"
+            value={stripeSecretKey}
+            onChange={setStripeSecretKey}
+            configured={stripeConfig.configured}
+            placeholder="Enter Stripe Secret Key (sk_...)"
+          />
+
+          <SecretField
+            label="Stripe Webhook Secret"
+            value={stripeWebhookSecret}
+            onChange={setStripeWebhookSecret}
+            configured={stripeConfig.webhookConfigured}
+            placeholder="Enter Stripe Webhook Secret (whsec_...)"
+          />
+        </div>
+
         <SettingsFormActions
           onSave={handleSave}
           isSaving={isPending}
           onTest={handleTest}
           isTesting={isTesting}
+          testLabel={`Test ${activeProvider}`}
         />
       </CardContent>
     </Card>
@@ -126,3 +285,4 @@ export const PaymentIntegrationPage: React.FC = () => {
 }
 
 export default PaymentIntegrationPage
+

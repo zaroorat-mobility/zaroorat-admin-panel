@@ -1,18 +1,20 @@
 import React, { useRef, useState } from 'react'
-import { UploadCloud, RotateCcw, Eye } from 'lucide-react'
+import { UploadCloud, RotateCcw, Eye, Smartphone } from 'lucide-react'
 import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
 import { Badge } from '@/shared/components/ui/Badge'
 import { uploadFile } from '@/shared/services/file-upload.service'
 import { useToast } from '@/shared/context/toast'
 
-interface LogoUploadFieldProps {
+export interface LogoUploadFieldProps {
   value: string
   onChange: (url: string) => void
   appName?: string
   brandBgColor?: string
   brandLabel?: string
   fallbackBadge?: string
+  platformName?: string
+  onOpenViewer?: () => void
 }
 
 async function convertSvgToPng(file: File): Promise<File> {
@@ -63,30 +65,33 @@ async function convertSvgToPng(file: File): Promise<File> {
 
             ctx.clearRect(0, 0, width, height)
             ctx.drawImage(img, 0, 0, width, height)
-            URL.revokeObjectURL(url)
 
             canvas.toBlob(
-              (blob) => {
-                if (!blob) {
-                  reject(new Error('Canvas conversion to PNG failed'))
+              (pngBlob) => {
+                URL.revokeObjectURL(url)
+                if (!pngBlob) {
+                  reject(new Error('PNG conversion failed'))
                   return
                 }
-                const pngName = file.name.replace(/\.svg$/i, '') + '.png'
-                const pngFile = new File([blob], pngName, { type: 'image/png' })
-                resolve(pngFile)
+                const convertedFile = new File(
+                  [pngBlob],
+                  file.name.replace(/\.svg$/i, '.png'),
+                  { type: 'image/png' },
+                )
+                resolve(convertedFile)
               },
               'image/png',
               1.0,
             )
-          } catch (canvasErr) {
+          } catch (err) {
             URL.revokeObjectURL(url)
-            reject(canvasErr)
+            reject(err)
           }
         }
 
         img.onerror = () => {
           URL.revokeObjectURL(url)
-          reject(new Error('Could not parse SVG image. Please try uploading a PNG or WebP image.'))
+          reject(new Error('Invalid SVG content cannot be rendered'))
         }
 
         img.src = url
@@ -106,12 +111,20 @@ export const LogoUploadField: React.FC<LogoUploadFieldProps> = ({
   brandBgColor = '#1F2B6D',
   brandLabel = 'Navy Theme Preview (Login Sheet / Splash)',
   fallbackBadge = 'Bundled AppIcon.svg (Default)',
+  platformName = 'Zaroorat',
+  onOpenViewer,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [localBlobUrl, setLocalBlobUrl] = useState<string | null>(null)
+  const [imgError, setImgError] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [showManualUrl, setShowManualUrl] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const { success, error } = useToast()
+
+  // Use local instant preview first if user just selected a file, otherwise saved value
+  const effectiveUrl = localBlobUrl || value
+  const hasImage = Boolean(effectiveUrl && !imgError)
 
   const handleFileProcess = async (file: File) => {
     // Validate format
@@ -128,6 +141,16 @@ export const LogoUploadField: React.FC<LogoUploadFieldProps> = ({
       return
     }
 
+    // 1. Instant 0ms local preview
+    try {
+      const localBlob = URL.createObjectURL(file)
+      setLocalBlobUrl(localBlob)
+      setImgError(false)
+    } catch {
+      // fallback
+    }
+
+    // 2. Upload to backend/storage
     try {
       setIsUploading(true)
       let fileToUpload = file
@@ -170,7 +193,7 @@ export const LogoUploadField: React.FC<LogoUploadFieldProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Upload Zone */}
+      {/* Upload Drop Zone */}
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -214,16 +237,26 @@ export const LogoUploadField: React.FC<LogoUploadFieldProps> = ({
       </div>
 
       {/* Live Preview Cards */}
-      <div className="bg-slate-100 dark:bg-slate-900/80 rounded-xl p-4 border border-slate-200 dark:border-slate-800">
-        <div className="flex items-center justify-between mb-3">
+      <div className="bg-slate-100 dark:bg-slate-900/80 rounded-xl p-4 border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
             <Eye className="w-4 h-4 text-slate-500" />
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-              {appName} Mobile App Preview
+              {appName} Icon & Live Previews
             </span>
           </div>
           <div className="flex items-center space-x-2">
-            {value ? (
+            {onOpenViewer && (
+              <button
+                type="button"
+                onClick={onOpenViewer}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors cursor-pointer"
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>Full iOS & Android Viewer</span>
+              </button>
+            )}
+            {effectiveUrl ? (
               <Badge variant="primary" className="text-xs">
                 Custom Upload Active
               </Badge>
@@ -232,72 +265,132 @@ export const LogoUploadField: React.FC<LogoUploadFieldProps> = ({
                 {fallbackBadge}
               </Badge>
             )}
-            {value && (
+            {effectiveUrl && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation()
+                  setLocalBlobUrl(null)
+                  setImgError(false)
                   onChange('')
                 }}
                 className="h-7 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
               >
                 <RotateCcw className="w-3 h-3 mr-1" />
-                Reset to Default
+                Reset
               </Button>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Light Background Preview */}
-          <div className="rounded-lg p-3 bg-white border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[90px]">
-            <span className="text-[10px] uppercase font-semibold text-slate-400 mb-2">
-              Light Theme Preview (Topbar / Header)
+        {/* 4 Preview Boxes: iOS Squircle Icon | Android Round Icon | Light Header | Dark Theme */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {/* Box 1:  iOS App Icon (Squircle) */}
+          <div className="rounded-xl p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col items-center justify-center min-h-[110px] text-center">
+            <span className="text-[10px] uppercase font-bold text-slate-400 mb-1.5">
+               iOS Squircle
             </span>
-            {value ? (
+            <div
+              className="w-12 h-12 rounded-[22%] shadow-md overflow-hidden flex items-center justify-center border border-black/10 select-none p-1 transition-transform hover:scale-105"
+              style={{ backgroundColor: brandBgColor }}
+            >
+              {hasImage ? (
+                <img
+                  src={effectiveUrl}
+                  alt={`${appName} iOS icon`}
+                  className="w-full h-full object-contain"
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <span className="text-white font-extrabold text-base">
+                  {platformName.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <span
+              className="text-[10px] font-semibold text-slate-700 dark:text-slate-300 text-center leading-tight max-w-[76px] line-clamp-1 mt-1.5"
+              title={appName.toLowerCase().includes('driver') ? `${platformName} Driver` : platformName}
+            >
+              {appName.toLowerCase().includes('driver') ? `${platformName} Driver` : platformName}
+            </span>
+          </div>
+
+          {/* Box 2: 🤖 Android App Icon (Circle) */}
+          <div className="rounded-xl p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col items-center justify-center min-h-[110px] text-center">
+            <span className="text-[10px] uppercase font-bold text-slate-400 mb-1.5">
+              🤖 Android Round
+            </span>
+            <div
+              className="w-12 h-12 rounded-full shadow-md overflow-hidden flex items-center justify-center border border-black/10 select-none p-1 transition-transform hover:scale-105"
+              style={{ backgroundColor: brandBgColor }}
+            >
+              {hasImage ? (
+                <img
+                  src={effectiveUrl}
+                  alt={`${appName} Android icon`}
+                  className="w-full h-full object-contain"
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <span className="text-white font-extrabold text-base">
+                  {platformName.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <span
+              className="text-[10px] font-semibold text-slate-700 dark:text-slate-300 text-center leading-tight max-w-[76px] line-clamp-1 mt-1.5"
+              title={appName.toLowerCase().includes('driver') ? `${platformName} Driver` : platformName}
+            >
+              {appName.toLowerCase().includes('driver') ? `${platformName} Driver` : platformName}
+            </span>
+          </div>
+
+          {/* Box 3: Light Header Topbar */}
+          <div className="rounded-xl p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col items-center justify-center min-h-[110px]">
+            <span className="text-[10px] uppercase font-bold text-slate-400 mb-1.5">
+              Light Header
+            </span>
+            {hasImage ? (
               <img
-                src={value}
-                alt={`${appName} logo preview light`}
-                className="max-h-12 max-w-[160px] object-contain"
-                onError={(e) => {
-                  ;(e.target as HTMLElement).style.display = 'none'
-                }}
+                src={effectiveUrl}
+                alt={`${appName} logo light`}
+                className="max-h-9 max-w-[90px] object-contain"
+                onError={() => setImgError(true)}
               />
             ) : (
-              <div className="flex items-center space-x-2 text-slate-600 font-bold text-lg tracking-wider">
-                <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-white text-xs font-bold">
-                  Z
+              <div className="flex items-center space-x-1.5 text-slate-700 dark:text-slate-200 font-bold text-xs tracking-wider">
+                <div className="w-5 h-5 rounded-md bg-slate-800 text-white flex items-center justify-center text-[10px] font-bold">
+                  {platformName.charAt(0).toUpperCase()}
                 </div>
-                <span>zaroorat</span>
+                <span className="truncate max-w-[65px]">{platformName}</span>
               </div>
             )}
           </div>
 
-          {/* Branded Dark Background Preview */}
+          {/* Box 4: Branded Dark Splash Theme */}
           <div
-            className="rounded-lg p-3 text-white shadow-sm flex flex-col items-center justify-center min-h-[90px]"
+            className="rounded-xl p-3 text-white shadow-xs flex flex-col items-center justify-center min-h-[110px]"
             style={{ backgroundColor: brandBgColor }}
+            title={brandLabel}
           >
-            <span className="text-[10px] uppercase font-semibold text-white/80 mb-2">
-              {brandLabel}
+            <span className="text-[10px] uppercase font-bold text-white/75 mb-1.5 truncate max-w-[100px]" title={brandLabel}>
+              Dark Theme
             </span>
-            {value ? (
+            {hasImage ? (
               <img
-                src={value}
-                alt={`${appName} logo preview dark`}
-                className="max-h-12 max-w-[160px] object-contain"
-                onError={(e) => {
-                  ;(e.target as HTMLElement).style.display = 'none'
-                }}
+                src={effectiveUrl}
+                alt={`${appName} logo dark`}
+                className="max-h-9 max-w-[90px] object-contain"
+                onError={() => setImgError(true)}
               />
             ) : (
-              <div className="flex items-center space-x-2 text-white font-bold text-lg tracking-wider">
-                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white text-xs font-bold">
-                  Z
+              <div className="flex items-center space-x-1.5 text-white font-bold text-xs tracking-wider">
+                <div className="w-5 h-5 rounded-md bg-white/20 text-white flex items-center justify-center text-[10px] font-bold">
+                  {platformName.charAt(0).toUpperCase()}
                 </div>
-                <span>zaroorat</span>
+                <span className="truncate max-w-[65px]">{platformName}</span>
               </div>
             )}
           </div>
@@ -317,7 +410,11 @@ export const LogoUploadField: React.FC<LogoUploadFieldProps> = ({
           <div className="mt-2">
             <Input
               value={value}
-              onChange={(e) => onChange(e.target.value)}
+              onChange={(e) => {
+                setLocalBlobUrl(null)
+                setImgError(false)
+                onChange(e.target.value)
+              }}
               placeholder="https://cdn.zaroorat.com/..."
               className="text-xs font-mono"
             />
@@ -327,3 +424,5 @@ export const LogoUploadField: React.FC<LogoUploadFieldProps> = ({
     </div>
   )
 }
+
+export default LogoUploadField

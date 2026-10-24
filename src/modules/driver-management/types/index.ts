@@ -213,7 +213,9 @@ export interface DriverApplicationDetails extends DriverApplicationEntity {
 
 // ─── Driver (approved, post-KYC) ──────────────────────────────────────────
 
-export interface DriverEntity extends BaseEntity {
+export interface DriverEntity extends Omit<BaseEntity, 'createdAt' | 'updatedAt'> {
+  createdAt?: string
+  updatedAt?: string
   applicationId: string
   driverCode?: string
   driverName: string

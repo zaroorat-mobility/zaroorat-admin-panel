@@ -51,7 +51,8 @@ export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableCellElement>> =
   ...props
 }) => {
   const hasPadding = className.includes('p-') || className.includes('px-') || className.includes('py-') || className.includes('!p')
+  const hasWhitespace = className.includes('whitespace-')
   return (
-    <td className={`${hasPadding ? '' : 'px-6 py-4 '}whitespace-nowrap text-foreground ${className}`} {...props} />
+    <td className={`${hasPadding ? '' : 'px-6 py-4 '}${hasWhitespace ? '' : 'whitespace-nowrap '}text-foreground ${className}`} {...props} />
   )
 }

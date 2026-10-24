@@ -1,5 +1,5 @@
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
-import type { QueryParams, PaginatedResponse } from '@/shared/types'
+import type { QueryParams } from '@/shared/types'
 
 export type ComplianceState = 'compliant' | 'expiring_soon' | 'non_compliant' | 'incomplete'
 export type DriverVerifStatus = 'all_verified' | 'pending' | 'has_rejected'

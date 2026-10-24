@@ -1,17 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
-import {
-  CardTable,
-  CardThead,
-  CardTh,
-  CardTbody,
-  CardTr,
-  CardTd,
-  CardTableButton,
-} from '@/shared/components/ui/CardTable'
+import { CardTableButton } from '@/shared/components/ui/CardTable'
 import { ActionDropdown } from '@/modules/driver-management/components/ActionDropdown'
-import { Drawer } from '@/shared/components/ui/Drawer'
 import { Modal } from '@/shared/components/ui/Modal'
 import { ImagePreviewModal } from '@/modules/driver-management/components'
 import { useToast } from '@/shared/context/toast'
@@ -19,7 +10,7 @@ import { useDocumentCompliance, useDocumentSettings, useUpdateDocumentSettings, 
 import {
   FileText, Eye, Calendar, Settings,
   CheckCircle2, Phone, Search, Download, Bell,
-  RotateCcw, ArrowLeft, Filter, TrendingUp,
+  RotateCcw, ArrowLeft, Filter,
   Car, CreditCard, Award,
   MessageSquare, Clock, MapPin,
   FileCheck, Shield, Send, ExternalLink, RefreshCw,
@@ -33,9 +24,6 @@ import autoIcon from '@/assets/images/vehicles/Auto-icon.jpg'
 import cabEconomyIcon from '@/assets/images/vehicles/Cab-Economy-icon.jpg'
 import cabPremiumIcon from '@/assets/images/vehicles/Cab-Premium-icon.jpg'
 import docInsuranceImg from '@/assets/images/vehicle-showcase/doc-insurance.png'
-import docRcImg from '@/assets/images/vehicle-showcase/doc-rc.png'
-import docPermitImg from '@/assets/images/vehicle-showcase/doc-permit.png'
-import docPucImg from '@/assets/images/vehicle-showcase/doc-puc.png'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -141,7 +129,7 @@ export const DocumentControllerPage: React.FC = () => {
   const [dateTo, setDateTo] = useState('')
 
   // Sorting & Pagination
-  const [sortBy, setSortBy] = useState<'nearest' | 'furthest' | 'driver' | 'days_left'>('nearest')
+  const [sortBy] = useState<'nearest' | 'furthest' | 'driver' | 'days_left'>('nearest')
   const [pageSize, setPageSize] = useState<number>(5)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [selectedState, setSelectedState] = useState<string>('all')

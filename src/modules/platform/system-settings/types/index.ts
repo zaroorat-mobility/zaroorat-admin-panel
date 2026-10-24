@@ -214,25 +214,56 @@ export interface TestProviderHealthResult {
   responseTimeMs: number
 }
 
-export interface PaymentSettingsView {
-  defaultGateway: PaymentGatewayName
-  defaultCurrency: string
+export type PaymentEnvironment = 'sandbox' | 'live'
+
+export interface PaymentProviderView {
+  enabled: boolean
+  environment: PaymentEnvironment
   configured: boolean
   webhookConfigured: boolean
+}
+
+export interface PaymentSettingsView {
+  defaultCurrency: string
   version: number
-  razorpay: { keyId: MaskedSecret; keySecret: MaskedSecret; configured: boolean }
-  stripe: { secretKey: MaskedSecret; configured: boolean }
+  activeProvider: PaymentGatewayName
+  defaultGateway?: PaymentGatewayName
+  configured?: boolean
+  webhookConfigured?: boolean
+  providers?: {
+    razorpay: PaymentProviderView & { keyId: MaskedSecret; keySecret: MaskedSecret; webhookSecret: MaskedSecret }
+    stripe: PaymentProviderView & { secretKey: MaskedSecret; webhookSecret: MaskedSecret }
+  }
+  razorpay?: Partial<PaymentProviderView> & { keyId: MaskedSecret; keySecret: MaskedSecret; configured: boolean; webhookSecret?: MaskedSecret }
+  stripe?: Partial<PaymentProviderView> & { secretKey: MaskedSecret; configured: boolean; webhookSecret?: MaskedSecret }
 }
 
 export interface UpdatePaymentSettingsBody {
-  defaultGateway?: PaymentGatewayName
   defaultCurrency?: string
+  activeProvider?: PaymentGatewayName
+  defaultGateway?: PaymentGatewayName
+  providers?: {
+    razorpay?: {
+      enabled?: boolean
+      environment?: PaymentEnvironment
+      keyId?: string
+      keySecret?: string
+      webhookSecret?: string
+    }
+    stripe?: {
+      enabled?: boolean
+      environment?: PaymentEnvironment
+      secretKey?: string
+      webhookSecret?: string
+    }
+  }
+  expectedVersion?: number
   razorpayKeyId?: string
   razorpayKeySecret?: string
   stripeSecretKey?: string
   webhookSecret?: string
-  expectedVersion?: number
 }
+
 
 export interface SmsSettingsView {
   provider: SmsProviderName
@@ -302,6 +333,7 @@ export interface UpdateEmailSettingsBody {
 }
 
 export interface IntegrationTestInput {
+  provider?: string
   testPhone?: string
   testEmail?: string
 }
