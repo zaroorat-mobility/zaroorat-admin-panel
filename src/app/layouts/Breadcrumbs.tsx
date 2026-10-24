@@ -42,7 +42,8 @@ const ROUTE_LABELS: Record<string, string> = {
   'route-optimization': 'Route Optimization',
   'parent-portal': 'Parent Portal',
   'audit-log': 'Audit Log',
-  'document-controller': 'Document Controller',
+  'document-controller': 'Document Expiry',
+  'documents': 'Document Expiry',
 }
 
 const formatSegmentLabel = (segment: string): string => {

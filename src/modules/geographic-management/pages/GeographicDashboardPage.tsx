@@ -15,15 +15,17 @@ import {
   MoreVertical,
   ChevronDown,
   Loader2,
+  Hexagon,
 } from 'lucide-react'
 import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from '@/shared/components/ui/Table'
+  CardTable,
+  CardThead,
+  CardTh,
+  CardTbody,
+  CardTr,
+  CardTd,
+  CardTableButton,
+} from '@/shared/components/ui/CardTable'
 import { GoogleGeographicMap } from '@/shared/components/maps/google/GoogleGeographicMap'
 import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 
@@ -550,18 +552,21 @@ export const GeographicDashboardPage: React.FC = () => {
           {/* Card B: Cities Overview Table */}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                  Cities Overview
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Overview of all operating cities and their coverage</p>
+              <div className="flex items-center gap-2.5">
+                <Hexagon className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-[#8B93D9]" strokeWidth={2.5} />
+                <div>
+                  <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
+                    Operating Cities Overview
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Overview of all operating cities and their coverage</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => navigate('/geographic-management/cities')}
-                className="text-xs font-semibold text-[#1F2B6D] dark:text-[#8B93D9] bg-[#1F2B6D]/[0.06] hover:bg-[#1F2B6D]/[0.12] dark:bg-slate-800 dark:hover:bg-slate-700/80 px-2.5 py-1 rounded-md border border-[#1F2B6D]/20 dark:border-slate-700 transition flex items-center gap-1 shadow-2xs"
+                className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
               >
-                View All Cities →
+                View All
               </button>
             </div>
 
@@ -571,28 +576,25 @@ export const GeographicDashboardPage: React.FC = () => {
                 Loading cities…
               </div>
             ) : (
-              <Table containerClassName="overflow-x-hidden" className="w-full text-xs">
-                <TableHeader className="bg-slate-50/70 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800">
-                  <TableRow>
-                    <TableHead className="py-2.5 px-3.5 text-xs font-semibold text-slate-600 dark:text-slate-400 normal-case tracking-normal">City</TableHead>
-                    <TableHead className="py-2.5 px-2 text-xs font-semibold text-slate-600 dark:text-slate-400 normal-case tracking-normal">Code</TableHead>
-                    <TableHead className="py-2.5 px-2.5 text-xs font-semibold text-slate-600 dark:text-slate-400 normal-case tracking-normal">State / UT</TableHead>
-                    <TableHead className="py-2.5 px-2 text-center text-xs font-semibold text-slate-600 dark:text-slate-400 normal-case tracking-normal">Zones</TableHead>
-                    <TableHead className="py-2.5 px-2 text-center text-xs font-semibold text-slate-600 dark:text-slate-400 normal-case tracking-normal">Airport</TableHead>
-                    <TableHead className="py-2.5 px-2 text-center text-xs font-semibold text-slate-600 dark:text-slate-400 normal-case tracking-normal">Restricted</TableHead>
-                    <TableHead className="py-2.5 px-2.5 text-center text-xs font-semibold text-slate-600 dark:text-slate-400 normal-case tracking-normal">Status</TableHead>
-                    <TableHead className="py-2.5 px-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-400 normal-case tracking-normal">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+              <CardTable>
+                <CardThead>
+                  <tr>
+                    <CardTh>City</CardTh>
+                    <CardTh>Code</CardTh>
+                    <CardTh>State / UT</CardTh>
+                    <CardTh className="text-center">Zones</CardTh>
+                    <CardTh className="text-center">Airport</CardTh>
+                    <CardTh className="text-center">Restricted</CardTh>
+                    <CardTh className="text-center">Status</CardTh>
+                    <CardTh className="text-center">Actions</CardTh>
+                  </tr>
+                </CardThead>
+                <CardTbody>
                   {rawCities.map((c) => {
                     const stats = cityZoneStats[c.code] ?? { total: 0, airport: 0, restricted: 0 }
                     return (
-                      <TableRow
-                        key={c.id}
-                        className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        <TableCell className="py-2.5 px-3.5">
+                      <CardTr key={c.id}>
+                        <CardTd>
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-md bg-[#1F2B6D] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                               {c.code.slice(0, 2)}
@@ -601,54 +603,51 @@ export const GeographicDashboardPage: React.FC = () => {
                               {c.name}
                             </span>
                           </div>
-                        </TableCell>
-                        <TableCell className="py-2.5 px-2 font-medium text-slate-500 dark:text-slate-400">
+                        </CardTd>
+                        <CardTd className="font-medium text-slate-500 dark:text-slate-400">
                           {c.code}
-                        </TableCell>
-                        <TableCell className="py-2.5 px-2.5 text-slate-600 dark:text-slate-400">
+                        </CardTd>
+                        <CardTd className="text-slate-600 dark:text-slate-400">
                           {c.state ?? '—'}
-                        </TableCell>
-                        <TableCell className="py-2.5 px-2 text-center text-slate-700 dark:text-slate-300 font-medium">{stats.total}</TableCell>
-                        <TableCell className="py-2.5 px-2 text-center text-slate-700 dark:text-slate-300 font-medium">{stats.airport}</TableCell>
-                        <TableCell className="py-2.5 px-2 text-center text-slate-700 dark:text-slate-300 font-medium">
+                        </CardTd>
+                        <CardTd className="text-center font-bold text-slate-700 dark:text-slate-300">{stats.total}</CardTd>
+                        <CardTd className="text-center font-bold text-slate-700 dark:text-slate-300">{stats.airport}</CardTd>
+                        <CardTd className="text-center font-bold text-slate-700 dark:text-slate-300">
                           {stats.restricted}
-                        </TableCell>
-                        <TableCell className="py-2.5 px-2.5 text-center">
+                        </CardTd>
+                        <CardTd className="text-center">
                           {c.isActive ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400">
                               Active
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-500 dark:text-rose-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11.5px] font-bold bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400">
                               Inactive
                             </span>
                           )}
-                        </TableCell>
-                        <TableCell className="py-2.5 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
+                        </CardTd>
+                        <CardTd className="text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <CardTableButton
+                              variant="outline"
                               onClick={() => navigate('/geographic-management/cities')}
-                              className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs"
                             >
                               Manage
-                            </button>
+                            </CardTableButton>
                             <button
                               type="button"
                               onClick={() => navigate('/geographic-management/cities')}
-                              className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded transition"
+                              className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded transition cursor-pointer"
                             >
                               <MoreVertical className="w-4 h-4" />
                             </button>
                           </div>
-                        </TableCell>
-                      </TableRow>
+                        </CardTd>
+                      </CardTr>
                     )
                   })}
-                </TableBody>
-              </Table>
+                </CardTbody>
+              </CardTable>
             )}
           </div>
         </div>

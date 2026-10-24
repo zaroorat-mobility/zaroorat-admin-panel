@@ -60,15 +60,17 @@ function formatTooltipDate(dateKey: string, fallback: string): string {
  * Generates an ultra-smooth cubic Bezier spline SVG path through coordinate points.
  */
 function getSplinePath(pts: { x: number; y: number }[]): string {
-  if (pts.length === 0) return ''
-  if (pts.length === 1) return `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
+  if (!pts || pts.length === 0) return ''
+  const valid = pts.filter((p) => p && !isNaN(p.x) && !isNaN(p.y) && isFinite(p.x) && isFinite(p.y))
+  if (valid.length === 0) return ''
+  if (valid.length === 1) return `M ${valid[0].x.toFixed(1)} ${valid[0].y.toFixed(1)}`
 
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = i > 0 ? pts[i - 1] : pts[i]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = i < pts.length - 2 ? pts[i + 2] : p2
+  let d = `M ${valid[0].x.toFixed(1)} ${valid[0].y.toFixed(1)}`
+  for (let i = 0; i < valid.length - 1; i++) {
+    const p0 = i > 0 ? valid[i - 1] : valid[i]
+    const p1 = valid[i]
+    const p2 = valid[i + 1]
+    const p3 = i < valid.length - 2 ? valid[i + 2] : p2
 
     const cp1x = p1.x + (p2.x - p0.x) / 6
     const cp1y = p1.y + (p2.y - p0.y) / 6
@@ -95,7 +97,7 @@ export const GrossRideValueAreaChart: React.FC<GrossRideValueAreaChartProps> = (
   // Real backend series only (the backend zero-fills every day in the range).
   const displayData = useMemo(() => data ?? [], [data])
 
-  const values = useMemo(() => displayData.map((d) => d.grossRideValue), [displayData])
+  const values = useMemo(() => displayData.map((d) => Number(d.grossRideValue) || 0), [displayData])
   const totalValue = useMemo(() => values.reduce((sum, v) => sum + v, 0), [values])
 
   // Chart dimensions & layout matching PlatformRevenueAreaChart
@@ -116,7 +118,8 @@ export const GrossRideValueAreaChart: React.FC<GrossRideValueAreaChartProps> = (
   const points = useMemo(() => {
     return displayData.map((d, i) => {
       const x = paddingLeft + (i / Math.max(displayData.length - 1, 1)) * chartW
-      return { x, y: scale.y(d.grossRideValue), data: d }
+      const val = Number(d.grossRideValue) || 0
+      return { x, y: scale.y(val), data: d }
     })
   }, [displayData, scale, chartW, paddingLeft])
 
@@ -146,10 +149,12 @@ export const GrossRideValueAreaChart: React.FC<GrossRideValueAreaChartProps> = (
 
   const splineD = useMemo(() => getSplinePath(points), [points])
   const areaD = useMemo(() => {
-    if (points.length === 0) return ''
+    if (!splineD || points.length === 0 || isNaN(scale.zeroY) || !isFinite(scale.zeroY)) return ''
     // Filled to the zero line, not the chart floor, so a negative day shades below ₹0
     const zeroY = scale.zeroY.toFixed(1)
-    return `${splineD} L ${points[points.length - 1].x.toFixed(1)} ${zeroY} L ${points[0].x.toFixed(1)} ${zeroY} Z`
+    const lastX = points[points.length - 1].x.toFixed(1)
+    const firstX = points[0].x.toFixed(1)
+    return `${splineD} L ${lastX} ${zeroY} L ${firstX} ${zeroY} Z`
   }, [splineD, points, scale])
 
   const total = totalValue
@@ -281,17 +286,21 @@ export const GrossRideValueAreaChart: React.FC<GrossRideValueAreaChartProps> = (
           )}
 
           {/* Gradient Area Fill */}
-          <path d={areaD} fill="url(#grossRideValueGradient)" />
+          {areaD && areaD.startsWith('M') ? (
+            <path d={areaD} fill="url(#grossRideValueGradient)" />
+          ) : null}
 
           {/* Smooth Spline Curve Line */}
-          <path
-            d={splineD}
-            fill="none"
-            stroke="#10B981"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          {splineD && splineD.startsWith('M') ? (
+            <path
+              d={splineD}
+              fill="none"
+              stroke="#10B981"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ) : null}
 
           {/* Solid circular data points: all points shown when <= 7 days */}
           {points.map((p, i) => {

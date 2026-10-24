@@ -7,6 +7,7 @@ import ManualRegistrationPage from '../pages/applications/ManualRegistrationPage
 import DriversListPage from '../pages/drivers/DriversListPage'
 import DriverDetailsPage from '../pages/drivers/DriverDetailsPage'
 import DriverEditPage from '../pages/drivers/DriverEditPage'
+import { DocumentControllerPage } from '@/modules/document-controller'
 
 export const DriverManagementRoutes: React.FC = () => {
   return (
@@ -22,6 +23,8 @@ export const DriverManagementRoutes: React.FC = () => {
       <Route path="drivers" element={<DriversListPage />} />
       <Route path="drivers/:id" element={<DriverDetailsPage />} />
       <Route path="drivers/:id/edit" element={<DriverEditPage />} />
+
+      <Route path="documents" element={<DocumentControllerPage />} />
     </Routes>
   )
 }

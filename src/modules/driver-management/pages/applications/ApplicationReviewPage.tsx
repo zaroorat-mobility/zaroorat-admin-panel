@@ -7,6 +7,7 @@ import {
   useRejectApplication,
   useRequestResubmission,
   useVerifyDriverBankAccount,
+  useUpdateDriver,
 } from '../../hooks'
 import {
   ReviewSummaryCard,
@@ -15,6 +16,7 @@ import {
   VehicleInfoCard,
   DriverProfileHeaderCard,
   BankInfoCard,
+  EditDriverModal,
 } from '../../components'
 import { useToast } from '@/shared/context/toast'
 import {
@@ -79,6 +81,35 @@ export const ApplicationReviewPage: React.FC = () => {
   const { mutate: resubmitApp, isPending: isResubmitting } = useRequestResubmission()
   const { mutate: verifyBank, isPending: isVerifyingBank } = useVerifyDriverBankAccount()
   const [reviewedSteps, setReviewedSteps] = useState<Set<number>>(() => new Set())
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editInitialTab, setEditInitialTab] = useState<'personal' | 'vehicle' | 'status'>('personal')
+  const [isUpdatingDriver, setIsUpdatingDriver] = useState(false)
+  const { mutateAsync: updateDriverMutation, isPending: isUpdatingMutation } = useUpdateDriver()
+
+  const handleOpenEdit = (tab: 'personal' | 'vehicle' | 'status' = 'personal') => {
+    setEditInitialTab(tab)
+    setIsEditModalOpen(true)
+  }
+
+  const handleEditSave = async (updatedData: any) => {
+    const targetId = (data as any)?.id || id
+    if (!targetId) return
+    setIsUpdatingDriver(true)
+    try {
+      await updateDriverMutation({ id: targetId, data: updatedData })
+      showSuccess(
+        'Details Updated',
+        `${updatedData.driverName || data?.driverName || 'Applicant'} details updated successfully.`,
+      )
+      setIsEditModalOpen(false)
+      void refetch()
+    } catch (err: unknown) {
+      showError('Failed to update details', err instanceof Error ? err.message : 'Request failed')
+    } finally {
+      setIsUpdatingDriver(false)
+    }
+  }
 
   if (isLoading || !data) return <div className="p-8 flex justify-center">Loading application...</div>
 
@@ -1084,10 +1115,7 @@ export const ApplicationReviewPage: React.FC = () => {
                 language={appData.language}
                 address={appData.address}
                 photoUrl={data.profilePhotoUrl}
-                onEdit={() => {
-                  setReviewedSteps((prev) => new Set([...prev, activeStep]))
-                  setActiveStep(1)
-                }}
+                onEdit={() => handleOpenEdit('personal')}
               />
 
               {/* Timeline */}
@@ -1138,10 +1166,7 @@ export const ApplicationReviewPage: React.FC = () => {
                 seatsCapacity={appData.vehicleSeats}
                 vehicleCategory={appData.vehicleCategory}
                 photoUrl={appData.vehiclePhoto}
-                onEdit={() => {
-                  setReviewedSteps((prev) => new Set([...prev, activeStep]))
-                  setActiveStep(1)
-                }}
+                onEdit={() => handleOpenEdit('vehicle')}
               />
 
               {/* Documents Overview */}
@@ -1254,7 +1279,11 @@ export const ApplicationReviewPage: React.FC = () => {
                   </div>
                   <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">Personal Information</h3>
                 </div>
-                <button className="text-blue-600 hover:text-blue-700 text-[12px] font-semibold flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit('personal')}
+                  className="text-blue-600 hover:text-blue-700 text-[12px] font-semibold flex items-center gap-1 cursor-pointer"
+                >
                   <Edit className="w-3.5 h-3.5" /> Edit
                 </button>
               </div>
@@ -1320,7 +1349,11 @@ export const ApplicationReviewPage: React.FC = () => {
                   </div>
                   <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">Address Information</h3>
                 </div>
-                <button className="text-blue-600 hover:text-blue-700 text-[12px] font-semibold flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit('personal')}
+                  className="text-blue-600 hover:text-blue-700 text-[12px] font-semibold flex items-center gap-1 cursor-pointer"
+                >
                   <Edit className="w-3.5 h-3.5" /> Edit
                 </button>
               </div>
@@ -1359,7 +1392,11 @@ export const ApplicationReviewPage: React.FC = () => {
                   </div>
                   <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">Emergency Contact</h3>
                 </div>
-                <button className="text-blue-600 hover:text-blue-700 text-[12px] font-semibold flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit('personal')}
+                  className="text-blue-600 hover:text-blue-700 text-[12px] font-semibold flex items-center gap-1 cursor-pointer"
+                >
                   <Edit className="w-3.5 h-3.5" /> Edit
                 </button>
               </div>
@@ -1393,11 +1430,20 @@ export const ApplicationReviewPage: React.FC = () => {
                     <p className="text-[11px] text-slate-500">Direct settlement bank account & UPI information</p>
                   </div>
                 </div>
-                {appData.bankPayoutEnabled && (
-                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Payout Enabled
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit('status')}
+                    className="text-blue-600 hover:text-blue-700 text-[12px] font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit className="w-3.5 h-3.5" /> Edit
+                  </button>
+                  {appData.bankPayoutEnabled && (
+                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Payout Enabled
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="p-4 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-4 gap-x-6 text-[13px]">
@@ -2076,7 +2122,7 @@ export const ApplicationReviewPage: React.FC = () => {
               language={appData.language}
               address={appData.address}
               photoUrl={data.profilePhotoUrl}
-              onEdit={() => setActiveStep(1)}
+              onEdit={() => handleOpenEdit('personal')}
             />
 
             {/* Vehicle Information */}
@@ -2091,7 +2137,7 @@ export const ApplicationReviewPage: React.FC = () => {
               seatsCapacity={appData.vehicleSeats}
               vehicleCategory={appData.vehicleCategory}
               photoUrl={appData.vehiclePhoto}
-              onEdit={() => setActiveStep(1)}
+              onEdit={() => handleOpenEdit('vehicle')}
             />
 
             {/* Bank & Payout Details */}
@@ -2103,7 +2149,7 @@ export const ApplicationReviewPage: React.FC = () => {
               upiId={appData.bankUpi}
               status={appData.bankStatus}
               payoutEnabled={appData.bankPayoutEnabled}
-              onEdit={() => setActiveStep(3)}
+              onEdit={() => handleOpenEdit('status')}
             />
 
             {/* Application Timeline Card */}
@@ -2752,6 +2798,16 @@ export const ApplicationReviewPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ─── Custom Edit Driver Modal ────────────────────────────────────────── */}
+      <EditDriverModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        driver={data as any}
+        initialTab={editInitialTab}
+        onSave={handleEditSave}
+        loading={isUpdatingDriver || isUpdatingMutation}
+      />
 
     </div>
   )

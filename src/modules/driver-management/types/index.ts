@@ -213,7 +213,9 @@ export interface DriverApplicationDetails extends DriverApplicationEntity {
 
 // ─── Driver (approved, post-KYC) ──────────────────────────────────────────
 
-export interface DriverEntity extends BaseEntity {
+export interface DriverEntity extends Omit<BaseEntity, 'createdAt' | 'updatedAt'> {
+  createdAt?: string
+  updatedAt?: string
   applicationId: string
   driverCode?: string
   driverName: string
@@ -235,6 +237,14 @@ export interface DriverEntity extends BaseEntity {
   isOnline: boolean
   isSuspended?: boolean
   isBlocked?: boolean
+  rowIndex?: number
+  vehicleMake?: string
+  vehicleModel?: string
+  subscription?: {
+    status?: 'active' | 'expired' | 'none' | string
+    planName?: string
+    expiryDate?: string
+  }
 }
 
 export interface DriverDetails extends DriverEntity {

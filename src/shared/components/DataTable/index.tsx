@@ -54,6 +54,7 @@ export interface DataTableProps<T = any> {
   enableDraggableExport?: boolean;
   draggablePersistenceKey?: string;
   hidePagination?: boolean;
+  compact?: boolean;
 }
 
 export function DataTable<T extends Record<string, any> = any>({
@@ -80,6 +81,7 @@ export function DataTable<T extends Record<string, any> = any>({
   enableDraggableExport = false,
   draggablePersistenceKey,
   hidePagination = false,
+  compact,
 }: DataTableProps<T>) {
 
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string>>(new Set());
@@ -423,171 +425,190 @@ export function DataTable<T extends Record<string, any> = any>({
       </div>
 
       {/* Table Section */}
-      <div className="overflow-x-auto">
-        <div className="overflow-auto border-t-2 border-primary" style={{ maxHeight }}>
-          <table className="w-full border-collapse">
-            <thead className="sticky top-0 z-20">
-              <tr style={{ backgroundColor: "var(--color-table-header-bg)", borderBottom: "2px solid var(--color-table-header-border)" }}>
-                {draggable && (
-                  <th
-                    className="w-10 px-4 py-3"
-                    style={{ backgroundColor: "var(--color-table-header-bg)", borderRight: "1px solid var(--color-table-header-border)" }}
-                  />
-                )}
+      <div className="overflow-x-auto overflow-y-auto border-t-2 border-primary" style={{ maxHeight }}>
+        <table className="w-full border-collapse">
+          <thead className="sticky top-0 z-20">
+            <tr style={{ backgroundColor: "var(--color-table-header-bg)", borderBottom: "2px solid var(--color-table-header-border)" }}>
+              {draggable && (
                 <th
-                  className="w-12 px-4 py-3 text-center"
+                  className={cn(compact ? "w-8 px-2 py-2" : "w-10 px-4 py-3")}
                   style={{ backgroundColor: "var(--color-table-header-bg)", borderRight: "1px solid var(--color-table-header-border)" }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={allPageSelected}
-                    ref={el => { if (el) el.indeterminate = somePageSelected && !allPageSelected; }}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 accent-primary cursor-pointer"
-                    title="Select all on this page"
-                  />
-                </th>
-                {columns.map((col) => {
-                  const align = col.align || "center";
-                  return (
-                    <th
-                      key={col.key}
-                      onClick={() => col.sortable && handleSort(col.key)}
-                      className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider ${col.sortable ? "cursor-pointer select-none" : ""}`}
-                      style={{
-                        backgroundColor: "var(--color-table-header-bg)",
-                        color: "var(--color-table-header-text)",
-                        borderRight: "1px solid var(--color-table-header-border)",
-                      }}
-                    >
-                      <div className={`flex items-center gap-1 ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : ""}`}>
-                        {col.label}
-                        {col.sortable && (
-                          sortCol === col.key
-                            ? (sortDir === "asc" ? <ChevronUp className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-primary" />)
-                            : <ChevronsUpDown className="w-4 h-4 text-primary opacity-60" />
-                        )}
-                      </div>
-                    </th>
-                  );
-                })}
-                {actionConfig && (
+                />
+              )}
+              <th
+                className={cn("text-center", compact ? "w-8 px-2 py-2" : "w-12 px-4 py-3")}
+                style={{ backgroundColor: "var(--color-table-header-bg)", borderRight: "1px solid var(--color-table-header-border)" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  ref={el => { if (el) el.indeterminate = somePageSelected && !allPageSelected; }}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 accent-primary cursor-pointer"
+                  title="Select all on this page"
+                />
+              </th>
+              {columns.map((col) => {
+                const align = col.align || "center";
+                return (
                   <th
-                    className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider w-40"
-                    style={{ backgroundColor: "var(--color-table-header-bg)", color: "var(--color-table-header-text)" }}
-                  >
-                    ACTION
-                  </th>
-                )}
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-border">
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, rowIndex) => (
-                  <tr key={`skeleton-row-${rowIndex}`} className="animate-pulse">
-                    {draggable && (
-                      <td className="px-4 py-4 text-center text-slate-350" style={{ borderRight: "1px solid var(--color-table-header-border)" }}>
-                        ⋮⋮
-                      </td>
+                    key={col.key}
+                    onClick={() => col.sortable && handleSort(col.key)}
+                    className={cn(
+                      compact ? "px-2 py-2 text-[11px]" : "px-4 py-3 text-xs",
+                      "font-semibold uppercase tracking-wider",
+                      col.sortable ? "cursor-pointer select-none" : ""
                     )}
-                    <td className="px-4 py-4 text-center" style={{ borderRight: "1px solid var(--color-table-header-border)" }}>
-                      <div className="w-4 h-4 bg-slate-200 dark:bg-dark-800 rounded mx-auto" />
+                    style={{
+                      backgroundColor: "var(--color-table-header-bg)",
+                      color: "var(--color-table-header-text)",
+                      borderRight: "1px solid var(--color-table-header-border)",
+                      ...(col.width ? { width: col.width, minWidth: col.width } : {}),
+                    }}
+                  >
+                    <div className={`flex items-center gap-1 ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : ""}`}>
+                      {col.label}
+                      {col.sortable && (
+                        sortCol === col.key
+                          ? (sortDir === "asc" ? <ChevronUp className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-primary" />)
+                          : <ChevronsUpDown className="w-4 h-4 text-primary opacity-60" />
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
+              {actionConfig && (
+                <th
+                  className={cn(
+                    "text-center font-semibold uppercase tracking-wider",
+                    compact ? "px-2 py-2 text-[11px] w-28" : "px-4 py-3 text-xs w-40"
+                  )}
+                  style={{ backgroundColor: "var(--color-table-header-bg)", color: "var(--color-table-header-text)" }}
+                >
+                  ACTION
+                </th>
+              )}
+            </tr>
+          </thead>
+
+          <tbody className="divide-y divide-border">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, rowIndex) => (
+                <tr key={`skeleton-row-${rowIndex}`} className="animate-pulse">
+                  {draggable && (
+                    <td className={cn(compact ? "px-2 py-2" : "px-4 py-4", "text-center text-slate-350")} style={{ borderRight: "1px solid var(--color-table-header-border)" }}>
+                      ⋮⋮
+                    </td>
+                  )}
+                  <td className={cn(compact ? "px-2 py-2" : "px-4 py-4", "text-center")} style={{ borderRight: "1px solid var(--color-table-header-border)" }}>
+                    <div className="w-4 h-4 bg-slate-200 dark:bg-dark-800 rounded mx-auto" />
+                  </td>
+                  {columns.map(col => {
+                    const align = col.align || "center";
+                    return (
+                      <td
+                        key={`skeleton-cell-${col.key}`}
+                        className={cn(
+                          compact ? "px-2 py-2" : "px-4 py-4",
+                          align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"
+                        )}
+                        style={{
+                          borderRight: "1px solid var(--color-table-header-border)",
+                          ...(col.width ? { width: col.width, minWidth: col.width } : {}),
+                        }}
+                      >
+                        <Skeleton className={cn("h-4 rounded", align === "center" ? "mx-auto w-24" : align === "right" ? "ml-auto w-20" : "w-28")} />
+                      </td>
+                    );
+                  })}
+                  {actionConfig && (
+                    <td className={cn(compact ? "px-2 py-2 w-28" : "px-4 py-4 w-40", "text-center")}>
+                      <div className="w-8 h-8 bg-slate-200 dark:bg-dark-800 rounded-full mx-auto" />
+                    </td>
+                  )}
+                </tr>
+              ))
+            ) : isError ? (
+              <tr>
+                <td colSpan={colSpan} className="px-6 py-10">
+                  <NetworkErrorScreen
+                    onRetry={onRetry}
+                    className="border-none bg-transparent min-h-[260px] p-0"
+                    imageHeight={130}
+                  />
+                </td>
+              </tr>
+            ) : paged.length === 0 ? (
+              <tr>
+                <td colSpan={colSpan} className="px-6 py-10">
+                  <NoDataScreen
+                    title={emptyState?.title ?? "No Records Found"}
+                    description={emptyState?.description ?? "There are no matches for your criteria."}
+                    actionLabel={emptyState?.actionLabel}
+                    onAction={emptyState?.onAction}
+                    className="border-none bg-transparent min-h-[260px] p-0"
+                    imageHeight={130}
+                  />
+                </td>
+              </tr>
+            ) : (
+              paged.map((row) => {
+                const id = String(row[rowIdKey]);
+                return (
+                  <tr
+                    key={id}
+                    onClick={() => onRowClick?.(row)}
+                    className={`transition-colors relative hover:z-30 ${onRowClick ? "cursor-pointer" : ""}`}
+                    style={{ "--hover-bg": "var(--secondary)" } as React.CSSProperties}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = "var(--secondary)")}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = "")}
+                  >
+                    {draggable && (
+                      <td className={cn(compact ? "px-2 py-2 text-xs" : "px-4 py-3 text-sm", "text-center text-muted-foreground")} style={{ borderRight: "1px solid var(--color-table-header-border)" }}>⋮⋮</td>
+                    )}
+                    <td className={cn(compact ? "px-2 py-2" : "px-4 py-3", "text-center")} style={{ borderRight: "1px solid var(--color-table-header-border)" }} onClick={e => toggleRow(id, e)}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(id)}
+                        onChange={() => {}}
+                        className="w-4 h-4 accent-primary cursor-pointer"
+                      />
                     </td>
                     {columns.map(col => {
                       const align = col.align || "center";
                       return (
                         <td
-                          key={`skeleton-cell-${col.key}`}
-                          className={`px-4 py-4 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"}`}
-                          style={{ borderRight: "1px solid var(--color-table-header-border)" }}
+                          key={col.key}
+                          className={cn(
+                            compact ? "px-2 py-2 text-xs" : "px-4 py-3 text-sm",
+                            "text-foreground",
+                            align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"
+                          )}
+                          style={{
+                            borderRight: "1px solid var(--color-table-header-border)",
+                            ...(col.width ? { width: col.width, minWidth: col.width } : {}),
+                          }}
                         >
-                          <Skeleton className={cn("h-4 rounded", align === "center" ? "mx-auto w-24" : align === "right" ? "ml-auto w-20" : "w-28")} />
+                          {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
                         </td>
                       );
                     })}
                     {actionConfig && (
-                      <td className="px-4 py-4 text-center w-40">
-                        <div className="w-8 h-8 bg-slate-200 dark:bg-dark-800 rounded-full mx-auto" />
+                      <td className={cn(compact ? "px-2 py-2 w-28" : "px-4 py-3 w-40", "text-center")} onClick={e => e.stopPropagation()}>
+                        <ActionMenu
+                          onView={actionConfig.onView ? () => actionConfig.onView!(row) : undefined}
+                          onEdit={actionConfig.onEdit ? () => actionConfig.onEdit!(row) : undefined}
+                          onDelete={actionConfig.onDelete ? () => actionConfig.onDelete!(row) : undefined}
+                          alignY={paged.indexOf(row) >= paged.length - 2 && paged.length > 2 ? 'up' : 'down'}
+                        />
                       </td>
                     )}
                   </tr>
-                ))
-              ) : isError ? (
-                <tr>
-                  <td colSpan={colSpan} className="px-6 py-10">
-                    <NetworkErrorScreen
-                      onRetry={onRetry}
-                      className="border-none bg-transparent min-h-[260px] p-0"
-                      imageHeight={130}
-                    />
-                  </td>
-                </tr>
-              ) : paged.length === 0 ? (
-                <tr>
-                  <td colSpan={colSpan} className="px-6 py-10">
-                    <NoDataScreen
-                      title={emptyState?.title ?? "No Records Found"}
-                      description={emptyState?.description ?? "There are no matches for your criteria."}
-                      actionLabel={emptyState?.actionLabel}
-                      onAction={emptyState?.onAction}
-                      className="border-none bg-transparent min-h-[260px] p-0"
-                      imageHeight={130}
-                    />
-                  </td>
-                </tr>
-              ) : (
-                paged.map((row) => {
-                  const id = String(row[rowIdKey]);
-                  return (
-                    <tr
-                      key={id}
-                      onClick={() => onRowClick?.(row)}
-                      className={`transition-colors relative hover:z-30 ${onRowClick ? "cursor-pointer" : ""}`}
-                      style={{ "--hover-bg": "var(--secondary)" } as React.CSSProperties}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = "var(--secondary)")}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = "")}
-                    >
-                      {draggable && (
-                        <td className="px-4 py-3 text-center text-muted-foreground" style={{ borderRight: "1px solid var(--color-table-header-border)" }}>⋮⋮</td>
-                      )}
-                      <td className="px-4 py-3 text-center" style={{ borderRight: "1px solid var(--color-table-header-border)" }} onClick={e => toggleRow(id, e)}>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(id)}
-                          onChange={() => {}}
-                          className="w-4 h-4 accent-primary cursor-pointer"
-                        />
-                      </td>
-                      {columns.map(col => {
-                        const align = col.align || "center";
-                        return (
-                          <td
-                            key={col.key}
-                            className={`px-4 py-3 text-sm text-foreground ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"}`}
-                            style={{ borderRight: "1px solid var(--color-table-header-border)" }}
-                          >
-                            {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
-                          </td>
-                        );
-                      })}
-                      {actionConfig && (
-                        <td className="px-4 py-3 text-center w-40" onClick={e => e.stopPropagation()}>
-                          <ActionMenu
-                            onView={actionConfig.onView ? () => actionConfig.onView!(row) : undefined}
-                            onEdit={actionConfig.onEdit ? () => actionConfig.onEdit!(row) : undefined}
-                            onDelete={actionConfig.onDelete ? () => actionConfig.onDelete!(row) : undefined}
-                            alignY={paged.indexOf(row) >= paged.length - 2 && paged.length > 2 ? 'up' : 'down'}
-                          />
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Pagination */}

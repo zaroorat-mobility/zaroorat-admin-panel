@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   useDriver,
+  useUpdateDriver,
   useSuspendDriver,
   useBlockDriver,
   useActivateDriver,
@@ -18,6 +19,11 @@ import {
   ReviewDocumentCard,
   ImagePreviewModal,
   BankInfoCard,
+  DriverActivityLogsTab,
+  DriverRidesPerformanceTab,
+  DriverRatingsReviewsTab,
+  EditDriverModal,
+  SuspendDriverModal,
 } from '../../components'
 import { getFileReadUrl } from '@/shared/services/file-upload.service'
 import { isFileId, resolveFileRef } from '@/shared/utils/file-ref'
@@ -36,7 +42,6 @@ import docInsShowcase from '@/assets/images/vehicle-showcase/doc-insurance.png'
 import docPucShowcase from '@/assets/images/vehicle-showcase/doc-puc.png'
 import docPermitShowcase from '@/assets/images/vehicle-showcase/doc-permit.png'
 import {
-  User,
   Car,
   FileText,
   CreditCard,
@@ -94,6 +99,7 @@ type DriverTab =
   | 'subscription'
   | 'wallet'
   | 'rides'
+  | 'ratings'
   | 'activity'
 
 // Unknown amounts render as "—", never as ₹0
@@ -136,14 +142,60 @@ export const DriverDetailsPage: React.FC = () => {
   const [messageText, setMessageText] = useState('')
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false)
 
-  // Hooks queries & mutations
-  const { data: driver, isLoading, isError } = useDriver(id || '')
+  // Custom Edit & Suspend Modals matching overview screenshot
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editInitialTab, setEditInitialTab] = useState<'personal' | 'vehicle' | 'status'>('personal')
+  const [isCustomSuspendModalOpen, setIsCustomSuspendModalOpen] = useState(false)
+  const [isUpdatingDriver, setIsUpdatingDriver] = useState(false)
 
+  // Hooks queries & mutations
+  const { data: driver, isLoading, isError, refetch } = useDriver(id || '')
+
+  const { mutateAsync: updateDriverMutation, isPending: isUpdatingMutation } = useUpdateDriver()
   const { mutate: suspendDriver, isPending: isSuspending } = useSuspendDriver()
   const { mutate: blockDriver, isPending: isBlocking } = useBlockDriver()
   const { mutate: activateDriver, isPending: isActivating } = useActivateDriver()
   const { mutate: addSupportNote, isPending: isAddingNote } = useAddDriverTimelineNote()
   const { mutate: flagVehicleRenewal, isPending: isFlaggingVehicle } = useFlagVehicleForRenewal()
+
+  const handleEditSave = async (updatedData: any) => {
+    if (!driver?.id) return
+    setIsUpdatingDriver(true)
+    try {
+      await updateDriverMutation({ id: driver.id, data: updatedData })
+      showSuccess(
+        'Driver details saved',
+        `${updatedData.driverName || driver?.driverName || 'Driver'} profile updated successfully.`,
+      )
+      setIsEditModalOpen(false)
+      void refetch()
+    } catch (err: unknown) {
+      showError('Failed to update driver', err instanceof Error ? err.message : 'Request failed')
+    } finally {
+      setIsUpdatingDriver(false)
+    }
+  }
+
+  const handleCustomSuspendConfirm = (reason: string, details?: string) => {
+    if (!driver) return
+    const formattedNotes = details ? `${reason}: ${details}` : reason
+    suspendDriver(
+      { id: driver.id, notes: formattedNotes },
+      {
+        onSuccess: () => {
+          showSuccess(
+            'Driver suspended',
+            `Account for ${driver.driverName} has been temporarily placed on duty hold.`,
+          )
+          setIsCustomSuspendModalOpen(false)
+          void refetch()
+        },
+        onError: (err: unknown) => {
+          showError('Could not suspend driver', err instanceof Error ? err.message : 'Request failed')
+        },
+      },
+    )
+  }
 
   const openPreview = async (ref: string, title: string) => {
     if (!ref) return
@@ -155,46 +207,6 @@ export const DriverDetailsPage: React.FC = () => {
       showError('Preview unavailable', 'Could not load the document image.')
     }
   }
-
-  const reviewColumns = [
-    {
-      key: 'date',
-      label: 'Date',
-      align: 'center' as const,
-      render: (date: string) => (
-        <span className="text-xs text-slate-600 dark:text-slate-400">
-          {new Date(date).toLocaleDateString('en-IN')}
-        </span>
-      ),
-    },
-    {
-      key: 'riderName',
-      label: 'Rider Name',
-      align: 'left' as const,
-      render: (name: string) => (
-        <span className="font-bold text-xs text-slate-800 dark:text-white">{name}</span>
-      ),
-    },
-    {
-      key: 'score',
-      label: 'Rating',
-      align: 'center' as const,
-      render: (score: number) => (
-        <span className="inline-flex items-center gap-1 font-bold text-xs text-amber-500">
-          <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
-          {score}
-        </span>
-      ),
-    },
-    {
-      key: 'comment',
-      label: 'Review Comment',
-      align: 'left' as const,
-      render: (comment: string) => (
-        <span className="italic text-xs text-slate-600 dark:text-slate-350">"{comment}"</span>
-      ),
-    },
-  ]
 
   const ledgerColumns = [
     {
@@ -404,9 +416,9 @@ export const DriverDetailsPage: React.FC = () => {
 
   const isDriverOnline = Boolean(
     driver.isOnline ??
-      (driver.driverStatus === 'online' ||
-        driver.driverStatus === 'on_trip' ||
-        driver.driverStatus === 'active'),
+    (driver.driverStatus === 'online' ||
+      driver.driverStatus === 'on_trip' ||
+      driver.driverStatus === 'active'),
   )
 
   const isSuspendedOrBlocked =
@@ -419,7 +431,8 @@ export const DriverDetailsPage: React.FC = () => {
     { id: 'subscription', label: 'Subscription', icon: Calendar },
     { id: 'wallet', label: 'Commission Wallet', icon: Wallet },
     { id: 'rides', label: 'Rides & Performance', icon: TrendingUp },
-    { id: 'activity', label: 'Activity Logs', icon: History, count: driver.timeline?.length },
+    { id: 'ratings', label: 'Ratings & Reviews', icon: Star },
+    { id: 'activity', label: 'Activity Logs', icon: Zap },
   ]
 
   return (
@@ -544,8 +557,11 @@ export const DriverDetailsPage: React.FC = () => {
             {/* Edit Driver Button */}
             <button
               type="button"
-              onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
-              className="px-4 py-2 rounded-lg bg-[#1F2B6D] hover:bg-[#1B2A6B] text-white font-semibold text-[13px] shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              onClick={() => {
+                setEditInitialTab('personal')
+                setIsEditModalOpen(true)
+              }}
+              className="px-4 py-2 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white font-semibold text-[13px] shadow-sm transition-colors flex items-center gap-2 cursor-pointer font-['Poppins',sans-serif]"
             >
               <Edit2 className="w-4 h-4" />
               <span>Edit Driver</span>
@@ -575,9 +591,7 @@ export const DriverDetailsPage: React.FC = () => {
             ? 'Blocked'
             : driver.isSuspended
               ? 'Suspended'
-              : isDriverOnline
-                ? 'Online'
-                : 'Offline'
+              : undefined
         }
         isOnDuty={isDriverOnline}
         onCopyPhone={() => {
@@ -752,7 +766,10 @@ export const DriverDetailsPage: React.FC = () => {
                 showPhoto={false}
                 isPhoneVerified={true}
                 editLabel="Edit"
-                onEdit={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+                onEdit={() => {
+                  setEditInitialTab('personal')
+                  setIsEditModalOpen(true)
+                }}
               />
 
               {/* Emergency Contact */}
@@ -768,8 +785,11 @@ export const DriverDetailsPage: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
-                    className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs cursor-pointer flex items-center gap-1"
+                    onClick={() => {
+                      setEditInitialTab('personal')
+                      setIsEditModalOpen(true)
+                    }}
+                    className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 active:scale-[0.98] transition shadow-2xs cursor-pointer flex items-center gap-1 font-['Poppins',sans-serif]"
                   >
                     <Edit className="w-3 h-3" /> Edit
                   </button>
@@ -800,7 +820,10 @@ export const DriverDetailsPage: React.FC = () => {
                 upiId={driverBankUpi}
                 status={driverBankStatus}
                 payoutEnabled={driverBankPayoutEnabled}
-                onEdit={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+                onEdit={() => {
+                  setEditInitialTab('status')
+                  setIsEditModalOpen(true)
+                }}
               />
             </div>
 
@@ -819,7 +842,10 @@ export const DriverDetailsPage: React.FC = () => {
                 photoUrl={driverVehiclePhoto}
                 onPreviewPhoto={() => openPreview(driverVehiclePhoto, `${driverMakeModel} - ${driverRegPlate}`)}
                 editLabel="Edit"
-                onEdit={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
+                onEdit={() => {
+                  setEditInitialTab('vehicle')
+                  setIsEditModalOpen(true)
+                }}
               />
 
               {/* Subscription Details */}
@@ -844,11 +870,10 @@ export const DriverDetailsPage: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-slate-500 font-medium">Status</span>
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
-                      (driver as any).subscription?.status === 'ACTIVE'
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${(driver as any).subscription?.status === 'ACTIVE'
                         ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
                         : 'text-slate-600 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                    }`}>
+                      }`}>
                       {(driver as any).subscription?.status === 'ACTIVE' && <Check className="w-3 h-3 stroke-[3]" />}
                       {(driver as any).subscription?.status || paymentPlan(driver).detail}
                     </span>
@@ -992,10 +1017,9 @@ export const DriverDetailsPage: React.FC = () => {
                     type="button"
                     disabled={!canSuspend}
                     onClick={() => {
-                      setStatusAction('suspend')
-                      setIsStatusModalOpen(true)
+                      setIsCustomSuspendModalOpen(true)
                     }}
-                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-500/40 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 text-left shadow-2xs"
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-500/40 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 active:scale-[0.98] transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 text-left shadow-2xs"
                   >
                     <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center flex-shrink-0 text-amber-600 dark:text-amber-400">
                       <Pause className="w-[18px] h-[18px]" strokeWidth={2.2} />
@@ -1336,8 +1360,11 @@ export const DriverDetailsPage: React.FC = () => {
                         {/* 1. Edit Vehicle Details */}
                         <button
                           type="button"
-                          onClick={() => navigate(`/driver-management/drivers/${driver.id}/edit`)}
-                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs"
+                          onClick={() => {
+                            setEditInitialTab('vehicle')
+                            setIsEditModalOpen(true)
+                          }}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-[#1F2B6D]/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 active:scale-[0.98] transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer text-left shadow-2xs font-['Poppins',sans-serif]"
                         >
                           <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-[#1F2B6D] dark:text-[#8B93D9]">
                             <Edit className="w-[18px] h-[18px]" strokeWidth={2} />
@@ -1424,10 +1451,9 @@ export const DriverDetailsPage: React.FC = () => {
                           type="button"
                           disabled={!canSuspend}
                           onClick={() => {
-                            setStatusAction('suspend')
-                            setIsStatusModalOpen(true)
+                            setIsCustomSuspendModalOpen(true)
                           }}
-                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-500/40 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 text-left shadow-2xs"
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-500/40 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 active:scale-[0.98] transition-all flex items-center gap-2.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 text-left shadow-2xs font-['Poppins',sans-serif]"
                         >
                           <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center flex-shrink-0 text-amber-600 dark:text-amber-400">
                             <Pause className="w-[18px] h-[18px]" strokeWidth={2.2} />
@@ -2027,130 +2053,20 @@ export const DriverDetailsPage: React.FC = () => {
         )}
 
         {/* ─── 6. RIDES & PERFORMANCE TAB ──────────────────────────────────── */}
-        {activeTab === 'rides' && (
-          <div className="space-y-5 text-left">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {/* Overall Ratings Card */}
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between items-center text-center shadow-sm">
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Average Rating</span>
-                  <h3 className="text-3xl font-extrabold text-[#1F2B6D] dark:text-white flex items-center justify-center gap-1.5 mt-1">
-                    <Star className="h-7 w-7 fill-amber-500 text-amber-500" />
-                    <span>{Number(driverRating).toFixed(1)}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500">Across {driverRides} completed trips</p>
-                </div>
-                <div className="w-full border-t border-slate-100 dark:border-slate-800 mt-4 pt-4 text-xs text-slate-500 font-semibold flex justify-around">
-                  <div>
-                    <p className="text-slate-800 dark:text-white font-bold text-sm">96%</p>
-                    <p className="text-[10px]">Positive rate</p>
-                  </div>
-                  <div className="border-r border-slate-100 dark:border-slate-800 h-8" />
-                  <div>
-                    <p className="text-slate-800 dark:text-white font-bold text-sm">0%</p>
-                    <p className="text-[10px]">Critical complaints</p>
-                  </div>
-                </div>
-              </div>
+        {activeTab === 'rides' && <DriverRidesPerformanceTab driver={driver} />}
 
-              {/* Star breakdown bar chart */}
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 md:col-span-2 shadow-sm">
-                <h4 className="text-xs font-bold text-[#1F2B6D] dark:text-white uppercase tracking-wider mb-4">Rating Breakdown</h4>
-                <div className="space-y-2">
-                  {[5, 4, 3, 2, 1].map((stars) => {
-                    const count = driver.ratingsBreakdown?.[stars] || (stars === 5 ? 280 : stars === 4 ? 35 : 5)
-                    const total = 320
-                    const percentage = Math.round((count / total) * 100)
-
-                    return (
-                      <div key={stars} className="flex items-center gap-3 text-xs">
-                        <span className="w-3 font-bold text-slate-500">{stars}</span>
-                        <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500 shrink-0" />
-                        <div className="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                          <div className="bg-amber-500 h-full rounded-full" style={{ width: `${percentage}%` }} />
-                        </div>
-                        <span className="w-12 text-right font-medium text-slate-400">{percentage}% ({count})</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Recent reviews list */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-[14px] font-bold text-[#1F2B6D] dark:text-white leading-tight">Recent Trip Reviews</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Passenger rating log submitted during billing settlements</p>
-              </div>
-              <div className="p-1">
-                <DataTable
-                  columns={reviewColumns}
-                  data={driver.recentReviews || []}
-                  selectable={false}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* ─── 7. RATINGS & REVIEWS TAB ────────────────────────────────────── */}
+        {activeTab === 'ratings' && <DriverRatingsReviewsTab driver={driver} />}
 
         {/* ─── 7. ACTIVITY LOGS TAB ─────────────────────────────────────────── */}
         {activeTab === 'activity' && (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden text-left">
-            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-[14px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                  Operational Timeline & System Logs
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">System telemetry logs and custom admin support notes</p>
-              </div>
-              <button
-                type="button"
-                className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
-                onClick={() => {
-                  setTimelineNote('')
-                  setIsNoteModalOpen(true)
-                }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add timeline note</span>
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="relative border-l-2 border-[#1F2B6D] pl-4 space-y-5 ml-2">
-                {driver.timeline?.map((evt) => (
-                  <div key={evt.id} className="space-y-1 relative">
-                    <span
-                      className={cn(
-                        'absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-slate-900',
-                        evt.isSystem ? 'bg-slate-400' : 'bg-[#1F2B6D]',
-                      )}
-                    />
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-150">{evt.action}</p>
-                      {evt.isSystem && (
-                        <span className="text-[8px] bg-slate-100 border border-slate-200 text-slate-400 px-1 rounded uppercase font-black tracking-wider">
-                          System
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[9px] text-slate-400 flex items-center gap-1">
-                      <User className="h-2.5 w-2.5" />
-                      <span>Logged by: {evt.actor}</span>
-                      <span>•</span>
-                      <Calendar className="h-2.5 w-2.5" />
-                      <span>{new Date(evt.timestamp).toLocaleString('en-IN')}</span>
-                    </p>
-                    {evt.notes && (
-                      <p className="text-[10px] bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 mt-1 dark:text-slate-400 font-medium">
-                        {evt.notes}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <DriverActivityLogsTab
+            driver={driver}
+            onAddNote={() => {
+              setTimelineNote('')
+              setIsNoteModalOpen(true)
+            }}
+          />
         )}
       </div>
 
@@ -2341,6 +2257,25 @@ export const DriverDetailsPage: React.FC = () => {
         }
         confirmText="Send Notification"
         variant="info"
+      />
+
+      {/* ─── Custom Edit Driver Modal ────────────────────────────────────────── */}
+      <EditDriverModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        driver={driver}
+        initialTab={editInitialTab}
+        onSave={handleEditSave}
+        loading={isUpdatingDriver || isUpdatingMutation}
+      />
+
+      {/* ─── Custom Suspend Driver Modal ─────────────────────────────────────── */}
+      <SuspendDriverModal
+        isOpen={isCustomSuspendModalOpen}
+        onClose={() => setIsCustomSuspendModalOpen(false)}
+        driver={driver}
+        onConfirm={handleCustomSuspendConfirm}
+        loading={isSuspending}
       />
     </PageWrapper>
   )

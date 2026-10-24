@@ -23,6 +23,14 @@ export const getDriverById = async (id: string): Promise<DriverDetails> => {
   return response.data.data
 }
 
+export const updateDriver = async (
+  id: string,
+  data: Record<string, unknown>,
+): Promise<DriverDetails> => {
+  const response = await api.patch<{ data: DriverDetails }>(API_ENDPOINTS.drivers.detail(id), data)
+  return response.data.data
+}
+
 export const suspendDriver = async (id: string, notes?: string): Promise<DriverDetails> => {
   const response = await api.post<{ data: DriverDetails }>(API_ENDPOINTS.drivers.suspend(id), {
     ...(notes ? { notes } : {}),

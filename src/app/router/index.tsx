@@ -17,7 +17,6 @@ import { OperationsRoutes } from '@/modules/operations'
 import { FinancialOperationsRoutes } from '@/modules/financial-operations'
 import { SchoolMobilityRoutes } from '@/modules/school-mobility'
 import { CarpoolingRoutes } from '@/modules/carpooling'
-import { DocumentControllerRoutes } from '@/modules/document-controller'
 import { MapSettingsPage } from '@/modules/system-settings'
 import { GeographicManagementRoutes } from '@/modules/geographic-management'
 import { CommunicationsRoutes } from '@/modules/communications'
@@ -135,12 +134,12 @@ export const AppRouter: React.FC = () => {
           }
         />
 
-        {/* Document Controller Expiry and Compliance Verification */}
+        {/* Document Controller Expiry and Compliance Verification (Redirect to Driver Management) */}
         <Route
           path="document-controller/*"
           element={
             <RequirePermission requiredPermission="documents:read">
-              <DocumentControllerRoutes />
+              <Navigate to="/driver-management/documents" replace />
             </RequirePermission>
           }
         />
