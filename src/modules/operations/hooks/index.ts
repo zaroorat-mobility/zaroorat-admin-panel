@@ -359,6 +359,17 @@ export const useResolveComplaint = () => {
   })
 }
 
+export const useAddComplaintMessage = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body, isInternal }: { id: string; body: string; isInternal?: boolean }) =>
+      OperationsService.addComplaintMessage(id, body, isInternal),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operations'] })
+    }
+  })
+}
+
 export const useCloseComplaint = () => {
   const queryClient = useQueryClient()
   return useMutation({

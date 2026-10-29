@@ -151,6 +151,14 @@ const updateDriver = async (
   return driversApi.updateDriver(id, data)
 }
 
+const topUpDriverWallet = async (
+  id: string,
+  amount: number,
+  notes?: string,
+): Promise<DriverDetails> => {
+  return driversApi.topUpDriverWallet(id, amount, notes)
+}
+
 export const DriverManagementService = {
   getApplications,
   getApplicationById,
@@ -165,6 +173,7 @@ export const DriverManagementService = {
   getDrivers,
   getDriverById,
   updateDriver,
+  topUpDriverWallet,
   suspendDriver: (id: string, notes?: string) => updateDriverStatus(id, 'suspended', notes),
   blockDriver: (id: string, notes?: string) => updateDriverStatus(id, 'blocked', notes),
   activateDriver: (id: string, notes?: string) => updateDriverStatus(id, 'active', notes),

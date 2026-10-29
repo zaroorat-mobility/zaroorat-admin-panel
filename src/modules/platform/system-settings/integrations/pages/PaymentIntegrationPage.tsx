@@ -7,7 +7,11 @@ import {
   useTestPaymentIntegration,
   useUpdatePaymentSettings,
 } from '@/modules/platform/system-settings/hooks'
-import type { PaymentEnvironment, PaymentGatewayName } from '@/modules/platform/system-settings/types'
+import type {
+  DriverPaymentsSettings,
+  PaymentEnvironment,
+  PaymentGatewayName,
+} from '@/modules/platform/system-settings/types'
 import {
   ConfiguredBadge,
   SecretField,
@@ -17,6 +21,16 @@ import {
   SettingsLoading,
   secretForUpdate,
 } from '@/modules/platform/system-settings/components'
+
+/** The backend's defaults: net banking and wallets on, cards off until PCI DSS. */
+const DEFAULT_METHODS: DriverPaymentsSettings['methods'] = { netbanking: true, wallet: true, card: false }
+const METHOD_LABELS: [keyof DriverPaymentsSettings['methods'], string][] = [
+  ['netbanking', 'Net banking'],
+  ['wallet', 'Wallets'],
+  ['card', 'Debit and credit cards'],
+]
+/** A quick check for a clear message; the backend validates the address too. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const PaymentIntegrationPage: React.FC = () => {
   const { data, isLoading, isError } = usePaymentSettings()
@@ -37,6 +51,11 @@ export const PaymentIntegrationPage: React.FC = () => {
   const [stripeSecretKey, setStripeSecretKey] = useState('')
   const [stripeWebhookSecret, setStripeWebhookSecret] = useState('')
   const [stripeEnvironment, setStripeEnvironment] = useState<PaymentEnvironment>('sandbox')
+
+  // Driver payments: the company email Razorpay requires, and method switches (UPI always on)
+  const [checkoutEmail, setCheckoutEmail] = useState('')
+  const [methods, setMethods] = useState(DEFAULT_METHODS)
+  const savedEmail = data?.driverPayments?.checkoutEmail ?? ''
 
   // Safely extract normalized configs with guaranteed properties
   const razorpayConfig = {
@@ -98,9 +117,27 @@ export const PaymentIntegrationPage: React.FC = () => {
       setStripeWebhookSecret(str.webhookSecret ?? '')
       setStripeEnvironment(str.environment ?? 'sandbox')
     }
+
+    setCheckoutEmail(data.driverPayments?.checkoutEmail ?? '')
+    setMethods(data.driverPayments?.methods ?? DEFAULT_METHODS)
   }, [data])
 
   const handleSave = () => {
+    const email = checkoutEmail.trim()
+    if (email && !EMAIL.test(email)) {
+      error('Save failed', 'Enter a valid payment email address, or leave it empty.')
+      return
+    }
+    const turningCardsOn = methods.card && !data?.driverPayments?.methods.card
+    if (
+      turningCardsOn &&
+      razorpayEnvironment === 'live' &&
+      !window.confirm(
+        'Turn on card payments in LIVE mode? Only do this after the PCI DSS assessment is complete.',
+      )
+    ) {
+      return
+    }
     save(
       {
         activeProvider,
@@ -120,6 +157,7 @@ export const PaymentIntegrationPage: React.FC = () => {
             webhookSecret: secretForUpdate(stripeWebhookSecret, stripeConfig.webhookSecret),
           },
         },
+        driverPayments: { checkoutEmail: email, methods },
         // Legacy flat fields for backward compatibility
         razorpayKeyId: secretForUpdate(razorpayKeyId, razorpayConfig.keyId),
         razorpayKeySecret: secretForUpdate(razorpayKeySecret, razorpayConfig.keySecret),
@@ -163,6 +201,11 @@ export const PaymentIntegrationPage: React.FC = () => {
               Webhook not configured
             </span>
           )}
+          {activeProvider === 'razorpay' && !savedEmail ? (
+            <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+              Driver payments blocked: payment email not set
+            </span>
+          ) : null}
         </div>
 
         <SettingFieldRow
@@ -233,6 +276,55 @@ export const PaymentIntegrationPage: React.FC = () => {
             configured={razorpayConfig.webhookConfigured}
             placeholder="Enter Razorpay Webhook Secret"
           />
+        </div>
+
+        {/* Driver payments: Driver App wallet recharge */}
+        <div className="pt-4 border-t border-border space-y-4">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Driver Payments</h3>
+
+          <SettingFieldRow
+            label="Payment email sent to Razorpay"
+            hint="Razorpay needs an email on every payment. Use a company mailbox: Razorpay sends payment receipts here. Drivers never see it; their phone number is sent as before."
+          >
+            <Input
+              type="email"
+              value={checkoutEmail}
+              onChange={(e) => setCheckoutEmail(e.target.value)}
+              placeholder="payments@yourcompany.com"
+              maxLength={254}
+            />
+            {!savedEmail ? (
+              <p className="mt-1 text-xs font-semibold text-red-600 dark:text-red-400">
+                Driver payments are blocked until an email is set.
+              </p>
+            ) : null}
+          </SettingFieldRow>
+
+          <SettingFieldRow
+            label="Payment methods shown to drivers"
+            hint="A method that is off is hidden in the Driver App the next time Add Money opens. Payments already made are never affected."
+          >
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input type="checkbox" checked disabled className="rounded border-border" />
+                UPI apps (always on)
+              </label>
+              {METHOD_LABELS.map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={methods[key]}
+                    onChange={(e) => setMethods((m) => ({ ...m, [key]: e.target.checked }))}
+                    className="rounded border-border"
+                  />
+                  {label}
+                </label>
+              ))}
+              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                Turn cards on in live mode only after the PCI DSS assessment is complete.
+              </p>
+            </div>
+          </SettingFieldRow>
         </div>
 
         {/* Stripe Configuration */}

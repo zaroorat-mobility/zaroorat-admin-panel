@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { loadGoogleMapsSdk, onGoogleMapsAuthError } from './google-maps-loader'
+import { useGoogleMapsKey } from '@/shared/hooks/useGoogleMapsKey'
 import { AlertTriangle, Loader2, Navigation } from 'lucide-react'
 
 export interface GeographicZoneItem {
@@ -26,7 +27,6 @@ export interface GoogleGeographicMapProps {
   }
   selectedZoneType?: string
   mapType?: 'roadmap' | 'satellite' | 'terrain' | 'hybrid'
-  apiKey?: string
   onZoneClick?: (zoneId: string) => void
   onMapClick?: (coords: { lat: number; lng: number }) => void
 }
@@ -59,10 +59,10 @@ export const GoogleGeographicMap: React.FC<GoogleGeographicMapProps> = memo(({
   visibleZoneTypes = { SERVICE: true, AIRPORT: true, RESTRICTED: true, SURGE: true },
   selectedZoneType = 'ALL',
   mapType = 'roadmap',
-  apiKey,
   onZoneClick,
   onMapClick,
 }) => {
+  const { apiKey, isResolving } = useGoogleMapsKey()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const cityPolyRef = useRef<google.maps.Polygon | null>(null)
@@ -85,6 +85,7 @@ export const GoogleGeographicMap: React.FC<GoogleGeographicMapProps> = memo(({
 
   // Initialize Map
   useEffect(() => {
+    if (isResolving) return
     let isCancelled = false
 
     const initMap = async () => {
@@ -135,7 +136,7 @@ export const GoogleGeographicMap: React.FC<GoogleGeographicMapProps> = memo(({
     return () => {
       isCancelled = true
     }
-  }, [apiKey])
+  }, [apiKey, isResolving])
 
   // Update map type
   useEffect(() => {

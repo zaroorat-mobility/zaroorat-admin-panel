@@ -1,6 +1,5 @@
 import React, { memo } from 'react'
 import { GoogleZoneViewer } from '@/shared/components/maps/google/GoogleZoneViewer'
-import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import type { LatLngPoint } from '../CreateCityModal/geoUtils'
 
 export interface ServiceZoneCityPreviewMapProps {
@@ -18,12 +17,6 @@ export const ServiceZoneCityPreviewMap: React.FC<ServiceZoneCityPreviewMapProps>
   height = '320px',
   zoom = 11,
 }) => {
-  const { data: mapConfig } = useMapClientConfig()
-  const googleKey =
-    mapConfig?.providers.google?.clientSdkKey ||
-    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
-    ''
-
   return (
     <div className="relative w-full rounded-xl overflow-hidden border border-border shadow-inner" style={{ height }}>
       <GoogleZoneViewer
@@ -32,7 +25,6 @@ export const ServiceZoneCityPreviewMap: React.FC<ServiceZoneCityPreviewMapProps>
         height={height}
         zoom={zoom}
         zoneName={cityName}
-        apiKey={googleKey}
       />
     </div>
   )

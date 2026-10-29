@@ -248,7 +248,6 @@ export const MapStudioPreview: React.FC<MapStudioPreviewProps> = ({ providerName
               },
             ]}
             height="100%"
-            apiKey={providerSdkKey}
           />
         )}
 

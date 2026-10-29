@@ -6,6 +6,7 @@ import {
   useSuspendDriver,
   useBlockDriver,
   useActivateDriver,
+  useTopUpDriverWallet,
   useAddDriverTimelineNote,
   useFlagVehicleForRenewal,
 } from '../../hooks'
@@ -28,7 +29,6 @@ import {
 import { getFileReadUrl } from '@/shared/services/file-upload.service'
 import { isFileId, resolveFileRef } from '@/shared/utils/file-ref'
 import { ConfirmationModal } from '@/shared/components/ConfirmationModal'
-import { DataTable } from '@/shared/components/DataTable'
 import { useToast } from '@/shared/context/toast'
 import { useAuthStore } from '@/store/auth.store'
 import { hasPermission } from '@/infrastructure/permissions'
@@ -102,17 +102,14 @@ type DriverTab =
   | 'ratings'
   | 'activity'
 
-// Unknown amounts render as "—", never as ₹0
-const money = (v?: number | null) => (v != null ? `₹${v.toLocaleString('en-IN')}` : '—')
-
 /// Commission or Subscription is the driver's own choice, made in the driver app after
 /// approval. Shown as chosen; never assumed, and never set from here.
 function paymentPlan(driver: Pick<DriverDetails, 'paymentModel' | 'subscription'>) {
+  if (driver.paymentModel === 'COMMISSION') return { name: 'Commission', detail: 'Commission per ride' }
   if (driver.subscription?.planName) {
     return { name: driver.subscription.planName, detail: `${driver.subscription.status} plan` }
   }
   if (driver.paymentModel === 'SUBSCRIPTION') return { name: 'Subscription', detail: 'No active plan yet' }
-  if (driver.paymentModel === 'COMMISSION') return { name: 'Commission', detail: 'Commission per ride' }
   return { name: 'Not chosen yet', detail: 'The driver picks it in the driver app' }
 }
 
@@ -155,8 +152,31 @@ export const DriverDetailsPage: React.FC = () => {
   const { mutate: suspendDriver, isPending: isSuspending } = useSuspendDriver()
   const { mutate: blockDriver, isPending: isBlocking } = useBlockDriver()
   const { mutate: activateDriver, isPending: isActivating } = useActivateDriver()
+  const { mutate: topUpDriverWalletMutation, isPending: isToppingUp } = useTopUpDriverWallet()
   const { mutate: addSupportNote, isPending: isAddingNote } = useAddDriverTimelineNote()
   const { mutate: flagVehicleRenewal, isPending: isFlaggingVehicle } = useFlagVehicleForRenewal()
+
+  const handleTopUpConfirm = () => {
+    if (!driver?.id) return
+    const amount = Number(topUpAmount)
+    if (isNaN(amount) || amount <= 0) {
+      showError('Invalid Amount', 'Please enter a valid top-up amount.')
+      return
+    }
+    topUpDriverWalletMutation(
+      { id: driver.id, amount },
+      {
+        onSuccess: () => {
+          showSuccess('Wallet Top Up', `Successfully credited ₹${amount} to driver wallet`)
+          setIsTopUpModalOpen(false)
+          void refetch()
+        },
+        onError: (err: unknown) => {
+          showError('Top up failed', err instanceof Error ? err.message : 'Request failed')
+        },
+      },
+    )
+  }
 
   const handleEditSave = async (updatedData: any) => {
     if (!driver?.id) return
@@ -207,101 +227,6 @@ export const DriverDetailsPage: React.FC = () => {
       showError('Preview unavailable', 'Could not load the document image.')
     }
   }
-
-  const ledgerColumns = [
-    {
-      key: 'id',
-      label: 'Transaction ID',
-      align: 'center' as const,
-      render: (tid: string) => (
-        <span className="font-mono text-xs font-bold text-[#1F2B6D] dark:text-[#8B93D9]">{tid}</span>
-      ),
-    },
-    {
-      key: 'date',
-      label: 'Date',
-      align: 'center' as const,
-      render: (date: string) => (
-        <span className="text-xs text-slate-600 dark:text-slate-400">
-          {new Date(date).toLocaleDateString('en-IN')}
-        </span>
-      ),
-    },
-    {
-      key: 'type',
-      label: 'Type',
-      align: 'center' as const,
-      render: (type: string) => (
-        <span
-          className={cn(
-            'px-2 py-0.5 rounded-full text-[10px] font-black border',
-            type === 'EARNING' &&
-            'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800',
-            type === 'COMMISSION_DUE' &&
-            'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-800',
-            type === 'PAYOUT' &&
-            'bg-[#1F2B6D]/10 border-[#1F2B6D]/20 text-[#1F2B6D] dark:bg-slate-800 dark:text-[#8B93D9]',
-            type === 'BONUS' &&
-            'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400',
-          )}
-        >
-          {type}
-        </span>
-      ),
-    },
-    {
-      key: 'rideId',
-      label: 'Description',
-      align: 'left' as const,
-      render: (rideId: string) => (
-        <span className="text-xs text-slate-700 dark:text-slate-300">
-          {rideId ? `Booking ref: ${rideId}` : 'Weekly settlement payout'}
-        </span>
-      ),
-    },
-    {
-      key: 'amount',
-      label: 'Amount',
-      align: 'right' as const,
-      render: (amount: number) => (
-        <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
-          ₹{(amount || 0).toFixed(2)}
-        </span>
-      ),
-    },
-    {
-      key: 'commission',
-      label: 'Commission Charged',
-      align: 'right' as const,
-      render: (_: any, row: any) => (
-        <span className="font-mono text-xs text-rose-500 font-semibold">
-          {row.type === 'EARNING' ? `₹${((row.amount || 0) * 0.07).toFixed(2)}` : '—'}
-        </span>
-      ),
-    },
-    {
-      key: 'driverEarning',
-      label: "Driver's Earning",
-      align: 'right' as const,
-      render: (_: any, row: any) => (
-        <span className="font-mono text-xs text-emerald-600 font-bold">
-          {row.type === 'EARNING'
-            ? `₹${((row.amount || 0) * 0.93).toFixed(2)}`
-            : `₹${(row.amount || 0).toFixed(2)}`}
-        </span>
-      ),
-    },
-    {
-      key: 'balanceAfter',
-      label: 'Balance After',
-      align: 'right' as const,
-      render: (balance: number) => (
-        <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
-          ₹{balance.toFixed(2)}
-        </span>
-      ),
-    },
-  ]
 
   if (isLoading) {
     return (
@@ -368,7 +293,15 @@ export const DriverDetailsPage: React.FC = () => {
   const driverCode = driver.driverCode || '—'
   const driverRating = driver.ratingAvg != null ? Number(driver.ratingAvg).toFixed(1) : '5.0'
   const driverRides = driver.totalTrips != null ? driver.totalTrips : 0
-  const driverWallet = driver.walletBalance != null ? driver.walletBalance : 0
+  const commissionWalletBalance =
+    driver.commissionWallet?.balance != null
+      ? Number(driver.commissionWallet.balance)
+      : driver.commissionWalletBalance != null
+        ? Number(driver.commissionWalletBalance)
+        : driver.walletBalance != null
+          ? Number(driver.walletBalance)
+          : 0
+  const driverWallet = commissionWalletBalance
   const driverVehicleType = driver.vehicle?.vehicleType || driver.vehicleType || '—'
   const driverMakeModel = driver.vehicle?.brand
     ? `${driver.vehicle.brand} ${driver.vehicle.model || ''}`.trim()
@@ -414,6 +347,461 @@ export const DriverDetailsPage: React.FC = () => {
   const driverBankStatus = (driver as any).bankAccounts?.[0]?.status || (driver as any).bankAccounts?.[0]?.verificationStatus || null
   const driverBankPayoutEnabled = Boolean((driver as any).bankAccounts?.[0]?.payoutEnabled)
 
+  const renderCommissionWalletSection = () => {
+    const commissionLedgerData =
+      driver.commissionLedger && driver.commissionLedger.length > 0
+        ? driver.commissionLedger
+        : driver.ledger || []
+
+    const lastTxnDate = driver.commissionWallet?.lastTransactionAt
+      ? new Date(driver.commissionWallet.lastTransactionAt).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        })
+      : commissionLedgerData[0]?.date
+        ? new Date(commissionLedgerData[0].date).toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })
+        : '—'
+
+    const isHealthy = commissionWalletBalance > 150
+
+    const modelFeatures = [
+      'Automatic per-ride commission deduction',
+      'Zero fixed monthly platform subscription fees',
+      'Instant in-app Razorpay wallet top-ups',
+      'Negative balance protection & ride holds',
+      'Full transparent transaction ledger history',
+      'Real-time trip commission breakdown',
+      'Admin top-up and manual credit adjustments',
+    ]
+
+    const walletTimelineNodes = commissionLedgerData.slice(0, 10).map((txn) => {
+      let icon = <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+      let nodeBg = 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600'
+      let title = 'Wallet Recharged'
+      let subtitle = `+₹${Math.abs(txn.amount).toFixed(2)} via Driver App`
+
+      if (txn.type === 'ADMIN_CREDIT') {
+        icon = <ShieldCheck className="w-3.5 h-3.5 text-white" />
+        nodeBg = 'bg-[#1F2B6D] text-white'
+        title = 'Admin Credit'
+        subtitle = `+₹${Math.abs(txn.amount).toFixed(2)} by Admin`
+      } else if (txn.type === 'RIDE_COMMISSION') {
+        icon = <Receipt className="w-3.5 h-3.5 text-blue-600" />
+        nodeBg = 'bg-blue-100 dark:bg-blue-900/40 text-blue-600'
+        title = 'Ride Commission Deducted'
+        subtitle = `-₹${Math.abs(txn.amount).toFixed(2)}${txn.rideId ? ` (Ride ${txn.rideId.slice(0, 8)})` : ''}`
+      } else if (txn.type === 'ADMIN_DEBIT') {
+        icon = <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
+        nodeBg = 'bg-amber-100 dark:bg-amber-900/40 text-amber-600'
+        title = 'Admin Adjustment'
+        subtitle = `-₹${Math.abs(txn.amount).toFixed(2)}`
+      } else if (txn.type === 'REFUND') {
+        icon = <RefreshCw className="w-3.5 h-3.5 text-indigo-600" />
+        nodeBg = 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600'
+        title = 'Refund Processed'
+        subtitle = `+₹${Math.abs(txn.amount).toFixed(2)}`
+      }
+
+      const date = txn.date
+        ? new Date(txn.date).toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '—'
+
+      return { icon, nodeBg, title, subtitle, date }
+    })
+
+    return (
+      <div className="space-y-5 text-left font-sans">
+        {/* Subscription Active Banner (When viewing preserved wallet for a subscription driver) */}
+        {driver.paymentModel === 'SUBSCRIPTION' && (
+          <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <Crown className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-emerald-950 dark:text-white">
+                    Driver is Currently on Subscription Model ({driver.subscription?.planName || 'Active Plan'})
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                    0% Ride Commission
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                  All rides are currently covered by the active subscription plan. This wallet balance (₹{commissionWalletBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) is preserved and will resume upon subscription completion.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('subscription')}
+              className="px-3.5 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-slate-800 text-xs font-bold text-emerald-800 dark:text-emerald-300 transition shrink-0 cursor-pointer shadow-2xs flex items-center gap-1.5"
+            >
+              <Crown className="w-3.5 h-3.5" />
+              <span>View Active Subscription</span>
+            </button>
+          </div>
+        )}
+
+        {/* ─── 1. TOP 3-COLUMN METRICS GRID ───────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          {/* 1. Current Commission Wallet Card (Col 5) */}
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-3 mb-0 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                    <Wallet className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] truncate">
+                    {driver.paymentModel === 'SUBSCRIPTION' ? 'Preserved Commission Wallet' : 'Current Commission Wallet'}
+                  </h3>
+                  <Badge variant={driver.paymentModel === 'SUBSCRIPTION' ? 'info' : (isHealthy ? 'success' : 'warning')} className="gap-1.5 font-sans ml-1">
+                    <span className={cn('w-1.5 h-1.5 rounded-full', driver.paymentModel === 'SUBSCRIPTION' ? 'bg-blue-500' : (isHealthy ? 'bg-emerald-500' : 'bg-amber-500'))} />
+                    {driver.paymentModel === 'SUBSCRIPTION' ? 'Preserved Wallet' : (isHealthy ? 'Active Wallet' : 'Low Balance')}
+                  </Badge>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsTopUpModalOpen(true)}
+                  className="px-3 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-slate-700 dark:text-slate-300 hover:border-[#1F2B6D] hover:text-[#1F2B6D] dark:hover:border-[#8B93D9] dark:hover:text-[#8B93D9] hover:bg-[#1F2B6D]/5 transition shadow-2xs cursor-pointer shrink-0 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Top Up
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3.5 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 my-3.5">
+                <div className="w-12 h-12 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center text-emerald-600 shrink-0 shadow-2xs">
+                  <Wallet className="w-6 h-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white tracking-tight truncate">
+                    {driver.paymentModel === 'SUBSCRIPTION' ? 'Preserved Commission Balance' : 'Prepaid Commission Wallet'}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium truncate">
+                    {driver.paymentModel === 'SUBSCRIPTION'
+                      ? 'Preserved balance (0% commission active under subscription)'
+                      : `Commission Model ${driver.vehicleType ? `(For ${driver.vehicleType.charAt(0).toUpperCase() + driver.vehicleType.slice(1)} Drivers)` : ''}`}
+                  </p>
+                  <p className="text-sm font-bold text-[#1F2B6D] dark:text-slate-200 mt-1">
+                    ₹ {commissionWalletBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                    <span className="text-xs font-normal text-slate-400">{driver.paymentModel === 'SUBSCRIPTION' ? '/ preserved balance' : '/ available balance'}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-left">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Last Recharge</span>
+                <span className="text-xs font-semibold text-[#1F2B6D] dark:text-slate-200 mt-1 block">{lastTxnDate}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Wallet Health</span>
+                <span className="text-xs font-semibold text-[#1F2B6D] dark:text-slate-200 mt-1 block">
+                  {isHealthy ? 'Healthy' : 'Low Balance'}
+                </span>
+                <span
+                  className={cn(
+                    'inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold border',
+                    isHealthy
+                      ? 'bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200/50'
+                      : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200/50',
+                  )}
+                >
+                  {isHealthy ? 'Good Standing' : 'Needs Top-up'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Billing Model</span>
+                <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 fill-emerald-500 text-white" />
+                  <span>Per-Ride Comm.</span>
+                </div>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Recharge Method</span>
+                <span className="text-xs font-semibold text-[#1F2B6D] dark:text-slate-200 mt-1 block">Driver App (UPI)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Model Features Card (Col 4) */}
+          <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-3 mb-0 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] truncate">
+                    Model Features
+                  </h3>
+                </div>
+              </div>
+              <div className="space-y-2.5 pt-3.5">
+                {modelFeatures.map((feat, idx) => (
+                  <div key={idx} className="flex items-center gap-2.5 text-xs font-medium text-slate-700 dark:text-slate-300">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </div>
+                    <span>{feat}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Quick Actions Card (Col 3) */}
+          <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-3 mb-0 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                    <Zap className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] truncate">
+                    Quick Actions
+                  </h3>
+                </div>
+              </div>
+              <div className="space-y-2.5 pt-3.5">
+                <button
+                  type="button"
+                  onClick={() => setIsTopUpModalOpen(true)}
+                  className="w-full bg-[#1F2B6D] hover:bg-[#162052] active:scale-[0.98] text-white py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 shadow-2xs transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Top Up Wallet</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => showSuccess('Wallet Statement Export', `Exporting statement for ${driver.driverName || 'driver'}`)}
+                  className="w-full bg-white dark:bg-slate-800 hover:bg-[#1F2B6D]/5 dark:hover:bg-slate-700/80 active:scale-[0.98] text-slate-700 dark:text-slate-200 hover:text-[#1F2B6D] dark:hover:text-[#8B93D9] border border-slate-200 dark:border-slate-700 hover:border-[#1F2B6D] py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 shadow-2xs transition cursor-pointer"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>View Full Statement</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => showSuccess('Reminder Sent', 'Low balance top-up notification sent to driver')}
+                  className="w-full bg-white dark:bg-slate-800 hover:bg-[#1F2B6D]/5 dark:hover:bg-slate-700/80 active:scale-[0.98] text-slate-700 dark:text-slate-200 hover:text-[#1F2B6D] dark:hover:text-[#8B93D9] border border-slate-200 dark:border-slate-700 hover:border-[#1F2B6D] py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 shadow-2xs transition cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Send Balance Reminder</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => showSuccess('Deductions Paused', 'Commission per-ride deductions placed on hold')}
+                  className="w-full bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 active:scale-[0.98] text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40 py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 transition cursor-pointer"
+                >
+                  <PauseCircle className="w-4 h-4" />
+                  <span>Pause Deductions</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => showSuccess('Ledger Reconciled', 'Wallet ledger verified with payment gateway')}
+                  className="w-full bg-rose-50 hover:bg-rose-100/70 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 active:scale-[0.98] text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 py-2 px-3.5 rounded-lg text-xs font-semibold flex items-center justify-start gap-2.5 transition cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4 stroke-[2.5]" />
+                  <span>Reconcile Ledger</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── 2. BOTTOM 2-COLUMN GRID: PAYMENT & ACTIVITY HISTORY ─ */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* 4. Commission Ledger Transactions Table (Col 8) */}
+          <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                  <Receipt className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] leading-tight">
+                    Commission Ledger Transactions
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">List of all wallet recharges, ride commission deductions, and payouts.</p>
+                </div>
+              </div>
+            </div>
+            <Table containerClassName="overflow-x-auto" className="w-full text-xs">
+              <TableHeader className="bg-slate-50/70 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800">
+                <TableRow>
+                  <TableHead className="py-2.5 px-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal w-10">#</TableHead>
+                  <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Date & Time</TableHead>
+                  <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Type</TableHead>
+                  <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Amount</TableHead>
+                  <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Balance After</TableHead>
+                  <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Payment Method</TableHead>
+                  <TableHead className="py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Transaction ID</TableHead>
+                  <TableHead className="py-2.5 px-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 normal-case tracking-normal">Invoice</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {commissionLedgerData.length > 0 ? (
+                  commissionLedgerData.map((row, idx) => {
+                    const isCredit =
+                      row.type === 'MANUAL_RECHARGE' ||
+                      row.type === 'ADMIN_CREDIT' ||
+                      row.type === 'BONUS' ||
+                      row.type === 'REFUND' ||
+                      row.type === 'EARNING'
+                    const label =
+                      row.type === 'MANUAL_RECHARGE'
+                        ? 'RECHARGE'
+                        : row.type === 'RIDE_COMMISSION'
+                          ? 'RIDE COMM.'
+                          : row.type === 'ADMIN_CREDIT'
+                            ? 'ADMIN CREDIT'
+                            : row.type === 'ADMIN_DEBIT'
+                              ? 'ADMIN DEBIT'
+                              : row.type
+                    const method =
+                      row.type === 'MANUAL_RECHARGE'
+                        ? 'Razorpay (UPI)'
+                        : row.type === 'ADMIN_CREDIT' || row.type === 'ADMIN_DEBIT'
+                          ? 'Admin Adjustment'
+                          : row.type === 'RIDE_COMMISSION'
+                            ? 'Ride Fare Deduction'
+                            : 'Wallet Transfer'
+                    const dateFormatted = row.date
+                      ? new Date(row.date).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '—'
+                    const txId = row.referenceId || row.id
+
+                    return (
+                      <TableRow key={row.id || idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                        <TableCell className="py-3 px-3 text-center text-slate-400 font-medium">{idx + 1}</TableCell>
+                        <TableCell className="py-3 px-3 text-slate-700 dark:text-slate-200 font-medium">{dateFormatted}</TableCell>
+                        <TableCell className="py-3 px-3">
+                          <span
+                            className={cn(
+                              'px-2 py-0.5 rounded-full text-[10px] font-black border',
+                              isCredit
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800'
+                                : 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-800',
+                            )}
+                          >
+                            {label}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 px-3">
+                          <span
+                            className={cn(
+                              'font-mono text-xs font-bold',
+                              isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500',
+                            )}
+                          >
+                            {isCredit ? '+' : '-'}₹{Math.abs(row.amount || 0).toFixed(2)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 px-3 font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          ₹{Number(row.balanceAfter || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="py-3 px-3 text-slate-600 dark:text-slate-300">{method}</TableCell>
+                        <TableCell className="py-3 px-3 font-mono text-xs text-slate-600 dark:text-slate-400">
+                          {txId ? (txId.length > 14 ? `${txId.slice(0, 12)}…` : txId) : '—'}
+                        </TableCell>
+                        <TableCell className="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => showSuccess(`Downloading receipt for ${txId}`)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-[#1F2B6D] dark:text-blue-300 hover:bg-[#1F2B6D]/5 dark:hover:bg-slate-800 transition cursor-pointer shadow-2xs"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>View</span>
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-8 text-center text-slate-400 text-xs">
+                      No commission transactions recorded yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* 5. Wallet Activity Timeline (Col 4) */}
+          <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs shrink-0">
+                  <History className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px] leading-tight">
+                    Wallet Activity History
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">History of recharges, deductions, and adjustments.</p>
+                </div>
+              </div>
+              <Badge variant="success">Active</Badge>
+            </div>
+            <div className="p-5">
+              <div className="relative space-y-5 before:absolute before:left-4 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+                {walletTimelineNodes.length > 0 ? (
+                  walletTimelineNodes.map((item, idx) => (
+                    <div key={idx} className="relative flex items-start gap-3.5">
+                      <div className={cn(
+                        'w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white dark:ring-slate-900 shadow-2xs',
+                        item.nodeBg
+                      )}>
+                        {item.icon}
+                      </div>
+                      <div className="text-left space-y-0.5 flex-1 min-w-0 pt-0.5">
+                        <p className="text-[13px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
+                          {item.title}
+                        </p>
+                        {item.subtitle && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                            {item.subtitle}
+                          </p>
+                        )}
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {item.date}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-slate-400 text-xs">
+                    No wallet activity recorded yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const isDriverOnline = Boolean(
     driver.isOnline ??
     (driver.driverStatus === 'online' ||
@@ -424,12 +812,48 @@ export const DriverDetailsPage: React.FC = () => {
   const isSuspendedOrBlocked =
     driver.driverStatus === 'suspended' || driver.driverStatus === 'blocked'
 
+  const hasCommissionData = Boolean(
+    driver.commissionWallet ||
+    (driver.commissionLedger && driver.commissionLedger.length > 0) ||
+    driver.paymentModel === 'COMMISSION'
+  )
+  const hasSubscriptionData = Boolean(
+    driver.subscription ||
+    (driver.subscriptionPayments && driver.subscriptionPayments.length > 0) ||
+    driver.paymentModel === 'SUBSCRIPTION'
+  )
+
+  const isCommissionDriver =
+    driver.paymentModel === 'COMMISSION' ||
+    (!driver.subscription?.planName && Boolean(driver.commissionWallet))
+  const isSubscriptionDriver =
+    driver.paymentModel === 'SUBSCRIPTION' || Boolean(driver.subscription?.planName)
+
   const tabs: Array<{ id: DriverTab; label: string; icon: any; count?: number }> = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'documents', label: 'Documents', icon: FileText, count: driver.documents?.length || 8 },
     { id: 'vehicle', label: 'Vehicle', icon: Car },
-    { id: 'subscription', label: 'Subscription', icon: Calendar },
-    { id: 'wallet', label: 'Commission Wallet', icon: Wallet },
+    ...(hasSubscriptionData
+      ? [
+          {
+            id: 'subscription' as const,
+            label: driver.paymentModel === 'SUBSCRIPTION' ? 'Subscription Plan' : 'Subscription Plan',
+            icon: Crown,
+          },
+        ]
+      : []),
+    ...(hasCommissionData
+      ? [
+          {
+            id: 'wallet' as const,
+            label: 'Commission Wallet',
+            icon: Wallet,
+          },
+        ]
+      : []),
+    ...(!hasSubscriptionData && !hasCommissionData
+      ? [{ id: 'subscription' as const, label: 'Payment Model', icon: CreditCard }]
+      : []),
     { id: 'rides', label: 'Rides & Performance', icon: TrendingUp },
     { id: 'ratings', label: 'Ratings & Reviews', icon: Star },
     { id: 'activity', label: 'Activity Logs', icon: Zap },
@@ -634,38 +1058,67 @@ export const DriverDetailsPage: React.FC = () => {
           onClick={() => setActiveTab('overview')}
         />
 
-        {/* 2. Subscription */}
+        {/* 2. Billing: Commission Wallet OR Subscription Plan */}
+        {isCommissionDriver ? (
+          <ReviewSummaryCard
+            icon={<Wallet className="w-5 h-5 text-white" />}
+            iconBgColor="bg-[#1F2B6D]"
+            title="Commission Wallet"
+            value={`₹ ${Number(driverWallet).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            subtitle="Prepaid commission balance"
+            valueColor="text-[#1F2B6D] dark:text-white"
+            badge={
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsTopUpModalOpen(true)
+                }}
+                className="px-2.5 py-1 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer shadow-sm"
+              >
+                <Plus className="w-3 h-3" /> Top Up
+              </button>
+            }
+            onClick={() => setActiveTab('wallet')}
+          />
+        ) : isSubscriptionDriver ? (
+          <ReviewSummaryCard
+            icon={<Crown className="w-5 h-5 text-white" />}
+            iconBgColor="bg-[#1F2B6D]"
+            title="Subscription Plan"
+            value={driver.subscription?.planName || 'Active Plan'}
+            subtitle={
+              commissionWalletBalance > 0
+                ? `${driver.subscription?.remainingDays ?? 0}d left · ₹${commissionWalletBalance.toFixed(0)} preserved`
+                : `${driver.subscription?.remainingDays ?? 0} days remaining`
+            }
+            valueColor="text-[#1F2B6D] dark:text-white"
+            badge={<ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+            onClick={() => setActiveTab('subscription')}
+          />
+        ) : (
+          <ReviewSummaryCard
+            icon={<CreditCard className="w-5 h-5 text-white" />}
+            iconBgColor="bg-[#1F2B6D]"
+            title="Payment Model"
+            value="Not Chosen Yet"
+            subtitle="Driver picks in mobile app"
+            valueColor="text-[#1F2B6D] dark:text-white"
+            badge={<ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+            onClick={() => setActiveTab('subscription')}
+          />
+        )}
+
+        {/* 3. Payout Earnings */}
         <ReviewSummaryCard
           icon={<CreditCard className="w-5 h-5 text-white" />}
           iconBgColor="bg-[#1F2B6D]"
-          title="Payment Model"
-          value={paymentPlan(driver).name}
-          subtitle={paymentPlan(driver).detail}
+          title="Payout Earnings"
+          value={`₹ ${Number(driver.earningsBalance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          subtitle="Net fare payable to driver"
           valueColor="text-[#1F2B6D] dark:text-white"
           badge={<ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
-          onClick={() => setActiveTab('subscription')}
-        />
-
-        {/* 3. Commission Wallet */}
-        <ReviewSummaryCard
-          icon={<Wallet className="w-5 h-5 text-white" />}
-          iconBgColor="bg-[#1F2B6D]"
-          title="Commission Wallet"
-          value={`₹ ${Number(driverWallet).toLocaleString('en-IN')}.00`}
-          valueColor="text-[#1F2B6D] dark:text-white"
-          badge={
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setIsTopUpModalOpen(true)
-              }}
-              className="px-2.5 py-1 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer shadow-sm"
-            >
-              <Plus className="w-3 h-3" /> Top Up
-            </button>
-          }
-          onClick={() => setActiveTab('wallet')}
+          onClick={() => setActiveTab(isCommissionDriver ? 'wallet' : 'rides')}
         />
 
         {/* 4. Total Rides */}
@@ -937,7 +1390,7 @@ export const DriverDetailsPage: React.FC = () => {
                     <div>
                       <p className="text-[11px] text-slate-500 font-medium">Current Balance</p>
                       <p className="text-xl font-extrabold text-[#1F2B6D] dark:text-white">
-                        ₹ {Number(driverWallet).toLocaleString('en-IN')}.00
+                        ₹ {Number(driverWallet).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                   </div>
@@ -1674,21 +2127,65 @@ export const DriverDetailsPage: React.FC = () => {
             )
           }
 
+          if (isCommissionDriver && !driver.subscription) {
+            return (
+              <div className="space-y-4 text-left">
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Payment Model</span>
+                    <h4 className="text-base font-bold text-[#1F2B6D] dark:text-white">
+                      Commission Model (Active)
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      This driver is currently operating under the Commission per-ride model. No active subscription plan is in effect.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('wallet')}
+                    className="px-4 py-2 bg-[#1F2B6D] hover:bg-[#182258] text-white rounded-lg text-xs font-semibold cursor-pointer shadow-sm transition shrink-0"
+                  >
+                    View Commission Wallet
+                  </button>
+                </div>
+              </div>
+            )
+          }
+
+          if (!driver.subscription) {
+            return (
+              <div className="space-y-4 text-left">
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Subscription Status</span>
+                    <h4 className="text-base font-bold text-[#1F2B6D] dark:text-white">
+                      No Active Subscription Plan
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      This driver has selected the Subscription model in the driver app, but has not purchased an active plan yet.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          const sub = driver.subscription
           const subscriptionData = {
-            planName: (driver as any).subscription?.planName || 'Auto Monthly Plan',
-            subtitle: driver.paymentModel === 'COMMISSION'
-              ? 'Commission Model Plan'
-              : (driver.vehicleType ? `For ${driver.vehicleType.charAt(0).toUpperCase() + driver.vehicleType.slice(1)} Drivers` : 'For Auto Drivers'),
-            price: (driver as any).subscription?.amount != null ? Number((driver as any).subscription.amount).toFixed(2) : '499.00',
-            status: (driver as any).subscription?.status || 'Active',
-            startDate: (driver as any).subscription?.startDate
-              ? new Date((driver as any).subscription.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-              : '3 Oct 2026',
-            endDate: (driver as any).subscription?.endDate
-              ? new Date((driver as any).subscription.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-              : '3 Nov 2026',
-            remainingDays: 28,
-            autoRenew: (driver as any).subscription?.autoRenew !== false,
+            planName: sub.planName || 'Subscription Plan',
+            subtitle: driver.vehicleType
+              ? `For ${driver.vehicleType.charAt(0).toUpperCase() + driver.vehicleType.slice(1)} Drivers`
+              : 'Driver Plan',
+            price: sub.amount != null ? Number(sub.amount).toFixed(2) : '—',
+            status: sub.status || 'Active',
+            startDate: sub.startDate
+              ? new Date(sub.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              : '—',
+            endDate: sub.endDate
+              ? new Date(sub.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              : '—',
+            remainingDays: sub.remainingDays != null ? sub.remainingDays : 0,
+            autoRenew: sub.autoRenew !== false,
             paymentMethod: 'Razorpay (UPI/Card)',
           }
 
@@ -1702,53 +2199,67 @@ export const DriverDetailsPage: React.FC = () => {
             'Access to promotions and incentives',
           ]
 
-          const paymentHistoryRows = (driver as any).subscriptionPayments || [
-            { id: 1, date: '3 Oct 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (UPI)', txId: 'pay_MUSFDU7F1' },
-            { id: 2, date: '3 Sep 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (Card)', txId: 'pay_MUSFDU7F2' },
-            { id: 3, date: '3 Aug 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (UPI)', txId: 'pay_MUSFDU7F3' },
-            { id: 4, date: '3 Jul 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (UPI)', txId: 'pay_MUSFDU7F4' },
-            { id: 5, date: '3 Jun 2026', plan: subscriptionData.planName, amount: `₹ ${subscriptionData.price}`, status: 'Success', method: 'Razorpay (Card)', txId: 'pay_MUSFDU7F5' },
-          ]
+          const paymentHistoryRows = driver.subscriptionPayments || []
 
-          const subscriptionTimelineNodes = [
-            {
-              icon: <Calendar className="w-3.5 h-3.5 text-blue-600" />,
-              nodeBg: 'bg-blue-100 dark:bg-blue-900/40 text-blue-600',
-              title: 'Subscription Activated',
-              subtitle: subscriptionData.planName,
-              date: '3 Oct 2026, 10:12 AM',
-            },
-            {
-              icon: <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 stroke-[3]" />,
-              nodeBg: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
-              title: 'Payment Successful',
-              subtitle: `₹${subscriptionData.price} via Razorpay (UPI)`,
-              date: '3 Oct 2026, 10:11 AM',
-            },
-            {
-              icon: <ShieldCheck className="w-3.5 h-3.5 text-white" />,
-              nodeBg: 'bg-[#1F2B6D] text-white',
-              title: 'Auto Renewal Enabled',
-              date: '3 Oct 2026, 10:11 AM',
-            },
-            {
-              icon: <RefreshCw className="w-3.5 h-3.5 text-blue-600" />,
-              nodeBg: 'bg-blue-100 dark:bg-blue-900/40 text-blue-600',
-              title: 'Plan Changed',
-              subtitle: `Basic Plan ➔ ${subscriptionData.planName}`,
-              date: '1 Sep 2026, 09:20 AM',
-            },
-            {
-              icon: <Calendar className="w-3.5 h-3.5 text-blue-600" />,
-              nodeBg: 'bg-blue-100 dark:bg-blue-900/40 text-blue-600',
-              title: 'Subscription Activated',
-              subtitle: 'Basic Plan',
-              date: '1 Jun 2026, 09:20 AM',
-            },
-          ]
+          const subscriptionTimelineNodes =
+            driver.subscriptionTimeline && driver.subscriptionTimeline.length > 0
+              ? driver.subscriptionTimeline.map((item) => ({
+                  icon:
+                    item.iconType === 'check' ? (
+                      <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+                    ) : item.iconType === 'shield' ? (
+                      <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                    ) : item.iconType === 'refresh' ? (
+                      <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                    ) : (
+                      <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                    ),
+                  nodeBg:
+                    item.iconType === 'shield'
+                      ? 'bg-[#1F2B6D] text-white'
+                      : item.iconType === 'check'
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                        : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600',
+                  title: item.title,
+                  subtitle: item.subtitle,
+                  date: item.date,
+                }))
+              : []
 
           return (
             <div className="space-y-5 text-left font-sans">
+              {/* Preserved Commission Wallet Banner (For drivers who switched from Commission to Subscription) */}
+              {hasCommissionData && commissionWalletBalance > 0 && (
+                <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                      <Wallet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-[#1F2B6D] dark:text-white">
+                          Preserved Commission Wallet Balance: ₹{commissionWalletBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          Preserved from Commission Period
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Driver previously operated under the Commission Model. This prepaid balance is safely preserved and will become active again if the driver reverts to the Commission Model.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('wallet')}
+                    className="px-3.5 py-1.5 rounded-lg border border-blue-300 dark:border-blue-800 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-slate-800 text-xs font-bold text-[#1F2B6D] dark:text-blue-300 transition shrink-0 cursor-pointer shadow-2xs flex items-center gap-1.5"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>View Commission History</span>
+                  </button>
+                </div>
+              )}
+
               {/* ─── 1. TOP 3-COLUMN METRICS GRID ───────────────────────────── */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
                 {/* 1. Current Subscription Card (Col 5) */}
@@ -1936,32 +2447,40 @@ export const DriverDetailsPage: React.FC = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paymentHistoryRows.map((row) => (
-                        <TableRow key={row.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                          <TableCell className="py-3 px-3 text-center text-slate-400 font-medium">{row.id}</TableCell>
-                          <TableCell className="py-3 px-3 text-slate-700 dark:text-slate-200 font-medium">{row.date}</TableCell>
-                          <TableCell className="py-3 px-3 text-slate-800 dark:text-slate-100 font-semibold">{row.plan}</TableCell>
-                          <TableCell className="py-3 px-3 text-[#1F2B6D] dark:text-white font-bold">{row.amount}</TableCell>
-                          <TableCell className="py-3 px-3">
-                            <Badge variant="success" className="gap-1 font-sans">
-                              <Check className="w-2.5 h-2.5 stroke-[3]" />
-                              {row.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="py-3 px-3 text-slate-600 dark:text-slate-300">{row.method}</TableCell>
-                          <TableCell className="py-3 px-3 font-mono text-xs text-slate-600 dark:text-slate-400">{row.txId}</TableCell>
-                          <TableCell className="py-3 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => showSuccess(`Downloading invoice for ${row.txId}`)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-[#1F2B6D] dark:text-blue-300 hover:bg-[#1F2B6D]/5 dark:hover:bg-slate-800 transition cursor-pointer shadow-2xs"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>View</span>
-                            </button>
+                      {paymentHistoryRows.length > 0 ? (
+                        paymentHistoryRows.map((row, idx) => (
+                          <TableRow key={row.id || idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                            <TableCell className="py-3 px-3 text-center text-slate-400 font-medium">{idx + 1}</TableCell>
+                            <TableCell className="py-3 px-3 text-slate-700 dark:text-slate-200 font-medium">{row.date}</TableCell>
+                            <TableCell className="py-3 px-3 text-slate-800 dark:text-slate-100 font-semibold">{row.plan}</TableCell>
+                            <TableCell className="py-3 px-3 text-[#1F2B6D] dark:text-white font-bold">{row.amount}</TableCell>
+                            <TableCell className="py-3 px-3">
+                              <Badge variant="success" className="gap-1 font-sans">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                {row.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-3 px-3 text-slate-600 dark:text-slate-300">{row.method}</TableCell>
+                            <TableCell className="py-3 px-3 font-mono text-xs text-slate-600 dark:text-slate-400">{row.txId}</TableCell>
+                            <TableCell className="py-3 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => showSuccess(`Downloading invoice for ${row.txId}`)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded-md font-semibold text-[#1F2B6D] dark:text-blue-300 hover:bg-[#1F2B6D]/5 dark:hover:bg-slate-800 transition cursor-pointer shadow-2xs"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>View</span>
+                              </button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={8} className="py-8 text-center text-slate-400 text-xs">
+                            No subscription payments recorded yet.
                           </TableCell>
                         </TableRow>
-                      ))}
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -1984,29 +2503,35 @@ export const DriverDetailsPage: React.FC = () => {
                   </div>
                   <div className="p-5">
                     <div className="relative space-y-5 before:absolute before:left-4 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
-                      {subscriptionTimelineNodes.map((item, idx) => (
-                        <div key={idx} className="relative flex items-start gap-3.5">
-                          <div className={cn(
-                            "w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white dark:ring-slate-900 shadow-2xs",
-                            item.nodeBg
-                          )}>
-                            {item.icon}
-                          </div>
-                          <div className="text-left space-y-0.5 flex-1 min-w-0 pt-0.5">
-                            <p className="text-[13px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                              {item.title}
-                            </p>
-                            {item.subtitle && (
-                              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                {item.subtitle}
+                      {subscriptionTimelineNodes.length > 0 ? (
+                        subscriptionTimelineNodes.map((item, idx) => (
+                          <div key={idx} className="relative flex items-start gap-3.5">
+                            <div className={cn(
+                              "w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white dark:ring-slate-900 shadow-2xs",
+                              item.nodeBg
+                            )}>
+                              {item.icon}
+                            </div>
+                            <div className="text-left space-y-0.5 flex-1 min-w-0 pt-0.5">
+                              <p className="text-[13px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
+                                {item.title}
                               </p>
-                            )}
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              {item.date}
-                            </p>
+                              {item.subtitle && (
+                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                  {item.subtitle}
+                                </p>
+                              )}
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                {item.date}
+                              </p>
+                            </div>
                           </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-6 text-slate-400 text-xs">
+                          No subscription events recorded yet.
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2016,41 +2541,7 @@ export const DriverDetailsPage: React.FC = () => {
         })()}
 
         {/* ─── 5. COMMISSION WALLET TAB ─────────────────────────────────────── */}
-        {activeTab === 'wallet' && (
-          <div className="space-y-5 text-left">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-              {[
-                { label: 'Today Earnings', val: money(driver.earningsToday), desc: 'Net fare generated today' },
-                { label: 'Week Earnings', val: money(driver.earningsWeek), desc: 'Ongoing cycle earnings' },
-                { label: 'Wallet Balance', val: money(driver.walletBalance || 1250), desc: 'Net payout credit due' },
-                { label: 'Outstanding Dues', val: money(driver.outstandingDues || 0), desc: 'Uncollected commission fees' },
-              ].map((kpi, idx) => (
-                <div key={idx} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{kpi.label}</span>
-                  <p className="text-xl font-extrabold text-[#1F2B6D] dark:text-white my-1">{kpi.val}</p>
-                  <p className="text-[10px] text-slate-400">{kpi.desc}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Ledger Transactions table */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-[14px] font-bold text-[#1F2B6D] dark:text-white leading-tight">
-                  Payout & Dues Ledger Transactions
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">History logs of commission postings, subscription bills, and payout settlements</p>
-              </div>
-              <div className="p-1">
-                <DataTable
-                  columns={ledgerColumns}
-                  data={driver.ledger || []}
-                  selectable={false}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'wallet' && renderCommissionWalletSection()}
 
         {/* ─── 6. RIDES & PERFORMANCE TAB ──────────────────────────────────── */}
         {activeTab === 'rides' && <DriverRidesPerformanceTab driver={driver} />}
@@ -2184,10 +2675,8 @@ export const DriverDetailsPage: React.FC = () => {
       <ConfirmationModal
         isOpen={isTopUpModalOpen}
         onCancel={() => setIsTopUpModalOpen(false)}
-        onConfirm={() => {
-          showSuccess('Wallet Top Up', `Successfully credited ₹${topUpAmount} to driver wallet`)
-          setIsTopUpModalOpen(false)
-        }}
+        onConfirm={handleTopUpConfirm}
+        loading={isToppingUp}
         title="Top Up Driver Wallet"
         description={
           <div className="space-y-4 w-full text-left">

@@ -27,7 +27,6 @@ import {
   CardTableButton,
 } from '@/shared/components/ui/CardTable'
 import { GoogleGeographicMap } from '@/shared/components/maps/google/GoogleGeographicMap'
-import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 
 // Default world center fallback
 const DEFAULT_CENTER: [number, number] = [20.5937, 78.9629] // India center
@@ -65,12 +64,6 @@ export const GeographicDashboardPage: React.FC = () => {
   const [showServiceZones, setShowServiceZones] = useState(true)
   const [showAirportZones, setShowAirportZones] = useState(true)
   const [showRestrictedZones, setShowRestrictedZones] = useState(true)
-
-  const { data: mapConfig } = useMapClientConfig()
-  const googleKey =
-    mapConfig?.providers.google?.clientSdkKey ||
-    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
-    ''
 
   // Auto-select first city when data loads
   React.useEffect(() => {
@@ -543,7 +536,6 @@ export const GeographicDashboardPage: React.FC = () => {
                 }}
                 selectedZoneType={selectedZoneType}
                 mapType={mapBaseType === 'street' ? 'roadmap' : mapBaseType === 'satellite' ? 'satellite' : 'terrain'}
-                apiKey={googleKey}
                 onZoneClick={(zoneId) => navigate(`/geographic-management/service-zones/${zoneId}`)}
               />
             </div>

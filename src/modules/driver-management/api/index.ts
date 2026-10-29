@@ -52,6 +52,18 @@ export const activateDriver = async (id: string, notes?: string): Promise<Driver
   return response.data.data
 }
 
+export const topUpDriverWallet = async (
+  id: string,
+  amount: number,
+  notes?: string,
+): Promise<DriverDetails> => {
+  const response = await api.post<{ data: DriverDetails }>(API_ENDPOINTS.drivers.topUpWallet(id), {
+    amount,
+    ...(notes ? { notes } : {}),
+  })
+  return response.data.data
+}
+
 export const getApplications = async (
   params?: QueryParams,
 ): Promise<PaginatedResponse<DriverApplicationEntity>> => {

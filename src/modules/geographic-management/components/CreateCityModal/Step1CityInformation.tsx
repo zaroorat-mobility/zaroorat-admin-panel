@@ -14,10 +14,15 @@ import {
 import * as Flags from 'country-flag-icons/react/3x2'
 import { CityPreviewMap } from './CityPreviewMap'
 import {
-  searchLiveCities,
+  CITY_PLACE_TYPES,
+  cityFromPlaceDetails,
+  cityListItemFromSuggestion,
   getInitialCitiesForState,
+  isInState,
+  type CityListItem,
   type LiveCityItem,
 } from '../../services/geocodingService'
+import { usePlaceAutocomplete } from '@/shared/hooks/usePlaceAutocomplete'
 import type { LatLngPoint } from './geoUtils'
 import type { State } from '../../types'
 
@@ -65,85 +70,51 @@ export const Step1CityInformation: React.FC<Step1CityInformationProps> = ({
 }) => {
   const [citySearch, setCitySearch] = useState('')
   const [baseCities, setBaseCities] = useState<LiveCityItem[]>([])
-  const [remoteCities, setRemoteCities] = useState<LiveCityItem[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [resolvingPlaceId, setResolvingPlaceId] = useState<string | null>(null)
+  const [pickError, setPickError] = useState<string | null>(null)
   const isInitialMount = useRef(true)
 
   const selectedStateObj = useMemo(
     () => statesList.find((s) => s.id === stateId),
     [statesList, stateId],
   )
+  const stateName = selectedStateObj?.name
 
-  // 1. Initial load of cities whenever the selected state changes
+  // 1. The state's official districts whenever the selected state changes
   useEffect(() => {
-    let isCancelled = false
     if (!selectedStateCode) return
-
-    const loadStateCities = async () => {
-      setIsLoading(true)
-      try {
-        const results = await getInitialCitiesForState(selectedStateCode, selectedStateObj?.name)
-        if (!isCancelled && results.length > 0) {
-          setBaseCities(results)
-          setRemoteCities([])
-          // Auto-select the first city on initial mount if not already populated
-          if (isInitialMount.current && !cityName) {
-            onSelectOfficialCity(results[0])
-            setCityName(results[0].name)
-            setCityCode(results[0].code)
-          }
-        }
-      } catch {
-        // Handled
-      } finally {
-        if (!isCancelled) setIsLoading(false)
-        isInitialMount.current = false
-      }
+    const results = getInitialCitiesForState(selectedStateCode, stateName)
+    setBaseCities(results)
+    // Auto-select the first city on initial mount if not already populated
+    if (isInitialMount.current && !cityName && results.length > 0) {
+      onSelectOfficialCity(results[0])
+      setCityName(results[0].name)
+      setCityCode(results[0].code)
     }
+    isInitialMount.current = false
+  }, [selectedStateCode, stateName])
 
-    loadStateCities()
-    return () => {
-      isCancelled = true
-    }
-  }, [selectedStateCode, selectedStateObj?.name])
-
-  // 2. Debounced search for live OpenStreetMap results when query is typed
-  useEffect(() => {
+  // 2. Google city search as the admin types, narrowed to the selected state
+  const googleQuery = useMemo(() => {
     const trimmed = citySearch.trim()
-    if (trimmed.length < 2) {
-      setRemoteCities([])
-      return
-    }
+    if (trimmed.length < 2) return ''
+    if (!stateName || trimmed.toLowerCase().includes(stateName.toLowerCase())) return trimmed
+    return `${trimmed}, ${stateName}`
+  }, [citySearch, stateName])
+  const {
+    suggestions,
+    isSearching,
+    error: searchError,
+    resolve,
+  } = usePlaceAutocomplete(googleQuery, { includedPrimaryTypes: CITY_PLACE_TYPES })
+  const remoteCities = useMemo(
+    () => suggestions.map(cityListItemFromSuggestion).filter((c) => isInState(c.stateName, stateName)),
+    [suggestions, stateName],
+  )
+  const isLoading = isSearching || resolvingPlaceId !== null
 
-    const abortController = new AbortController()
-    const timer = setTimeout(async () => {
-      setIsLoading(true)
-      try {
-        const results = await searchLiveCities(
-          trimmed,
-          selectedStateObj?.name,
-          abortController.signal,
-        )
-        if (!abortController.signal.aborted) {
-          setRemoteCities(results)
-        }
-      } catch {
-        // Ignored if cancelled
-      } finally {
-        if (!abortController.signal.aborted) {
-          setIsLoading(false)
-        }
-      }
-    }, 250)
-
-    return () => {
-      clearTimeout(timer)
-      abortController.abort()
-    }
-  }, [citySearch, selectedStateObj?.name])
-
-  // 3. Compute displayed cities: Instant local filter + deduplicated live remote matches
-  const displayedCities = useMemo(() => {
+  // 3. Compute displayed cities: Instant local filter + deduplicated Google matches
+  const displayedCities = useMemo<CityListItem[]>(() => {
     const trimmed = citySearch.trim().toLowerCase()
     if (!trimmed) {
       return baseCities
@@ -157,42 +128,54 @@ export const Step1CityInformation: React.FC<Step1CityInformationProps> = ({
         c.district.toLowerCase().includes(trimmed),
     )
 
-    // Append remote OpenStreetMap matches without duplicating items
+    // Append Google matches without duplicating items
     const seenNames = new Set(localMatches.map((m) => m.name.toLowerCase()))
     const additionalRemote = remoteCities.filter((r) => !seenNames.has(r.name.toLowerCase()))
 
     return [...localMatches, ...additionalRemote]
   }, [baseCities, remoteCities, citySearch])
 
-  const handleStateChange = async (newStateId: string) => {
+  const handleStateChange = (newStateId: string) => {
     setStateId(newStateId)
     setCitySearch('')
+    setPickError(null)
     const st = statesList.find((s) => s.id === newStateId)
     if (st) {
       setSelectedStateCode(st.code)
-      setIsLoading(true)
-      try {
-        const results = await getInitialCitiesForState(st.code, st.name)
-        setBaseCities(results)
-        setRemoteCities([])
-        if (results.length > 0) {
-          handleCitySelect(results[0])
-        } else {
-          setCityName(st.name)
-          setCityCode(st.code)
-        }
-      } catch {
-        // Handled
-      } finally {
-        setIsLoading(false)
+      const results = getInitialCitiesForState(st.code, st.name)
+      setBaseCities(results)
+      if (results.length > 0) {
+        applyCity(results[0])
+      } else {
+        setCityName(st.name)
+        setCityCode(st.code)
       }
     }
   }
 
-  const handleCitySelect = (item: LiveCityItem) => {
+  const applyCity = (item: LiveCityItem) => {
     onSelectOfficialCity(item)
     setCityName(item.name)
     setCityCode(item.code)
+  }
+
+  // Official rows carry their centre; a Google row gets it from the place details on pick.
+  const handleCitySelect = async (item: CityListItem) => {
+    setPickError(null)
+    if (item.center) {
+      applyCity({ ...item, center: item.center })
+      return
+    }
+    const suggestion = suggestions.find((s) => s.placeId === item.placeId)
+    if (!suggestion) return
+    setResolvingPlaceId(suggestion.placeId)
+    try {
+      applyCity(cityFromPlaceDetails(await resolve(suggestion), stateName))
+    } catch (err) {
+      setPickError(err instanceof Error ? err.message : 'Could not load this city from Google.')
+    } finally {
+      setResolvingPlaceId(null)
+    }
   }
 
   const handleOpenGoogleMaps = () => {
@@ -303,7 +286,9 @@ export const Step1CityInformation: React.FC<Step1CityInformationProps> = ({
                   </div>
                 ) : displayedCities.length === 0 ? (
                   <div className="h-full flex items-center justify-center px-3 text-xs text-slate-400 text-center">
-                    No cities found matching &quot;{citySearch}&quot;
+                    {citySearch.trim()
+                      ? `No cities found matching "${citySearch}"`
+                      : 'Type a city name to search Google Maps'}
                   </div>
                 ) : (
                   displayedCities.map((item) => {
@@ -312,9 +297,10 @@ export const Step1CityInformation: React.FC<Step1CityInformationProps> = ({
                       item.name.toLowerCase() === cityName.trim().toLowerCase()
                     return (
                       <button
-                        key={`${item.stateCode}-${item.name}-${item.code}`}
+                        key={item.placeId ?? `${item.stateCode}-${item.name}-${item.code}`}
                         type="button"
-                        onClick={() => handleCitySelect(item)}
+                        disabled={resolvingPlaceId !== null}
+                        onClick={() => void handleCitySelect(item)}
                         className={`w-full text-left flex items-center justify-between px-3 py-1.5 transition-colors cursor-pointer ${
                           isSel
                             ? 'bg-[#EEF4FF] border-l-[3px] border-l-[#1F2B6D]'
@@ -332,7 +318,9 @@ export const Step1CityInformation: React.FC<Step1CityInformationProps> = ({
                               {item.name}
                             </p>
                             <p className="text-[10px] text-slate-500 leading-tight truncate">
-                              {item.district}, {item.stateName || selectedStateObj?.name || item.stateCode}
+                              {[item.district, item.stateName || selectedStateObj?.name || item.stateCode]
+                                .filter(Boolean)
+                                .join(', ')}
                             </p>
                           </div>
                         </div>
@@ -344,6 +332,11 @@ export const Step1CityInformation: React.FC<Step1CityInformationProps> = ({
                   })
                 )}
               </div>
+              {(pickError || searchError) && (
+                <p role="alert" className="mt-1 text-[10px] leading-tight text-amber-700">
+                  {pickError || searchError}
+                </p>
+              )}
             </div>
           </div>
         </div>

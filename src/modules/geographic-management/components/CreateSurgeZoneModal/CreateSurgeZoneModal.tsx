@@ -23,7 +23,6 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import { GoogleZoneDrawingMap } from '@/shared/components/maps/google/GoogleZoneDrawingMap'
-import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   calculatePolygonAreaKm2,
@@ -67,11 +66,6 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   zoneId,
   isStandalonePage = false,
 }) => {
-  const { data: mapConfig } = useMapClientConfig()
-  const googleKey =
-    mapConfig?.providers.google?.clientSdkKey ||
-    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
-    ''
   const isEdit = Boolean(zoneId)
   const qc = useQueryClient()
   const { success: showToastSuccess } = useToast()
@@ -735,7 +729,6 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
                   zoneType="SURGE"
                   height="100%"
                   mapType={baseLayer === 'satellite' ? 'satellite' : baseLayer === 'terrain' ? 'terrain' : 'roadmap'}
-                  apiKey={googleKey}
                   toolMode={toolMode === 'circle' ? 'draw' : toolMode}
                   overlayZones={[
                     ...(showAirportZones ? airportZones.map((z) => ({ id: z.id, name: z.name, zoneType: 'AIRPORT', boundary: z.boundary })) : []),

@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { GoogleZoneDrawingMap } from '@/shared/components/maps/google/GoogleZoneDrawingMap'
-import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import {
   PenTool,
   Edit2,
@@ -30,6 +29,8 @@ import {
   isPointInsidePolygon,
   type LatLngPoint,
 } from '../CreateCityModal/geoUtils'
+import { placeKind, type PlaceKind } from '../../services/geocodingService'
+import { usePlaceAutocomplete, type PlaceSuggestion } from '@/shared/hooks/usePlaceAutocomplete'
 import type { ServiceZoneDetail, ServiceZoneType } from '../../types'
 
 export interface AirportLocation {
@@ -141,6 +142,19 @@ export const QUICK_CATEGORIES: QuickCategory[] = [
   { label: 'City Center', category: 'center', icon: '🏛', searchTerm: 'city center' },
 ]
 
+/** Place search ranks results within this distance of the city centre first. */
+const CITY_SEARCH_RADIUS_M = 30_000
+
+interface ZoneSearchResult {
+  id: string
+  name: string
+  address: string
+  type: PlaceKind
+  /** Known for the registered airport; a Google place gets it from its details when picked. */
+  location?: { lat: number; lng: number }
+  suggestion?: PlaceSuggestion
+}
+
 export interface FlyToTarget {
   lat: number
   lng: number
@@ -175,11 +189,6 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
   existingZones = [],
   onValidationChange,
 }) => {
-  const { data: mapConfig } = useMapClientConfig()
-  const googleKey =
-    mapConfig?.providers.google?.clientSdkKey ||
-    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
-    ''
   const [toolMode, setToolMode] = useState<'draw' | 'edit'>('draw')
   const [baseLayer, setBaseLayer] = useState<BaseLayerType>('satellite')
   const [fitTrigger, setFitTrigger] = useState<number>(0)
@@ -187,18 +196,17 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
 
   // Location search and flyTo state
   const [searchQuery, setSearchQuery] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
-  const [searchResults, setSearchResults] = useState<
-    Array<{
-      id: string
-      name: string
-      address: string
-      lat: number
-      lng: number
-      type: 'airport' | 'station' | 'place'
-    }>
-  >([])
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [locatingId, setLocatingId] = useState<string | null>(null)
+  const [locateError, setLocateError] = useState<string | null>(null)
+  const {
+    suggestions,
+    isSearching,
+    error: searchError,
+    resolve,
+  } = usePlaceAutocomplete(searchQuery, {
+    bias: { lat: cityCenter.lat, lng: cityCenter.lng, radiusMeters: CITY_SEARCH_RADIUS_M },
+  })
   const [searchPin, setSearchPin] = useState<{ lat: number; lng: number; name: string } | null>(null)
   const [flyToTarget, setFlyToTarget] = useState<FlyToTarget | null>(null)
 
@@ -292,107 +300,73 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
     setIsSearchOpen(false)
   }
 
-  // Handle location search: searches dynamically within active city via Nominatim geocoder
-  const handlePerformSearch = async (queryText: string) => {
-    const q = queryText.trim()
-    if (!q) {
-      setSearchResults([])
-      setIsSearchOpen(false)
-      return
-    }
-
-    setIsSearching(true)
-    setIsSearchOpen(true)
-
-    const qLower = q.toLowerCase()
-    const matches: Array<{
-      id: string
-      name: string
-      address: string
-      lat: number
-      lng: number
-      type: 'airport' | 'station' | 'place'
-    }> = []
-
-    // 1. If searching for airport and current city has registered airport, prioritize it
-    if (
-      currentAirport &&
-      (qLower.includes('airport') || qLower.includes(currentAirport.iata.toLowerCase()))
-    ) {
-      matches.push({
-        id: `local-ap-${currentAirport.iata}`,
-        name: `${currentAirport.name} (${currentAirport.iata})`,
-        address: currentAirport.address,
-        lat: currentAirport.lat,
-        lng: currentAirport.lng,
+  // Place search in this city: the registered airport first, then Google Places (New) near the city
+  const searchResults = useMemo<ZoneSearchResult[]>(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return []
+    const airport =
+      currentAirport && (q.includes('airport') || q.includes(currentAirport.iata.toLowerCase()))
+        ? currentAirport
+        : null
+    const results: ZoneSearchResult[] = []
+    if (airport) {
+      results.push({
+        id: `local-ap-${airport.iata}`,
+        name: `${airport.name} (${airport.iata})`,
+        address: airport.address,
         type: 'airport',
+        location: { lat: airport.lat, lng: airport.lng },
       })
     }
+    for (const suggestion of suggestions) {
+      const type = placeKind(suggestion.types)
+      // The registered airport above already stands for the city's airport.
+      if (airport && type === 'airport') continue
+      results.push({
+        id: suggestion.placeId,
+        name: suggestion.mainText,
+        address: suggestion.secondaryText,
+        type,
+        suggestion,
+      })
+    }
+    return results.slice(0, 6)
+  }, [searchQuery, suggestions, currentAirport])
 
-    // 2. Search OpenStreetMap Nominatim for real-time dynamic geocoding in this city
+  // Coordinates of a result; for a Google place this fetches its details (ending the search session).
+  const locateResult = async (result: ZoneSearchResult): Promise<{ lat: number; lng: number } | null> => {
+    if (result.location) return result.location
+    if (!result.suggestion) return null
+    setLocatingId(result.id)
+    setLocateError(null)
     try {
-      const searchUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        q + (cityName ? `, ${cityName}` : ''),
-      )}&countrycodes=in&limit=6`
-      const res = await fetch(searchUrl, {
-        headers: { 'Accept-Language': 'en' },
-      })
-      if (res.ok) {
-        const data = (await res.json()) as Array<{
-          place_id: number
-          display_name: string
-          lat: string
-          lon: string
-          type: string
-        }>
-        data.forEach((item) => {
-          const lat = parseFloat(item.lat)
-          const lng = parseFloat(item.lon)
-          if (!isNaN(lat) && !isNaN(lng)) {
-            const isAirport =
-              item.display_name.toLowerCase().includes('airport') ||
-              item.type.toLowerCase().includes('aerodrome')
-            const isStation =
-              item.display_name.toLowerCase().includes('railway') ||
-              item.display_name.toLowerCase().includes('station')
-            if (!matches.some((m) => Math.abs(m.lat - lat) < 0.002 && Math.abs(m.lng - lng) < 0.002)) {
-              matches.push({
-                id: `nom-${item.place_id}`,
-                name: item.display_name.split(',')[0],
-                address: item.display_name,
-                lat,
-                lng,
-                type: isAirport ? 'airport' : isStation ? 'station' : 'place',
-              })
-            }
-          }
-        })
-      }
-    } catch {
-      // Offline fallback
+      return (await resolve(result.suggestion)).location
+    } catch (err) {
+      setLocateError(err instanceof Error ? err.message : 'Could not load this place from Google.')
+      return null
+    } finally {
+      setLocatingId(null)
     }
-
-    setSearchResults(matches.slice(0, 6))
-    setIsSearching(false)
   }
 
-  const handleSelectSearchResult = (result: {
-    lat: number
-    lng: number
-    name: string
-    address?: string
-    type: 'airport' | 'station' | 'place'
-  }) => {
+  const handleSelectSearchResult = async (result: ZoneSearchResult) => {
+    const location = await locateResult(result)
+    if (!location) return
     setSelectedPlace({
       name: result.name,
-      address: result.address || '',
-      lat: result.lat,
-      lng: result.lng,
+      address: result.address,
+      lat: location.lat,
+      lng: location.lng,
       isAirport: result.type === 'airport',
     })
-    setSearchPin({ lat: result.lat, lng: result.lng, name: result.name })
-    setFlyToTarget({ lat: result.lat, lng: result.lng, zoom: 14, timestamp: Date.now() })
+    setSearchPin({ lat: location.lat, lng: location.lng, name: result.name })
+    setFlyToTarget({ lat: location.lat, lng: location.lng, zoom: 14, timestamp: Date.now() })
     setIsSearchOpen(false)
+  }
+
+  const handleDrawAtResult = async (result: ZoneSearchResult) => {
+    const location = await locateResult(result)
+    if (location) handleDrawAtLocation(location.lat, location.lng, result.type === 'airport' ? 1.5 : 1.0)
   }
 
   const uniqueVertices = useMemo(() => {
@@ -634,7 +608,8 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value)
-                      void handlePerformSearch(e.target.value)
+                      setIsSearchOpen(true)
+                      setLocateError(null)
                     }}
                     onFocus={() => {
                       if (searchQuery.trim()) setIsSearchOpen(true)
@@ -642,7 +617,7 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
-                        void handlePerformSearch(searchQuery)
+                        setIsSearchOpen(true)
                       }
                     }}
                     placeholder={`Search place, landmark, or airport in ${cityName || 'city'} (e.g. Airport, Railway Station)...`}
@@ -653,8 +628,8 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                       type="button"
                       onClick={() => {
                         setSearchQuery('')
-                        setSearchResults([])
                         setIsSearchOpen(false)
+                        setLocateError(null)
                       }}
                       className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                     >
@@ -665,7 +640,7 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => void handlePerformSearch(searchQuery)}
+                  onClick={() => setIsSearchOpen(true)}
                   className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors cursor-pointer shrink-0 border border-slate-200"
                 >
                   Search
@@ -682,7 +657,8 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                     >
                       <button
                         type="button"
-                        onClick={() => handleSelectSearchResult(res)}
+                        disabled={locatingId !== null}
+                        onClick={() => void handleSelectSearchResult(res)}
                         className="flex items-start gap-2.5 flex-1 min-w-0 cursor-pointer"
                       >
                         <div
@@ -694,7 +670,9 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                               : 'bg-slate-100 text-slate-700'
                           }`}
                         >
-                          {res.type === 'airport' ? (
+                          {locatingId === res.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : res.type === 'airport' ? (
                             <Plane className="w-3.5 h-3.5" />
                           ) : (
                             <MapPin className="w-3.5 h-3.5" />
@@ -708,7 +686,8 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => handleDrawAtLocation(res.lat, res.lng, res.type === 'airport' ? 1.5 : 1.0)}
+                        disabled={locatingId !== null}
+                        onClick={() => void handleDrawAtResult(res)}
                         className="px-2 py-1 text-[11px] font-bold bg-[#1F2B6D] hover:bg-[#182258] text-white rounded-md shrink-0 transition-colors cursor-pointer shadow-2xs"
                         title="Fly camera and create zone circle here"
                       >
@@ -717,6 +696,11 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                     </div>
                   ))}
                 </div>
+              )}
+              {(locateError || searchError) && (
+                <p role="alert" className="mt-1 text-[10.5px] leading-tight text-amber-700">
+                  {locateError || searchError}
+                </p>
               )}
             </div>
 
@@ -750,8 +734,9 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                       })
                       setFlyToTarget({ lat: currentAirport.lat, lng: currentAirport.lng, zoom: 14, timestamp: Date.now() })
                     } else {
-                      setSearchQuery(cat.label)
-                      void handlePerformSearch(`${cityName} ${cat.searchTerm}`)
+                      setSearchQuery(`${cityName} ${cat.searchTerm}`.trim())
+                      setIsSearchOpen(true)
+                      setLocateError(null)
                     }
                   }}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all shrink-0 cursor-pointer shadow-2xs flex items-center gap-1.5 ${
@@ -841,7 +826,6 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
               zoneType={zoneType}
               height="440px"
               mapType={baseLayer === 'satellite' ? 'satellite' : baseLayer === 'terrain' ? 'terrain' : 'roadmap'}
-              apiKey={googleKey}
               toolMode={toolMode}
               overlayZones={[
                 ...(showAirportZones ? airportZones.map((z) => ({ id: z.id, name: z.name, zoneType: 'AIRPORT', boundary: z.boundary })) : []),

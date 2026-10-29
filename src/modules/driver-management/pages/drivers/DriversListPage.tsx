@@ -396,7 +396,24 @@ export const DriversListPage: React.FC = () => {
   }
 
   // Subscription Badge Helper matching screenshot
-  const renderSubscriptionBadge = (sub?: DriverEntity['subscription'], vehicleType?: string) => {
+  const renderSubscriptionBadge = (
+    sub?: DriverEntity['subscription'],
+    vehicleType?: string,
+    paymentModel?: string,
+  ) => {
+    if (paymentModel === 'COMMISSION') {
+      return (
+        <div className="flex flex-col items-start leading-tight">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-900 shadow-2xs whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+            Commission
+          </span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium whitespace-nowrap">
+            Per-ride model
+          </span>
+        </div>
+      )
+    }
     const status = sub?.status?.toLowerCase()
     if (status === 'active') {
       const subtitle =
@@ -421,7 +438,7 @@ export const DriversListPage: React.FC = () => {
     if (status === 'expired') {
       const expText = sub?.expiryDate
         ? `Expired ${new Date(sub.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
-        : 'Expired 5 Oct 2026'
+        : 'Expired'
       return (
         <div className="flex flex-col items-start leading-tight">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA] dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-900 shadow-2xs whitespace-nowrap">
@@ -592,7 +609,8 @@ export const DriversListPage: React.FC = () => {
       sortable: false,
       align: 'left',
       width: '110px',
-      render: (_, row) => renderSubscriptionBadge(row.subscription, row.vehicleType),
+      render: (_, row) =>
+        renderSubscriptionBadge(row.subscription, row.vehicleType, row.paymentModel),
     },
     {
       key: 'walletBalance',
@@ -721,20 +739,24 @@ export const DriversListPage: React.FC = () => {
         d.vehicleModel ||
         (d.vehicleType === 'auto' ? 'Auto' : d.vehicleType === 'bike' ? 'Splendor' : 'WagonR'),
       registrationPlate: d.registrationPlate || 'JK01AB1234',
-      subscription: d.subscription || {
-        status:
-          d.driverStatus === 'active' || d.driverStatus === 'on_trip' || d.driverStatus === 'online'
-            ? 'active'
-            : d.driverStatus === 'suspended'
-              ? 'active'
-              : 'none',
-        planName:
-          d.vehicleType === 'auto'
-            ? 'Auto Monthly'
-            : d.vehicleType === 'bike'
-              ? 'Bike Monthly'
-              : 'Cab Monthly',
-      },
+      subscription:
+        d.subscription ||
+        (apiDrivers.length === 0
+          ? {
+              status:
+                d.driverStatus === 'active' || d.driverStatus === 'on_trip' || d.driverStatus === 'online'
+                  ? 'active'
+                  : d.driverStatus === 'suspended'
+                    ? 'active'
+                    : 'none',
+              planName:
+                d.vehicleType === 'auto'
+                  ? 'Auto Monthly'
+                  : d.vehicleType === 'bike'
+                    ? 'Bike Monthly'
+                    : 'Cab Monthly',
+            }
+          : undefined),
     }))
   }, [apiDrivers])
 

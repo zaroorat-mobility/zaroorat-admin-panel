@@ -1,6 +1,6 @@
 /**
  * Official Cities Catalog — Production Bridge
- * Hardcoded catalog eliminated in favor of real-time OpenStreetMap geocoding service.
+ * Cities come from the built-in official district list and Google Places search.
  * @see ../../services/geocodingService
  */
 
@@ -13,6 +13,6 @@ export type OfficialCityItem = LiveCityItem
 
 /**
  * Deprecated: Hardcoded catalog eliminated for production.
- * Live data is now resolved dynamically via geocodingService.
+ * City data now comes from geocodingService.
  */
 export const OFFICIAL_CITIES_CATALOG: OfficialCityItem[] = []

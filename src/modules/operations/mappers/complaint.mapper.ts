@@ -121,13 +121,22 @@ export function mapBackendTicketToUiComplaint(ticket: BackendTicketListItem | Ba
   // Sort timeline by timestamp ascending
   timeline.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
+  const isDriver =
+    Boolean(ticket.ride?.driverPhone && ticket.user?.phone && ticket.ride.driverPhone === ticket.user.phone) ||
+    Boolean(ticket.ride?.driverName && ticket.user?.fullName && ticket.ride.driverName === ticket.user.fullName) ||
+    (ticket as any).raisedBy === 'driver' ||
+    Boolean(ticket.subject && ticket.subject.toLowerCase().includes('grievance'))
+
+  const raisedBy: 'rider' | 'driver' = isDriver ? 'driver' : 'rider'
+  const raisedByName = ticket.user?.fullName || (isDriver ? 'Partner Driver' : 'Customer')
+
   return {
     id: ticket.id,
     rideId: ticket.ride?.id || ticket.ride?.rideCode,
     driverName: ticket.ride?.driverName || undefined,
     driverPhone: ticket.ride?.driverPhone || undefined,
-    raisedBy: 'rider',
-    raisedByName: ticket.user?.fullName || 'Customer',
+    raisedBy,
+    raisedByName,
     category: mapBackendCategoryToComplaintCategory(ticket.category?.code, ticket.category?.name),
     priority: mapBackendPriorityToComplaintPriority(ticket.priority),
     status: mapBackendStatusToComplaintStatus(ticket.status),
