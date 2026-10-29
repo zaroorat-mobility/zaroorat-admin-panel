@@ -210,6 +210,18 @@ export const useActivateDriver = () => {
   })
 }
 
+export const useTopUpDriverWallet = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, amount, notes }: { id: string; amount: number; notes?: string }) =>
+      DriverManagementService.topUpDriverWallet(id, amount, notes),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+      qc.invalidateQueries({ queryKey: QK.driver(id) })
+    },
+  })
+}
+
 export const useUpdateDriver = () => {
   const qc = useQueryClient()
   return useMutation({

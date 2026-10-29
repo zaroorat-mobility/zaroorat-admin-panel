@@ -1,5 +1,7 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { loadGoogleMapsSdk, onGoogleMapsAuthError } from './google-maps-loader'
+import { appendVertex, latLngsToRing, ringToLatLngs } from './polygon-ring'
+import { useGoogleMapsKey } from '@/shared/hooks/useGoogleMapsKey'
 import { AlertTriangle, Loader2, Plus, Minus, Crosshair } from 'lucide-react'
 
 export interface OverlayZoneItem {
@@ -23,7 +25,6 @@ export interface GoogleZoneDrawingMapProps {
   height?: string
   className?: string
   mapType?: 'roadmap' | 'satellite' | 'terrain' | 'hybrid'
-  apiKey?: string
   toolMode?: 'draw' | 'edit' | 'pan'
   overlayZones?: OverlayZoneItem[]
   showCityBoundary?: boolean
@@ -40,25 +41,16 @@ const ZONE_PALETTE: Record<string, { stroke: string; fill: string; fillOpacity: 
   SURGE:      { stroke: '#7C3AED', fill: '#A855F7', fillOpacity: 0.38 },
 }
 
-function ringToGooglePath(ring: number[][]): google.maps.LatLngLiteral[] {
-  return ring.map(([lng, lat]) => ({ lat, lng }))
-}
+const ringToGooglePath = ringToLatLngs
 
 function googlePathToRing(path: google.maps.MVCArray<google.maps.LatLng>): number[][][] {
-  const points: [number, number][] = []
-  for (let i = 0; i < path.getLength(); i++) {
-    const pt = path.getAt(i)
-    points.push([Number(pt.lng().toFixed(6)), Number(pt.lat().toFixed(6))])
-  }
-  if (points.length >= 3) {
-    const first = points[0]
-    const last = points[points.length - 1]
-    if (first && last && (first[0] !== last[0] || first[1] !== last[1])) {
-      points.push([first[0], first[1]])
-    }
-  }
-  return [points]
+  return [latLngsToRing(path.getArray().map((p) => ({ lat: p.lat(), lng: p.lng() })))]
 }
+
+const sameRing = (a?: number[][][] | null, b?: number[][][] | null) =>
+  JSON.stringify(a?.[0] ?? []) === JSON.stringify(b?.[0] ?? [])
+
+const DRAFT_COLOR = '#1D4ED8'
 
 export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
   coordinates,
@@ -71,7 +63,6 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
   height = '440px',
   className = '',
   mapType = 'roadmap',
-  apiKey,
   toolMode = 'draw',
   overlayZones = [],
   showCityBoundary = true,
@@ -80,13 +71,27 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
   fitTrigger = 0,
   searchPin,
 }) => {
+  const { apiKey, isResolving } = useGoogleMapsKey()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const activePolyRef = useRef<google.maps.Polygon | null>(null)
   const cityPolyRef = useRef<google.maps.Polygon | null>(null)
   const overlayPolysRef = useRef<Map<string, google.maps.Polygon>>(new Map())
   const searchMarkerRef = useRef<google.maps.Marker | null>(null)
+  const draftLineRef = useRef<google.maps.Polyline | null>(null)
+  const draftDotsRef = useRef<google.maps.Marker[]>([])
   const syncingRef = useRef(false)
+
+  // The map's click listener is registered once; it reads the current props through refs,
+  // so each click extends the latest ring and respects the current tool.
+  const coordinatesRef = useRef(coordinates)
+  const toolModeRef = useRef(toolMode)
+  const onChangeRef = useRef(onChange)
+  const fitTargetRef = useRef({ cityBoundary, coordinates, center })
+  coordinatesRef.current = coordinates
+  toolModeRef.current = toolMode
+  onChangeRef.current = onChange
+  fitTargetRef.current = { cityBoundary, coordinates, center }
 
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -110,24 +115,22 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
     map.setMapTypeId(typeMap[mapType] || google.maps.MapTypeId.ROADMAP)
   }, [mapType])
 
-  // Attach path listeners to active polygon so dragging/inserting vertices calls onChange
-  const attachPathListeners = useCallback(
-    (poly: google.maps.Polygon) => {
-      const path = poly.getPath()
-      const emitChange = () => {
-        if (syncingRef.current) return
-        const newCoords = googlePathToRing(path)
-        onChange?.(newCoords)
-      }
-      path.addListener('set_at', emitChange)
-      path.addListener('insert_at', emitChange)
-      path.addListener('remove_at', emitChange)
-    },
-    [onChange]
-  )
+  // Attach path listeners to active polygon so dragging/inserting vertices calls onChange.
+  // setPaths() replaces the path, so this runs again after every setPaths().
+  const attachPathListeners = useCallback((poly: google.maps.Polygon) => {
+    const path = poly.getPath()
+    const emitChange = () => {
+      if (syncingRef.current) return
+      onChangeRef.current?.(googlePathToRing(path))
+    }
+    path.addListener('set_at', emitChange)
+    path.addListener('insert_at', emitChange)
+    path.addListener('remove_at', emitChange)
+  }, [])
 
   // Initialize Map
   useEffect(() => {
+    if (isResolving) return
     let isCancelled = false
 
     const initMap = async () => {
@@ -171,30 +174,11 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
 
         // Click on map to add vertex in 'draw' mode
         map.addListener('click', (e: google.maps.MapMouseEvent) => {
-          if (!e.latLng) return
-          if (toolMode !== 'draw') return
-
-          const newLng = Number(e.latLng.lng().toFixed(6))
-          const newLat = Number(e.latLng.lat().toFixed(6))
-
-          const currentRing = coordinates?.[0] ? [...coordinates[0]] : []
-          // If ring is closed (first === last), remove the closing point before adding
-          if (
-            currentRing.length > 2 &&
-            currentRing[0][0] === currentRing[currentRing.length - 1][0] &&
-            currentRing[0][1] === currentRing[currentRing.length - 1][1]
-          ) {
-            currentRing.pop()
-          }
-
-          currentRing.push([newLng, newLat])
-
-          // Close the ring if >= 3 points
-          if (currentRing.length >= 3) {
-            currentRing.push([currentRing[0][0], currentRing[0][1]])
-          }
-
-          onChange?.([currentRing])
+          if (!e.latLng || toolModeRef.current !== 'draw') return
+          const ring = appendVertex(coordinatesRef.current?.[0], { lat: e.latLng.lat(), lng: e.latLng.lng() })
+          // Updated now: a second click can land before the parent re-renders.
+          coordinatesRef.current = [ring]
+          onChangeRef.current?.([ring])
         })
 
         mapRef.current = map
@@ -212,7 +196,7 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
     return () => {
       isCancelled = true
     }
-  }, [apiKey])
+  }, [apiKey, isResolving])
 
   // Sync City Boundary reference polygon
   useEffect(() => {
@@ -265,7 +249,8 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
           fillColor: fill,
           fillOpacity: opacity,
           map,
-          clickable: true,
+          // Display only: a clickable polygon would swallow the clicks that place vertices.
+          clickable: false,
           zIndex: 2,
         })
         overlayPolysRef.current.set(z.id, poly)
@@ -295,6 +280,8 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
           fillColor: palette.fill,
           fillOpacity: palette.fillOpacity,
           editable: isEditable,
+          // Only the edit tool needs the polygon's clicks; in draw mode they must reach the map.
+          clickable: isEditable,
           draggable: false,
           map,
           zIndex: 10,
@@ -302,12 +289,17 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
         attachPathListeners(poly)
         activePolyRef.current = poly
       } else {
-        activePolyRef.current.setPaths(pathCoords)
+        // After a vertex drag the polygon already has this path; replacing it would drop the drag.
+        if (!sameRing(googlePathToRing(activePolyRef.current.getPath()), coordinates)) {
+          activePolyRef.current.setPaths(pathCoords)
+          attachPathListeners(activePolyRef.current)
+        }
         activePolyRef.current.setOptions({
           strokeColor: palette.stroke,
           fillColor: palette.fill,
           fillOpacity: palette.fillOpacity,
           editable: isEditable,
+          clickable: isEditable,
         })
       }
     } else {
@@ -319,6 +311,49 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
 
     syncingRef.current = false
   }, [coordinates, toolMode, zoneType, isLoading, attachPathListeners])
+
+  // First one or two vertices, before the ring closes into a polygon
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || isLoading || !window.google?.maps) return
+
+    draftLineRef.current?.setMap(null)
+    draftLineRef.current = null
+    draftDotsRef.current.forEach((dot) => dot.setMap(null))
+    draftDotsRef.current = []
+
+    const ring = coordinates?.[0] ?? []
+    if (ring.length === 0 || ring.length >= 3) return
+
+    const path = ringToGooglePath(ring)
+    if (path.length === 2) {
+      draftLineRef.current = new window.google.maps.Polyline({
+        path,
+        map,
+        clickable: false,
+        strokeColor: DRAFT_COLOR,
+        strokeWeight: 2,
+        zIndex: 11,
+      })
+    }
+    draftDotsRef.current = path.map(
+      (position) =>
+        new window.google.maps.Marker({
+          position,
+          map,
+          clickable: false,
+          zIndex: 12,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 4,
+            fillColor: '#ffffff',
+            fillOpacity: 1,
+            strokeColor: DRAFT_COLOR,
+            strokeWeight: 2,
+          },
+        })
+    )
+  }, [coordinates, isLoading])
 
   // Sync Search Pin Marker
   useEffect(() => {
@@ -352,21 +387,23 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
     }
   }, [flyToTarget, isLoading])
 
-  // Fit bounds triggered by button
+  // Fit bounds: when the map opens, the city changes, or the button asks for it — not on every
+  // vertex, which would pull the view back to the whole city after each click.
   useEffect(() => {
     const map = mapRef.current
     if (!map || isLoading || !window.google?.maps) return
 
-    const targetPoly = cityBoundary?.[0]?.length ? cityBoundary : coordinates
+    const { cityBoundary: city, coordinates: zone, center: cityCenter } = fitTargetRef.current
+    const targetPoly = city?.[0]?.length ? city : zone
     if (targetPoly?.[0] && targetPoly[0].length >= 3) {
       const bounds = new window.google.maps.LatLngBounds()
       targetPoly[0].forEach(([lng, lat]) => bounds.extend({ lat, lng }))
       map.fitBounds(bounds, { top: 30, right: 30, bottom: 30, left: 30 })
     } else {
-      map.setCenter({ lat: center.lat, lng: center.lng })
+      map.setCenter({ lat: cityCenter.lat, lng: cityCenter.lng })
       map.setZoom(12)
     }
-  }, [fitTrigger, cityBoundary, coordinates, center, isLoading])
+  }, [fitTrigger, cityBoundary, center.lat, center.lng, isLoading])
 
   // Camera controls
   const handleZoomIn = () => {

@@ -228,6 +228,10 @@ export interface DriverEntity extends Omit<BaseEntity, 'createdAt' | 'updatedAt'
   ratingAvg: number
   totalTrips: number
   walletBalance: number
+  commissionWalletBalance?: number
+  earningsBalance?: number
+  paymentModel?: 'COMMISSION' | 'SUBSCRIPTION' | string
+  pendingPaymentModel?: 'COMMISSION' | 'SUBSCRIPTION' | string
   profilePhotoUrl?: string
   documentsCount?: number
   totalDocuments?: number
@@ -279,13 +283,49 @@ export interface DriverDetails extends DriverEntity {
   documents: DriverKycDocument[]
   /// The driver's own choice, made in the driver app after approval; absent until made.
   paymentModel?: 'COMMISSION' | 'SUBSCRIPTION'
+  pendingPaymentModel?: 'COMMISSION' | 'SUBSCRIPTION' | string
+  commissionWallet?: {
+    id?: string
+    balance: number
+    currency: string
+    lastTransactionAt?: string
+  }
   subscription?: {
+    id?: string
     planName: string
     status: string
     startDate?: string
     endDate?: string
     amount?: number
-  }
+    autoRenew?: boolean
+    remainingDays?: number
+  } | null
+  subscriptionPayments?: Array<{
+    id: string | number
+    date: string
+    plan: string
+    amount: string
+    status: string
+    method: string
+    txId: string
+  }>
+  subscriptionTimeline?: Array<{
+    iconType: string
+    title: string
+    subtitle?: string
+    date: string
+  }>
+  commissionLedger?: Array<{
+    id: string
+    date: string
+    type: string
+    amount: number
+    balanceAfter: number
+    description?: string
+    rideId?: string
+    referenceType?: string
+    referenceId?: string
+  }>
   billingMode?: 'free' | 'commission' | 'subscription'
   subscriptionType?: 'monthly' | 'weekly' | 'daily'
   earningsToday?: number
@@ -311,10 +351,13 @@ export interface DriverDetails extends DriverEntity {
   ledger?: {
     id: string
     date: string
-    type: 'EARNING' | 'COMMISSION_DUE' | 'PAYOUT' | 'BONUS'
+    type: string
     amount: number
     balanceAfter: number
+    description?: string
     rideId?: string
+    referenceType?: string
+    referenceId?: string
   }[]
   timeline?: ApplicationTimelineEvent[]
   auditLogs: {

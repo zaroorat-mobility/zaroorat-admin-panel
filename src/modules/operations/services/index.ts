@@ -974,6 +974,32 @@ const closeComplaint = async (id: string, notes?: string): Promise<Complaint> =>
   }
 }
 
+const addComplaintMessage = async (id: string, body: string, isInternal = false): Promise<Complaint> => {
+  try {
+    const updated = await operationsApi.addTicketMessage(id, { body, isInternal, authorType: 'AGENT' })
+    return mapBackendTicketToUiComplaint(updated)
+  } catch (err) {
+    console.warn(`[OperationsService] Error adding message to ticket ${id} via API:`, err)
+    const db = getDb(COMPLAINTS_KEY, seedComplaints)
+    const idx = db.findIndex(c => c.id === id)
+    if (idx === -1) throw new Error(`Complaint ${id} not found`)
+
+    const ticket = db[idx]
+    const now = new Date().toISOString()
+    ticket.updatedAt = now
+    ticket.timeline.push({
+      action: isInternal ? 'Internal Note Added' : 'Reply by Support Ops',
+      actor: 'Support Ops',
+      timestamp: now,
+      notes: body,
+    })
+
+    db[idx] = ticket
+    saveDb(COMPLAINTS_KEY, db)
+    return ticket
+  }
+}
+
 export const OperationsService = {
   // Rides
   getRides,
@@ -1020,7 +1046,8 @@ export const OperationsService = {
   assignComplaint,
   updateComplaintStatus,
   resolveComplaint,
-  closeComplaint
+  closeComplaint,
+  addComplaintMessage
 }
 
 export default OperationsService

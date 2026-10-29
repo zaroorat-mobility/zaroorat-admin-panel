@@ -24,7 +24,6 @@ import {
   Settings,
 } from 'lucide-react'
 import { GoogleZoneViewer } from '@/shared/components/maps/google/GoogleZoneViewer'
-import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import {
   useCities,
   useServiceZone,
@@ -125,12 +124,6 @@ export const ServiceZoneDetailPage: React.FC<{ zoneId: string }> = ({ zoneId }) 
 
   const activateZone = useActivateServiceZone()
   const deactivateZone = useDeactivateServiceZone()
-
-  const { data: mapConfig } = useMapClientConfig()
-  const googleKey =
-    mapConfig?.providers.google?.clientSdkKey ||
-    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
-    ''
 
   const [baseLayer, setBaseLayer] = useState<BaseLayerType>('satellite')
   const [showCityBoundary, setShowCityBoundary] = useState(true)
@@ -335,7 +328,6 @@ export const ServiceZoneDetailPage: React.FC<{ zoneId: string }> = ({ zoneId }) 
                 height="480px"
                 zoneName={zone.name}
                 zoneType={zone.zoneType}
-                apiKey={googleKey}
               />
 
               {/* Floating Legend */}

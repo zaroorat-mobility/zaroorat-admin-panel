@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { loadGoogleMapsSdk, onGoogleMapsAuthError } from './google-maps-loader'
+import { useGoogleMapsKey } from '@/shared/hooks/useGoogleMapsKey'
 import { AlertTriangle, Loader2, Navigation } from 'lucide-react'
 
 export interface GoogleZoneViewerProps {
@@ -11,7 +12,6 @@ export interface GoogleZoneViewerProps {
   className?: string
   zoneName?: string
   zoneType?: string
-  apiKey?: string
 }
 
 const ZONE_PALETTE: Record<string, { stroke: string; fill: string; fillOpacity: number }> = {
@@ -30,8 +30,8 @@ export const GoogleZoneViewer: React.FC<GoogleZoneViewerProps> = memo(({
   className = '',
   zoneName,
   zoneType = 'SERVICE',
-  apiKey,
 }) => {
+  const { apiKey, isResolving } = useGoogleMapsKey()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const polygonRef = useRef<google.maps.Polygon | null>(null)
@@ -49,6 +49,7 @@ export const GoogleZoneViewer: React.FC<GoogleZoneViewerProps> = memo(({
 
   // Initialize Map
   useEffect(() => {
+    if (isResolving) return
     let isCancelled = false
 
     const initMap = async () => {
@@ -101,7 +102,7 @@ export const GoogleZoneViewer: React.FC<GoogleZoneViewerProps> = memo(({
     return () => {
       isCancelled = true
     }
-  }, [apiKey])
+  }, [apiKey, isResolving])
 
   // Sync Reference Polygon (City Boundary)
   useEffect(() => {

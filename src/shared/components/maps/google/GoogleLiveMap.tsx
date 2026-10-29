@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useRef, useState, useCallback } from 'react'
 import { loadGoogleMapsSdk, onGoogleMapsAuthError } from './google-maps-loader'
+import { useGoogleMapsKey } from '@/shared/hooks/useGoogleMapsKey'
 import type { LiveMapProps } from '../LiveMap'
 import { Navigation, AlertTriangle, Layers, LocateFixed } from 'lucide-react'
 import { cn } from '@/shared/utils'
@@ -48,9 +49,7 @@ function createMarkerIconSvg(color: string, kind: string = 'default', stale: boo
   `)}`
 }
 
-export interface GoogleLiveMapProps extends LiveMapProps {
-  apiKey?: string
-}
+export type GoogleLiveMapProps = LiveMapProps
 
 export const GoogleLiveMap: React.FC<GoogleLiveMapProps> = memo(({
   markers = [],
@@ -59,10 +58,10 @@ export const GoogleLiveMap: React.FC<GoogleLiveMapProps> = memo(({
   zoom = 13,
   height = '480px',
   className,
-  apiKey,
   showRecenter = true,
   ariaLabel = 'Google Maps Fleet View',
 }) => {
+  const { apiKey, isResolving } = useGoogleMapsKey()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const trafficLayerRef = useRef<google.maps.TrafficLayer | null>(null)
@@ -83,6 +82,7 @@ export const GoogleLiveMap: React.FC<GoogleLiveMapProps> = memo(({
 
   // Initialize Map
   useEffect(() => {
+    if (isResolving) return
     let isCancelled = false
 
     const initMap = async () => {
@@ -139,7 +139,7 @@ export const GoogleLiveMap: React.FC<GoogleLiveMapProps> = memo(({
     return () => {
       isCancelled = true
     }
-  }, [apiKey])
+  }, [apiKey, isResolving])
 
   // Toggle Live Traffic Layer
   const toggleTraffic = useCallback(() => {

@@ -363,20 +363,10 @@ const LeafletZoneMapEditor: React.FC<ZoneMapEditorProps> = ({
 }
 
 export const ZoneMapEditor: React.FC<ZoneMapEditorProps> = (props) => {
-  const { data: mapConfig } = useMapClientConfig()
-  const googleKey =
-    mapConfig?.providers.google?.clientSdkKey ||
-    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : undefined)
-
   const isJsdom = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('jsdom')
 
   if (!isJsdom) {
-    return (
-      <GoogleZoneEditor
-        {...props}
-        apiKey={googleKey || ''}
-      />
-    )
+    return <GoogleZoneEditor {...props} />
   }
 
   return <LeafletZoneMapEditor {...props} />

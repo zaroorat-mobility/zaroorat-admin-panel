@@ -414,10 +414,6 @@ export const LiveMap: React.FC<LiveMapProps> = (props) => {
   const { data: mapConfig } = useMapClientConfig()
   const isMapplsPrimary = mapConfig?.primaryProvider === 'mappls'
 
-  const googleKey =
-    mapConfig?.providers.google?.clientSdkKey ||
-    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : undefined)
-
   const mapplsKey =
     mapConfig?.providers.mappls?.clientSdkKey ||
     (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_MAPPLS_MAP_KEY : undefined)
@@ -448,7 +444,6 @@ export const LiveMap: React.FC<LiveMapProps> = (props) => {
         zoom={props.zoom}
         height={props.height}
         className={props.className}
-        apiKey={googleKey || ''}
         showRecenter={props.showRecenter}
         ariaLabel={props.ariaLabel}
       />

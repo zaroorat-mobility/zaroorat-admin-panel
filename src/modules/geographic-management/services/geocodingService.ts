@@ -1,10 +1,10 @@
 /**
- * Production Live Geocoding Service
- * Powered by OpenStreetMap (Photon API + Nominatim fallback).
- * Dynamically resolves cities, coordinates, districts, and administrative areas in real time.
- * Zero hardcoded catalog or district arrays.
+ * City and place helpers for the geographic wizards.
+ * Cities come from the built-in official district list first; anything else is searched with
+ * Google Places (New) in the browser (usePlaceAutocomplete), and mapped here.
  */
 
+import type { PlaceAddressComponent } from '@/shared/hooks/usePlaceAutocomplete'
 import { getOfficialDistrictsByState } from './officialDistrictsData'
 
 export interface LiveCityItem {
@@ -136,54 +136,6 @@ const COMMON_IATA_CODES: Record<string, string> = {
   bilaspur: 'PAB',
 }
 
-/** Non-city features to exclude from city autocomplete results */
-const EXCLUDED_OSM_VALUES = new Set([
-  'house',
-  'station',
-  'bus_stop',
-  'tram_stop',
-  'airport',
-  'aerodrome',
-  'railway',
-  'train_station',
-  'stadium',
-  'pitch',
-  'school',
-  'university',
-  'college',
-  'hospital',
-  'restaurant',
-  'hotel',
-  'bank',
-  'shop',
-  'atm',
-  'fuel',
-  'post_office',
-  'police',
-  'place_of_worship',
-  'courthouse',
-  'monument',
-  'memorial',
-  'park',
-  'attraction',
-  'viewpoint',
-  'road',
-  'highway',
-  'secondary',
-  'trunk',
-  'primary',
-  'tertiary',
-  'street',
-  'construction',
-  'motorway',
-  'state',
-  'country',
-  'continent',
-  'region',
-  'province',
-  'administrative',
-])
-
 /**
  * Derives standard uppercase city code (IATA if known, or first 3 letters)
  */
@@ -202,193 +154,92 @@ export function resolveStateCode(stateName: string): string {
   return STATE_CODE_MAP[norm] ?? (stateName.slice(0, 2).toUpperCase() || 'IN')
 }
 
-// In-memory cache to prevent redundant HTTP requests
-const queryCache = new Map<string, LiveCityItem[]>()
+/** A row in the city picker: an official district (with coordinates) or a Google suggestion. */
+export type CityListItem = Omit<LiveCityItem, 'center'> & {
+  center?: LiveCityItem['center']
+  /** Google place id. Set on suggestions, whose coordinates come with the details fetched on pick. */
+  placeId?: string
+}
+
+/** Google Places (New) primary types for cities and towns. */
+export const CITY_PLACE_TYPES = ['locality', 'administrative_area_level_3']
 
 /**
- * Search live cities via OpenStreetMap (Photon API + Nominatim fallback)
+ * A Google city suggestion as a picker row. Its secondary text reads like "Karnataka, India"
+ * or "Mysuru district, Karnataka, India"; the district is only known for sure after the pick.
  */
-export async function searchLiveCities(
-  query: string,
-  stateFilter?: string,
-  signal?: AbortSignal,
-): Promise<LiveCityItem[]> {
-  const trimmed = query.trim()
-  if (!trimmed || trimmed.length < 2) return []
-
-  const queryLower = trimmed.toLowerCase()
-  const cacheKey = `${queryLower}__${(stateFilter || '').toLowerCase()}`
-  if (queryCache.has(cacheKey)) {
-    return queryCache.get(cacheKey)!
+export function cityListItemFromSuggestion(suggestion: {
+  placeId: string
+  mainText: string
+  secondaryText: string
+}): CityListItem {
+  const parts = suggestion.secondaryText
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p && p.toLowerCase() !== 'india')
+  const stateName = parts[parts.length - 1] ?? ''
+  return {
+    placeId: suggestion.placeId,
+    code: deriveCityCode(suggestion.mainText),
+    name: suggestion.mainText,
+    district: parts.length >= 2 ? parts[0] : '',
+    stateName,
+    stateCode: resolveStateCode(stateName),
   }
+}
 
-  const searchQuery =
-    stateFilter && !trimmed.toLowerCase().includes(stateFilter.toLowerCase())
-      ? `${trimmed}, ${stateFilter}`
-      : trimmed
+/** Whether a row's state matches the selected state ("Delhi" vs "NCT of Delhi"); unknown passes. */
+export function isInState(stateName: string, selectedState?: string): boolean {
+  if (!selectedState || !stateName) return true
+  const a = stateName.toLowerCase()
+  const b = selectedState.toLowerCase()
+  return a.includes(b) || b.includes(a)
+}
 
-  const remoteItems: LiveCityItem[] = []
+const componentText = (components: PlaceAddressComponent[], type: string) =>
+  components.find((c) => c.types.includes(type))?.longText ?? ''
 
-  // 1. Primary: Photon (Fast, free, based on OpenStreetMap)
-  try {
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-      searchQuery,
-    )}&osm_tag=place&limit=20&lang=en`
-    const res = await fetch(url, { signal })
-    if (res.ok) {
-      const data = await res.json()
-      if (Array.isArray(data.features) && data.features.length > 0) {
-        const seenNames = new Set<string>()
-
-        for (const f of data.features) {
-          const props = f.properties || {}
-          const osmVal = (props.osm_value || '').toLowerCase()
-          const type = (props.type || '').toLowerCase()
-
-          // Filter out non-city POIs
-          if (EXCLUDED_OSM_VALUES.has(osmVal) || EXCLUDED_OSM_VALUES.has(type)) continue
-
-          const country = props.country || ''
-          const countryCode = (props.countrycode || '').toUpperCase()
-
-          // Filter for India
-          if (countryCode && countryCode !== 'IN') continue
-          if (!countryCode && country && !country.toLowerCase().includes('india')) continue
-
-          const name = props.name || ''
-          if (!name || seenNames.has(name.toLowerCase())) continue
-
-          // Prevent state entity itself from masquerading as a city
-          if (stateFilter && name.toLowerCase() === stateFilter.toLowerCase()) continue
-
-          const state = props.state || stateFilter || ''
-          const district = props.county || props.district || props.city || state
-
-          // Filter by state if specified
-          if (
-            stateFilter &&
-            state &&
-            !state.toLowerCase().includes(stateFilter.toLowerCase()) &&
-            !stateFilter.toLowerCase().includes(state.toLowerCase())
-          ) {
-            continue
-          }
-
-          // Ensure the name or district actually contains the search query
-          if (
-            !name.toLowerCase().includes(queryLower) &&
-            !district.toLowerCase().includes(queryLower)
-          ) {
-            continue
-          }
-
-          const coords = f.geometry?.coordinates
-          if (!coords || coords.length < 2) continue
-
-          const code = deriveCityCode(name)
-          const cityItem: LiveCityItem = {
-            code,
-            name,
-            district: district !== name ? district : state || 'India',
-            stateName: state,
-            stateCode: resolveStateCode(state),
-            center: { lat: Number(coords[1].toFixed(6)), lng: Number(coords[0].toFixed(6)) },
-          }
-
-          seenNames.add(name.toLowerCase())
-          remoteItems.push(cityItem)
-
-          if (remoteItems.length >= 15) break
-        }
-      }
-    }
-  } catch {
-    // Fall through to Nominatim
+/** A picked Google city, from its place details, in the shape the city wizard stores. */
+export function cityFromPlaceDetails(
+  details: { name: string; location: { lat: number; lng: number }; addressComponents: PlaceAddressComponent[] },
+  fallbackStateName = '',
+): LiveCityItem {
+  const components = details.addressComponents
+  const name = componentText(components, 'locality') || details.name
+  const stateName = componentText(components, 'administrative_area_level_1') || fallbackStateName
+  // District: the most specific administrative level below the state that Google returns.
+  const district =
+    componentText(components, 'administrative_area_level_3') ||
+    componentText(components, 'administrative_area_level_2')
+  return {
+    code: deriveCityCode(name),
+    name,
+    district: district && district !== name ? district : stateName || 'India',
+    stateName,
+    stateCode: resolveStateCode(stateName),
+    center: {
+      lat: Number(details.location.lat.toFixed(6)),
+      lng: Number(details.location.lng.toFixed(6)),
+    },
   }
+}
 
-  // 2. Fallback: OpenStreetMap Nominatim if Photon returned nothing
-  if (remoteItems.length === 0) {
-    try {
-      const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-        searchQuery,
-      )}&format=json&addressdetails=1&countrycodes=in&limit=15`
-      const res = await fetch(nomUrl, {
-        signal,
-        headers: {
-          'Accept-Language': 'en',
-          'User-Agent': 'ZarooratAdmin/1.0',
-        },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data) && data.length > 0) {
-          const seenNames = new Set<string>()
+export type PlaceKind = 'airport' | 'station' | 'place'
 
-          for (const item of data) {
-            const addr = item.address || {}
-            const name = addr.city || addr.town || addr.municipality || item.name || ''
-            if (!name || seenNames.has(name.toLowerCase())) continue
+const STATION_TYPES = ['train_station', 'transit_station', 'subway_station', 'light_rail_station', 'bus_station']
 
-            // Prevent state entity itself from masquerading as a city
-            if (stateFilter && name.toLowerCase() === stateFilter.toLowerCase()) continue
-
-            const state = addr.state || stateFilter || ''
-            const district = addr.state_district || addr.county || addr.city_district || state
-
-            if (
-              !name.toLowerCase().includes(queryLower) &&
-              !district.toLowerCase().includes(queryLower)
-            ) {
-              continue
-            }
-
-            const code = deriveCityCode(name)
-            seenNames.add(name.toLowerCase())
-            remoteItems.push({
-              code,
-              name,
-              district: district !== name ? district : state || 'India',
-              stateName: state,
-              stateCode: resolveStateCode(state),
-              center: {
-                lat: Number(parseFloat(item.lat).toFixed(6)),
-                lng: Number(parseFloat(item.lon).toFixed(6)),
-              },
-            })
-
-            if (remoteItems.length >= 15) break
-          }
-        }
-      }
-    } catch {
-      // Ignored
-    }
-  }
-
-  queryCache.set(cacheKey, remoteItems)
-  return remoteItems
+/** How a Google place is labelled in the zone search list. */
+export function placeKind(types: string[]): PlaceKind {
+  if (types.includes('airport')) return 'airport'
+  if (types.some((t) => STATION_TYPES.includes(t))) return 'station'
+  return 'place'
 }
 
 /**
- * Fetch initial cities dynamically for a selected state.
- * Returns official administrative districts/cities for the state,
- * with graceful fallback to live OpenStreetMap search.
+ * The state's official districts from the built-in list (e.g. all 20 for Jammu and Kashmir).
+ * A state the list does not cover starts empty; the admin then searches Google by name.
  */
-export async function getInitialCitiesForState(
-  stateCode: string,
-  stateName?: string,
-): Promise<LiveCityItem[]> {
+export function getInitialCitiesForState(stateCode: string, stateName?: string): LiveCityItem[] {
   const normCode = (stateCode || (stateName ? resolveStateCode(stateName) : '')).toUpperCase().trim()
-
-  // 1. Return official administrative districts (e.g. all 20 districts for Jammu and Kashmir)
-  const officialDistricts = getOfficialDistrictsByState(normCode)
-  if (officialDistricts && officialDistricts.length > 0) {
-    return officialDistricts
-  }
-
-  // 2. Fallback to live search if state not in official list
-  const query = stateName || stateCode
-  const results = await searchLiveCities(query, stateName)
-  const normState = (stateName || '').toLowerCase().trim()
-  return results.filter((item) => item.name.toLowerCase() !== normState)
+  return getOfficialDistrictsByState(normCode)
 }

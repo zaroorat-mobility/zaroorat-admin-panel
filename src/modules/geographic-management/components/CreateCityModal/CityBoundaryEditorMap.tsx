@@ -1,6 +1,5 @@
 import React, { memo } from 'react'
 import { GoogleZoneEditor } from '@/shared/components/maps/google/GoogleZoneEditor'
-import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import type { LatLngPoint } from './geoUtils'
 
 export type MapLayerType = 'map' | 'satellite' | 'terrain'
@@ -24,12 +23,6 @@ export const CityBoundaryEditorMap: React.FC<CityBoundaryEditorMapProps> = memo(
   drawMode,
   height = '480px',
 }) => {
-  const { data: mapConfig } = useMapClientConfig()
-  const googleKey =
-    mapConfig?.providers.google?.clientSdkKey ||
-    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
-    ''
-
   return (
     <div className="relative w-full rounded-xl overflow-hidden border border-border shadow-sm" style={{ height }}>
       <GoogleZoneEditor
@@ -40,7 +33,6 @@ export const CityBoundaryEditorMap: React.FC<CityBoundaryEditorMapProps> = memo(
         height={height}
         editable={drawMode !== 'idle'}
         allowCenterPick={true}
-        apiKey={googleKey}
       />
     </div>
   )

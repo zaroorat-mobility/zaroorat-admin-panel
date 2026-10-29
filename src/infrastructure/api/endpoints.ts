@@ -49,6 +49,7 @@ export const API_ENDPOINTS = {
     activate: (id: string) => `/admin/drivers/${id}/activate`,
     verify: (id: string) => `/admin/drivers/${id}/verify`,
     expiryAlerts: '/admin/expiry-alerts',
+    topUpWallet: (id: string) => `/admin/drivers/${id}/wallet/topup`,
     documentReview: (driverId: string, documentId: string) =>
       `/admin/drivers/${driverId}/documents/${documentId}/review`,
   },

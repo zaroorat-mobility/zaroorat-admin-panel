@@ -19,7 +19,6 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { GoogleZoneViewer } from '@/shared/components/maps/google/GoogleZoneViewer'
-import { useMapClientConfig } from '@/shared/hooks/useMapClientConfig'
 import {
   calculatePolygonAreaKm2,
   calculatePolygonPerimeterKm,
@@ -113,12 +112,6 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
   onEditVehicles,
   onEditMap,
 }) => {
-  const { data: mapConfig } = useMapClientConfig()
-  const googleKey =
-    mapConfig?.providers.google?.clientSdkKey ||
-    (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '') ||
-    ''
-
   const [baseLayer, setBaseLayer] = useState<BaseLayerType>('satellite')
   const [showCityBoundary, setShowCityBoundary] = useState(true)
   const [showServiceZones, setShowServiceZones] = useState(true)
@@ -442,7 +435,6 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
               zoom={12}
               height="290px"
               zoneName={shortZoneTitle}
-              apiKey={googleKey}
             />
 
             {/* Top-Right Floating Checkbox Legend matching screenshot */}

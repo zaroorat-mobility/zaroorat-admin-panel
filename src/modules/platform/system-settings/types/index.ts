@@ -236,6 +236,14 @@ export interface PaymentSettingsView {
   }
   razorpay?: Partial<PaymentProviderView> & { keyId: MaskedSecret; keySecret: MaskedSecret; configured: boolean; webhookSecret?: MaskedSecret }
   stripe?: Partial<PaymentProviderView> & { secretKey: MaskedSecret; configured: boolean; webhookSecret?: MaskedSecret }
+  /** Company email sent with every driver payment ('' = not set) and the
+   *  Driver App's method switches; UPI is always on, so it has none. */
+  driverPayments?: DriverPaymentsSettings
+}
+
+export interface DriverPaymentsSettings {
+  checkoutEmail: string
+  methods: { netbanking: boolean; wallet: boolean; card: boolean }
 }
 
 export interface UpdatePaymentSettingsBody {
@@ -257,6 +265,7 @@ export interface UpdatePaymentSettingsBody {
       webhookSecret?: string
     }
   }
+  driverPayments?: Partial<DriverPaymentsSettings>
   expectedVersion?: number
   razorpayKeyId?: string
   razorpayKeySecret?: string

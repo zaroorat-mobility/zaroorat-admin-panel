@@ -5,7 +5,8 @@ import {
   useAssignComplaint,
   useUpdateComplaintStatus,
   useResolveComplaint,
-  useCloseComplaint
+  useCloseComplaint,
+  useAddComplaintMessage
 } from '../../hooks'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
@@ -42,6 +43,9 @@ export const ComplaintDetailsPage: React.FC = () => {
   const { mutate: updateStatus, isPending: isUpdatingStatus } = useUpdateComplaintStatus()
   const { mutate: resolveTicket, isPending: isResolving } = useResolveComplaint()
   const { mutate: closeTicket, isPending: isClosing } = useCloseComplaint()
+  const { mutate: addMessage, isPending: isReplying } = useAddComplaintMessage()
+  const [replyText, setReplyText] = useState('')
+  const [isInternalNote, setIsInternalNote] = useState(false)
 
   // Fetch linked ride details dynamically if rideId exists
   const rideId = ticket?.rideId || ''
@@ -135,6 +139,19 @@ export const ComplaintDetailsPage: React.FC = () => {
       {
         onSuccess: () => {
           setIsResolveModalOpen(false)
+          refetch()
+        }
+      }
+    )
+  }
+
+  const handleSendReply = () => {
+    if (!replyText.trim() || !id) return
+    addMessage(
+      { id, body: replyText.trim(), isInternal: isInternalNote },
+      {
+        onSuccess: () => {
+          setReplyText('')
           refetch()
         }
       }
@@ -340,7 +357,47 @@ export const ComplaintDetailsPage: React.FC = () => {
 
               {/* Tab 3: Timeline */}
               {activeTab === 'timeline' && (
-                <ComplaintTimeline timeline={ticket.timeline} />
+                <div className="space-y-6">
+                  <ComplaintTimeline timeline={ticket.timeline} />
+
+                  {/* Reply Composer */}
+                  <div className="mt-6 pt-4 border-t border-border space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-white">
+                        Add Message / Official Reply
+                      </h4>
+                      <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isInternalNote}
+                          onChange={(e) => setIsInternalNote(e.target.checked)}
+                          className="rounded border-slate-300"
+                        />
+                        <span>Internal Note (Private)</span>
+                      </label>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2 items-start">
+                      <textarea
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder={
+                          isInternalNote
+                            ? 'Add internal note visible only to support staff...'
+                            : 'Type an official reply to the partner / driver...'
+                        }
+                        className="w-full flex-1 min-h-[72px] p-2.5 text-xs rounded-lg border border-input bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <Button
+                        onClick={handleSendReply}
+                        disabled={isReplying || !replyText.trim()}
+                        className="text-xs h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white shrink-0 self-end sm:self-auto"
+                      >
+                        {isReplying ? 'Sending...' : isInternalNote ? 'Save Note' : 'Send Reply'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* Tab 4: Resolution & SLA */}
