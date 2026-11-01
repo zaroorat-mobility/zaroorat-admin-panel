@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Scan,
 } from 'lucide-react'
+import { CityLoadStatus } from './CityLoadStatus'
 import { ServiceZoneCityPreviewMap } from './ServiceZoneCityPreviewMap'
 import { calculatePolygonAreaKm2, type LatLngPoint } from '../CreateCityModal/geoUtils'
 import type { CityListItem, ServiceZoneListItem, ServiceZoneType } from '../../types'
@@ -36,8 +37,10 @@ interface Step1ZoneInformationProps {
   allowsDropoff: boolean
   setAllowsDropoff: (v: boolean) => void
   cityBoundary: number[][][] | null
-  cityCenter: LatLngPoint
+  cityCenter: LatLngPoint | null
   cityName: string
+  cityFailed: boolean
+  onRetryCity: () => void
   existingZones?: ServiceZoneListItem[]
 }
 
@@ -62,6 +65,8 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
   cityBoundary,
   cityCenter,
   cityName,
+  cityFailed,
+  onRetryCity,
   existingZones = [],
 }) => {
   // Regenerate code from cityCode + name with collision avoidance
@@ -87,12 +92,7 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
     setCode(candidate)
   }
 
-  // Calculate city boundary area in km²
-  const cityAreaKm2 = useMemo(() => {
-    if (!cityBoundary) return 294.8
-    const a = calculatePolygonAreaKm2(cityBoundary)
-    return a > 0 ? a : 294.8
-  }, [cityBoundary])
+  const cityAreaKm2 = useMemo(() => calculatePolygonAreaKm2(cityBoundary), [cityBoundary])
 
   // Check code uniqueness against existing database zones for this city
   const normalizedCode = code.trim().toUpperCase()
@@ -345,7 +345,7 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
           <div className="text-[11px] text-slate-600 leading-relaxed">
             <p className="font-bold text-[#1F2B6D] mb-0.5">Important Notes</p>
             <ul className="space-y-0.5 text-[10.5px]">
-              <li>• The zone geometry must be within the selected city boundary.</li>
+              <li>• The zone must be inside the city&apos;s Operating Area.</li>
               <li>• You can assign multiple vehicle categories in the next step.</li>
               <li>• The zone code must be unique within the city.</li>
             </ul>
@@ -361,50 +361,46 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
             <Scan className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900">City Boundary Preview</h3>
+            <h3 className="text-sm font-bold text-slate-900">Operating Area</h3>
             <p className="text-xs text-slate-500">
-              This shows the selected city boundary. You will draw the service zone inside this boundary in later steps.
+              Where this city operates. You will draw the zone inside this area in a later step.
             </p>
           </div>
         </div>
 
-        {/* City Boundary Map Preview with Legend */}
-        <ServiceZoneCityPreviewMap
-          center={cityCenter}
-          cityName={cityName}
-          boundary={cityBoundary}
-          height="280px"
-          zoom={11}
-        />
+        {cityCenter && cityBoundary ? (
+          <>
+            <ServiceZoneCityPreviewMap
+              center={cityCenter}
+              cityName={cityName}
+              boundary={cityBoundary}
+              height="280px"
+              zoom={11}
+            />
 
-        {/* Selected City Details Card */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2">
-          <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
-            <MapPin className="w-4 h-4 text-[#1F2B6D]" />
-            <span>Selected City Details</span>
-          </div>
+            <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
+                <MapPin className="w-4 h-4 text-[#1F2B6D]" />
+                <span>Selected City Details</span>
+              </div>
 
-          <div className="divide-y divide-slate-100 text-xs">
-            <div className="py-1.5 flex justify-between items-center">
-              <span className="text-slate-500">City</span>
-              <span className="font-bold text-slate-900">
-                {cityName} ({cityCode})
-              </span>
+              <div className="divide-y divide-slate-100 text-xs">
+                <div className="py-1.5 flex justify-between items-center">
+                  <span className="text-slate-500">City</span>
+                  <span className="font-bold text-slate-900">
+                    {cityName} ({cityCode})
+                  </span>
+                </div>
+                <div className="py-1.5 flex justify-between items-center">
+                  <span className="text-slate-500">Operating Area size</span>
+                  <span className="font-bold text-slate-900">~ {cityAreaKm2.toFixed(1)} km²</span>
+                </div>
+              </div>
             </div>
-            <div className="py-1.5 flex justify-between items-center">
-              <span className="text-slate-500">City Boundary Area</span>
-              <span className="font-bold text-slate-900">~ {cityAreaKm2.toFixed(1)} km²</span>
-            </div>
-            <div className="py-1.5 flex justify-between items-center">
-              <span className="text-slate-500">Coordinate System</span>
-              <span className="font-semibold text-slate-700">WGS84 (EPSG:4326)</span>
-            </div>
-            <div className="py-1.5 flex justify-between items-center">
-              <span className="text-slate-500">Boundary Source</span>
-              <span className="font-semibold text-slate-700">City administrative boundary</span>
-            </div>
-          </div>
-        </div>
+          </>
+        ) : (
+          <CityLoadStatus failed={cityFailed} cityName={cityName} onRetry={onRetryCity} />
+        )}
       </div>
     </div>
   )

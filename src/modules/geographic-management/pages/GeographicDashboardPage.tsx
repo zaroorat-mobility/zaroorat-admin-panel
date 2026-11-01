@@ -409,7 +409,7 @@ export const GeographicDashboardPage: React.FC = () => {
                     )}
                   </span>
                   <span className="w-2.5 h-2.5 rounded-full bg-[#2563eb] inline-block flex-shrink-0" />
-                  <span className="text-[#1F2B6D] dark:text-slate-200 text-xs font-medium">City Boundary</span>
+                  <span className="text-[#1F2B6D] dark:text-slate-200 text-xs font-medium">Operating Area</span>
                 </div>
 
                 <div

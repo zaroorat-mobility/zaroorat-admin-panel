@@ -22,10 +22,10 @@ import { GoogleZoneViewer } from '@/shared/components/maps/google/GoogleZoneView
 import {
   calculatePolygonAreaKm2,
   calculatePolygonPerimeterKm,
-  hasSelfIntersections,
-  isPointInsidePolygon,
+  zoneChecks,
   type LatLngPoint,
 } from '../CreateCityModal/geoUtils'
+import { ZoneChecksList } from './ZoneChecksList'
 import { useVehicleTypes } from '../../hooks'
 import type { ServiceZoneDetail, ServiceZoneType } from '../../types'
 
@@ -185,16 +185,10 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
       }))
   }, [vehicleCategoryIds, allVehicleTypes])
 
-  // Validation checks
-  const isInsideCity = useMemo(() => {
-    if (!cityBoundary?.[0] || !coordinates?.[0] || coordinates[0].length < 3) return true
-    const samplePt = { lng: coordinates[0][0][0], lat: coordinates[0][0][1] }
-    return isPointInsidePolygon(samplePt, cityBoundary)
-  }, [cityBoundary, coordinates])
-
-  const noIntersections = useMemo(() => !hasSelfIntersections(coordinates), [coordinates])
-  const isAreaValid = areaKm2 > 0.05
-  const allConnected = Boolean(coordinates?.[0] && coordinates[0].length >= 4)
+  const validation = useMemo(
+    () => zoneChecks({ cityName, coordinates, cityBoundary }),
+    [cityName, coordinates, cityBoundary],
+  )
 
   const renderVehicleIcon = (code: string) => {
     const c = code.toUpperCase()
@@ -448,7 +442,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
                 />
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded bg-blue-600"></span>
-                  <span>City Boundary</span>
+                  <span>Operating Area</span>
                 </span>
               </label>
 
@@ -532,51 +526,14 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
             </div>
           </div>
 
-          <div className="bg-emerald-50/80 border border-emerald-200/80 rounded-xl p-3 space-y-1.5 text-xs text-emerald-950 font-medium">
-            <div className="flex items-center gap-2">
-              <CheckCircle2
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  isInsideCity ? 'text-emerald-600' : 'text-red-500'
-                }`}
-              />
-              <span className={isInsideCity ? 'text-emerald-900' : 'text-red-700 font-bold'}>
-                {isInsideCity
-                  ? 'Polygon is completely inside city boundary'
-                  : 'Warning: Polygon must be inside city boundary'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  noIntersections ? 'text-emerald-600' : 'text-red-500'
-                }`}
-              />
-              <span className={noIntersections ? 'text-emerald-900' : 'text-red-700 font-bold'}>
-                {noIntersections
-                  ? 'Polygon is valid (no self-intersections)'
-                  : 'Warning: Polygon contains self-intersections'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  isAreaValid ? 'text-emerald-600' : 'text-red-500'
-                }`}
-              />
-              <span className={isAreaValid ? 'text-emerald-900' : 'text-red-700 font-bold'}>
-                Minimum area requirement met ({areaKm2.toFixed(2)} km²)
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  allConnected ? 'text-emerald-600' : 'text-red-500'
-                }`}
-              />
-              <span className={allConnected ? 'text-emerald-900' : 'text-red-700 font-bold'}>
-                All points connected ({pointsCount} vertices)
-              </span>
-            </div>
+          <div
+            className={`border rounded-xl p-3 ${
+              validation.ok
+                ? 'bg-emerald-50/80 border-emerald-200/80'
+                : 'bg-amber-50/80 border-amber-200/80'
+            }`}
+          >
+            <ZoneChecksList checks={validation.checks} />
           </div>
         </div>
       </div>

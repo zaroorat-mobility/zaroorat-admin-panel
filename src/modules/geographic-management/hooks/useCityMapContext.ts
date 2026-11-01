@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getCity } from '../api'
+import { boundaryCenter } from '../components/CreateCityModal/geoUtils'
 import type { CityListItem } from '../types'
 
 interface LoadedCityMap {
@@ -21,7 +22,14 @@ export function useCityMapContext(cityCode: string, cities: CityListItem[]) {
     void getCity(cityId)
       .then((detail) => {
         if (cancelled) return
-        setLoaded({ cityCode, boundary: detail.boundary, center: detail.center, failed: false })
+        const center = detail.center ?? boundaryCenter(detail.boundary)
+        setLoaded({
+          cityCode,
+          boundary: detail.boundary,
+          center,
+          // A city with no boundary cannot hold a zone, so it counts as not loaded.
+          failed: !center || !detail.boundary?.[0]?.length,
+        })
       })
       .catch(() => {
         if (cancelled) return

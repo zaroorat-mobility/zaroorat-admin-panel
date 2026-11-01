@@ -28,6 +28,7 @@ const CITIES = [
 const originalAdapter = api.defaults.adapter
 let container: HTMLDivElement
 let root: Root
+let failCityDetails: boolean
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)))
 const settle = async () => {
@@ -35,6 +36,7 @@ const settle = async () => {
 }
 
 beforeEach(() => {
+  failCityDetails = false
   api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
     const ok = (data: unknown) => ({ data, status: 200, statusText: 'OK', headers: {}, config })
     if (config.url === API_ENDPOINTS.settings.mapsClientConfig) return ok({ data: { providers: {} } })
@@ -42,6 +44,7 @@ beforeEach(() => {
     if (config.url === API_ENDPOINTS.geographic.cities) return ok({ data: CITIES })
     const city = CITIES.find((c) => config.url === API_ENDPOINTS.geographic.city(c.id))
     if (city) {
+      if (failCityDetails) throw new Error('city detail unavailable')
       return ok({
         data: {
           ...city,
@@ -103,5 +106,38 @@ describe('Create surge zone: the default zone belongs to the selected city', () 
     )
     assert.ok(save, 'save button')
     assert.equal(save.disabled, false, 'default zone should be inside the selected city')
+    const text = container.textContent ?? ''
+    assert.ok(text.includes('Inside Newtown'))
+    assert.ok(!text.includes('City Boundary'))
+  })
+
+  it('stops with Try again when the city will not load, and invents nothing', async () => {
+    failCityDetails = true
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await act(async () =>
+      root.render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(
+            ToastProvider,
+            null,
+            createElement(
+              MemoryRouter,
+              null,
+              createElement(CreateSurgeZoneModal, { isOpen: true, onClose: () => {} }),
+            ),
+          ),
+        ),
+      ),
+    )
+    await settle()
+
+    assert.ok((container.textContent ?? '').includes('Could not load the Operating Area'))
+    const save = [...container.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('Create Surge Zone'),
+    )
+    assert.ok(save, 'save button')
+    assert.equal(save.disabled, true)
   })
 })

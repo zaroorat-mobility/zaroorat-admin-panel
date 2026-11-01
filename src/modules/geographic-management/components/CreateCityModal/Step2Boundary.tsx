@@ -63,6 +63,7 @@ export const Step2Boundary: React.FC<Step2BoundaryProps> = ({
 }) => {
   const [drawMode, setDrawMode] = useState<'draw' | 'edit' | 'idle'>('idle')
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const officialBoundary = selectedOfficialCity?.officialBoundary
 
   // Synchronize boundary whenever boundaryType or radiusKm changes
   useEffect(() => {
@@ -71,14 +72,13 @@ export const Step2Boundary: React.FC<Step2BoundaryProps> = ({
       setBoundary(circleCoords)
       setDrawMode('idle')
     } else if (boundaryType === 'official') {
-      if (selectedOfficialCity?.officialBoundary) {
-        setBoundary(selectedOfficialCity.officialBoundary)
+      // Official means a real polygon. Without one there is nothing official to show.
+      if (officialBoundary) {
+        setBoundary(officialBoundary)
+        setDrawMode('idle')
       } else {
-        // Fallback to 8 km canonical metro boundary octagon
-        const metroCoords = generateCirclePolygon(center, 8, 8)
-        setBoundary(metroCoords)
+        setBoundaryType('radius')
       }
-      setDrawMode('idle')
     } else if (boundaryType === 'polygon') {
       // Initialize with clean 8-vertex shape only if no boundary exists yet
       if (!boundary?.[0] || boundary[0].length < 3) {
@@ -87,7 +87,7 @@ export const Step2Boundary: React.FC<Step2BoundaryProps> = ({
       }
       setDrawMode('draw')
     }
-  }, [boundaryType, center, radiusKm, selectedOfficialCity, setBoundary])
+  }, [boundaryType, center, radiusKm, officialBoundary, setBoundary, setBoundaryType])
 
   // Boundary metrics
   const areaKm2 = useMemo(() => {
@@ -267,39 +267,43 @@ export const Step2Boundary: React.FC<Step2BoundaryProps> = ({
             <div className="w-5 h-5 rounded bg-slate-100 text-slate-700 flex items-center justify-center">
               <Hexagon className="w-3 h-3" />
             </div>
-            <h3 className="text-xs font-bold text-slate-900">Boundary Type</h3>
+            <h3 className="text-xs font-bold text-slate-900">Operating Area</h3>
           </div>
+          <p className="text-[10.5px] text-slate-500 leading-snug">
+            Pickups outside this area are refused. Make it wide enough for suburbs and the airport.
+          </p>
 
-          <div className="grid grid-cols-3 gap-2">
-            {/* Option 1: Official Boundary */}
-            <button
-              type="button"
-              onClick={() => setBoundaryType('official')}
-              className={`text-left p-2 rounded-lg border transition-all flex flex-col justify-between cursor-pointer ${
-                boundaryType === 'official'
-                  ? 'border-[#1F2B6D] bg-blue-50/50 ring-1 ring-[#1F2B6D]'
-                  : 'border-slate-200 hover:border-slate-300 bg-white'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <Landmark
-                  className={`w-3.5 h-3.5 ${boundaryType === 'official' ? 'text-[#1F2B6D]' : 'text-slate-500'}`}
-                />
-                <div
-                  className={`w-3 h-3 rounded-full border flex items-center justify-center ${
-                    boundaryType === 'official' ? 'border-[#1F2B6D] bg-[#1F2B6D]' : 'border-slate-300'
-                  }`}
-                >
-                  {boundaryType === 'official' && <div className="w-1 h-1 rounded-full bg-white" />}
+          <div className={`grid gap-2 ${officialBoundary ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {officialBoundary && (
+              <button
+                type="button"
+                onClick={() => setBoundaryType('official')}
+                className={`text-left p-2 rounded-lg border transition-all flex flex-col justify-between cursor-pointer ${
+                  boundaryType === 'official'
+                    ? 'border-[#1F2B6D] bg-blue-50/50 ring-1 ring-[#1F2B6D]'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <Landmark
+                    className={`w-3.5 h-3.5 ${boundaryType === 'official' ? 'text-[#1F2B6D]' : 'text-slate-500'}`}
+                  />
+                  <div
+                    className={`w-3 h-3 rounded-full border flex items-center justify-center ${
+                      boundaryType === 'official' ? 'border-[#1F2B6D] bg-[#1F2B6D]' : 'border-slate-300'
+                    }`}
+                  >
+                    {boundaryType === 'official' && <div className="w-1 h-1 rounded-full bg-white" />}
+                  </div>
                 </div>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-slate-900 leading-tight">Official</p>
-                <p className="text-[9.5px] text-slate-500 mt-0.5 leading-tight">
-                  Government limits
-                </p>
-              </div>
-            </button>
+                <div>
+                  <p className="text-[11px] font-bold text-slate-900 leading-tight">Official</p>
+                  <p className="text-[9.5px] text-slate-500 mt-0.5 leading-tight">
+                    Government limits
+                  </p>
+                </div>
+              </button>
+            )}
 
             {/* Option 2: Radius */}
             <button

@@ -13,7 +13,8 @@ import {
 } from '../../hooks'
 import { useCityMapContext } from '../../hooks/useCityMapContext'
 import { useToast } from '@/shared/context/toast/ToastContext'
-import { generateCirclePolygon, seedRingFor, type LatLngPoint } from '../CreateCityModal/geoUtils'
+import { CityLoadStatus } from './CityLoadStatus'
+import { seedRingFor } from '../CreateCityModal/geoUtils'
 import type { ServiceZoneDetail, ServiceZoneType } from '../../types'
 
 interface CreateServiceZoneModalProps {
@@ -26,22 +27,6 @@ interface CreateServiceZoneModalProps {
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-const CITY_COORDINATE_FALLBACKS: Record<string, LatLngPoint> = {
-  ATQ: { lat: 31.634, lng: 74.8723 }, // Amritsar, Punjab
-  LUH: { lat: 30.901, lng: 75.8573 }, // Ludhiana, Punjab
-  JUC: { lat: 31.326, lng: 75.5762 }, // Jalandhar, Punjab
-  PTA: { lat: 30.3398, lng: 76.3869 }, // Patiala, Punjab
-  IXC: { lat: 30.7333, lng: 76.7794 }, // Chandigarh
-  CHD: { lat: 30.7333, lng: 76.7794 }, // Chandigarh
-  SGR: { lat: 34.0837, lng: 74.7973 }, // Srinagar, J&K
-  JMU: { lat: 32.7266, lng: 74.857 }, // Jammu, J&K
-  BRM: { lat: 34.2017, lng: 74.3436 }, // Baramulla, J&K
-  BLR: { lat: 12.9716, lng: 77.5946 }, // Bangalore
-  PNQ: { lat: 18.5204, lng: 73.8567 }, // Pune
-  DEL: { lat: 28.6139, lng: 77.209 }, // Delhi
-  BOM: { lat: 19.076, lng: 72.8777 }, // Mumbai
-}
 
 export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
   isOpen,
@@ -110,29 +95,17 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
     referenceBoundary: dbCityBoundary,
     cityCenter: dbCityCenter,
     loadedCityCode,
+    failed: cityFailed,
+    retry: retryCity,
   } = useCityMapContext(cityCode, cities)
 
   // Current city metadata
   const currentCityObj = useMemo(() => {
-    return validCities.find((c) => c.code === cityCode) || validCities[0] || null
+    return validCities.find((c) => c.code === cityCode) || null
   }, [validCities, cityCode])
 
-  const cityName = currentCityObj?.name || 'Amritsar'
-
-  // Centroid fallback
-  const cityCenter: LatLngPoint = useMemo(() => {
-    if (dbCityCenter) return dbCityCenter
-    if (cityCode && CITY_COORDINATE_FALLBACKS[cityCode]) {
-      return CITY_COORDINATE_FALLBACKS[cityCode]
-    }
-    return { lat: 31.634, lng: 74.8723 }
-  }, [dbCityCenter, cityCode])
-
-  // Boundary fallback
-  const cityBoundary: number[][][] | null = useMemo(() => {
-    if (dbCityBoundary && dbCityBoundary[0]?.length >= 3) return dbCityBoundary
-    return generateCirclePolygon(cityCenter, 9.5, 32)
-  }, [dbCityBoundary, cityCenter])
+  const cityName = currentCityObj?.name ?? ''
+  const cityReady = Boolean(cityCode && loadedCityCode === cityCode)
 
   // Generate unique non-colliding zone code
   const getNextAvailableZoneCode = useCallback(
@@ -161,11 +134,8 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
   const resetForm = useCallback(() => {
     setCurrentStep(1)
     setErrorBanner(null)
-    const activeCode =
-      initialCityCode || (validCities.length > 0 ? validCities[0].code : 'ATQ')
-    const activeCity = validCities.find((c) => c.code === activeCode) || validCities[0]
-    const activeName = activeCity?.name || 'Amritsar'
-    const finalCode = activeCity?.code || activeCode
+    const activeCity = validCities.find((c) => c.code === initialCityCode) ?? validCities[0]
+    const finalCode = activeCity?.code ?? initialCityCode
 
     setCityCode(finalCode)
     prevCityCodeRef.current = finalCode
@@ -184,8 +154,9 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
         : initialZoneType === 'RESTRICTED'
         ? 'Restricted Zone'
         : 'Service Zone'
-    setName(`${activeName} ${typeLabel}`)
-    setCode(getNextAvailableZoneCode(finalCode, initialZoneType))
+    // Until the city list arrives there is nothing true to say; the effect below fills these in.
+    setName(activeCity ? `${activeCity.name} ${typeLabel}` : '')
+    setCode(finalCode ? getNextAvailableZoneCode(finalCode, initialZoneType) : '')
   }, [validCities, initialCityCode, initialZoneType, getNextAvailableZoneCode])
 
   // Reset form whenever modal opens in create mode
@@ -196,6 +167,13 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
     }
     wasOpenRef.current = isOpen
   }, [isOpen, isEdit, resetForm])
+
+  // The modal can open before the city list has loaded.
+  useEffect(() => {
+    if (isOpen && !isEdit && !cityCode && validCities.length > 0) {
+      setCityCode(validCities[0].code)
+    }
+  }, [isOpen, isEdit, cityCode, validCities])
 
   // In create mode: update default name, code and coordinates when cityCode or zoneType changes
   useEffect(() => {
@@ -267,7 +245,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
   )
 
   const canProceedStep1 = Boolean(
-    cityCode.trim() && name.trim() && code.trim() && !isCodeTaken,
+    cityReady && name.trim() && code.trim() && !isCodeTaken,
   )
   const canProceedStep3 = Boolean(
     coordinates?.[0]?.length && coordinates[0].length >= 4 && isMapValid,
@@ -465,9 +443,11 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                   setAllowsPickup={setAllowsPickup}
                   allowsDropoff={allowsDropoff}
                   setAllowsDropoff={setAllowsDropoff}
-                  cityBoundary={cityBoundary}
-                  cityCenter={cityCenter}
+                  cityBoundary={cityReady ? dbCityBoundary : null}
+                  cityCenter={cityReady ? dbCityCenter : null}
                   cityName={cityName}
+                  cityFailed={cityFailed}
+                  onRetryCity={retryCity}
                   existingZones={existingZonesList}
                 />
               )}
@@ -480,12 +460,16 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                 />
               )}
 
-              {currentStep === 3 && (
+              {currentStep >= 3 && (!cityReady || !dbCityCenter) && (
+                <CityLoadStatus failed={cityFailed} cityName={cityName} onRetry={retryCity} />
+              )}
+
+              {currentStep === 3 && cityReady && dbCityCenter && (
                 <Step4DefineZoneMap
                   coordinates={coordinates}
                   setCoordinates={setCoordinates}
-                  cityBoundary={cityBoundary}
-                  cityCenter={cityCenter}
+                  cityBoundary={dbCityBoundary}
+                  cityCenter={dbCityCenter}
                   cityName={cityName}
                   zoneName={name}
                   zoneType={zoneType}
@@ -495,7 +479,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                 />
               )}
 
-              {currentStep === 4 && (
+              {currentStep === 4 && cityReady && dbCityCenter && (
                 <Step5ReviewCreate
                   cityCode={cityCode}
                   cityName={cityName}
@@ -508,8 +492,8 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                   allowsDropoff={allowsDropoff}
                   vehicleCategoryIds={vehicleCategoryIds}
                   coordinates={coordinates}
-                  cityBoundary={cityBoundary}
-                  cityCenter={cityCenter}
+                  cityBoundary={dbCityBoundary}
+                  cityCenter={dbCityCenter}
                   existingZones={existingZonesWithBoundaries}
                   onEditInfo={() => setCurrentStep(1)}
                   onEditVehicles={() => setCurrentStep(2)}

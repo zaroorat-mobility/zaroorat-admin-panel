@@ -32,6 +32,9 @@ let container: HTMLDivElement
 let root: Root
 let held: Map<string, () => void>
 let holdCityDetails: boolean
+let failCityDetails: boolean
+let cityBoundaries: Record<string, number[][][] | null>
+let zoneDetail: Record<string, unknown> | null
 let sent: Array<{ method?: string; url?: string; body: Record<string, unknown> }>
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)))
@@ -106,6 +109,9 @@ function farthestFrom(code: string): number {
 beforeEach(() => {
   held = new Map()
   holdCityDetails = false
+  failCityDetails = false
+  cityBoundaries = {}
+  zoneDetail = null
   sent = []
   api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
     const ok = (data: unknown) => ({ data, status: 200, statusText: 'OK', headers: {}, config })
@@ -118,6 +124,7 @@ beforeEach(() => {
     if (config.url === API_ENDPOINTS.geographic.cities) return ok({ data: CITIES })
     const city = CITIES.find((c) => config.url === API_ENDPOINTS.geographic.city(c.id))
     if (city) {
+      if (failCityDetails) throw new Error('city detail unavailable')
       if (holdCityDetails) {
         await new Promise<void>((resolve) => held.set(city.code, resolve))
       }
@@ -128,9 +135,15 @@ beforeEach(() => {
           currency: 'INR',
           launchedAt: null,
           center: CENTERS[city.code],
-          boundary: generateCirclePolygon(CENTERS[city.code], 8, 32),
+          boundary:
+            city.code in cityBoundaries
+              ? cityBoundaries[city.code]
+              : generateCirclePolygon(CENTERS[city.code], 8, 32),
         },
       })
+    }
+    if (zoneDetail && config.url === API_ENDPOINTS.geographic.serviceZone(String(zoneDetail.id))) {
+      return ok({ data: zoneDetail })
     }
     return ok({ data: [] })
   }
@@ -185,5 +198,73 @@ describe('Create zone: the default zone belongs to the selected city', () => {
     await click('Next: Vehicle Categories')
     await click('Next: Define Zone on Map')
     assert.ok(farthestFrom('SGR') < 2.1, `zone is ${farthestFrom('SGR').toFixed(1)} km from Srinagar`)
+  })
+})
+
+describe('Create zone: honest messages and no invented city data', () => {
+  it('explains a zone outside the city and resets it, without advising a bigger city', async () => {
+    zoneDetail = {
+      id: 'zone-1',
+      code: 'BRM_SZ_01',
+      name: 'Baramulla Service Zone',
+      zoneType: 'SERVICE',
+      cityCode: 'BRM',
+      cityId: 'id-BRM',
+      isActive: true,
+      allowsPickup: true,
+      allowsDropoff: true,
+      fareRuleCount: 0,
+      boundary: generateCirclePolygon(CENTERS.ATQ, 2, 8),
+      vehicleTypeIds: [],
+      vehicleTypeCodes: [],
+    }
+    await renderModal({ zoneId: 'zone-1' })
+    await click('Next: Vehicle Categories')
+    await click('Next: Define Zone on Map')
+
+    const text = container.textContent ?? ''
+    assert.ok(text.includes('Part of this zone is outside Baramulla'))
+    assert.ok(!text.includes('Expand Radius'))
+    assert.ok(!text.includes('Polygon is completely inside'))
+    assert.equal(button('Next: Review & Update').disabled, true)
+
+    await click('Reset zone to city centre')
+
+    assert.ok(farthestFrom('BRM') < 2.1)
+    assert.ok((container.textContent ?? '').includes('Inside Baramulla'))
+    assert.equal(button('Next: Review & Update').disabled, false)
+  })
+
+  it('stops with Try again when the city will not load, and invents nothing', async () => {
+    failCityDetails = true
+    await renderModal()
+
+    const text = container.textContent ?? ''
+    assert.ok(text.includes('Could not load the Operating Area'))
+    assert.ok(!text.includes('294.8'))
+    assert.equal(button('Next: Vehicle Categories').disabled, true)
+
+    failCityDetails = false
+    await click('Try again')
+
+    assert.equal(button('Next: Vehicle Categories').disabled, false)
+    await click('Next: Vehicle Categories')
+    await click('Next: Define Zone on Map')
+    assert.ok(farthestFrom('ATQ') < 2.1)
+  })
+
+  it('treats a city with no boundary as not ready, not as a 9.5 km circle', async () => {
+    cityBoundaries.ATQ = null
+    await renderModal()
+    assert.ok((container.textContent ?? '').includes('Could not load the Operating Area'))
+    assert.equal(button('Next: Vehicle Categories').disabled, true)
+  })
+
+  it('calls the area what it is and drops the false boundary source', async () => {
+    await renderModal()
+    const text = container.textContent ?? ''
+    assert.ok(text.includes('Operating Area'))
+    assert.ok(!text.includes('City administrative boundary'))
+    assert.ok(!text.includes('City Boundary'))
   })
 })

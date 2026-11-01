@@ -15,7 +15,6 @@ import {
   Maximize2,
   Link2,
   ShieldCheck,
-  CheckCircle2,
   Check,
   Loader2,
   Copy,
@@ -29,11 +28,12 @@ import {
   calculatePolygonPerimeterKm,
   generateCirclePolygon,
   hasSelfIntersections,
-  isPointInsidePolygon,
   seedRingFor,
-  CITY_COORDINATE_FALLBACKS,
+  zoneChecks,
   type LatLngPoint,
 } from '../CreateCityModal/geoUtils'
+import { CityLoadStatus } from '../CreateServiceZoneModal/CityLoadStatus'
+import { ZoneChecksList } from '../CreateServiceZoneModal/ZoneChecksList'
 import {
   useCities,
   useCityZonesWithBoundaries,
@@ -102,29 +102,14 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   const [formError, setFormError] = useState<string | null>(null)
 
   // City Map Context (Boundary + Center)
-  const { referenceBoundary, cityCenter: detectedCenter, loadedCityCode } = useCityMapContext(
-    cityCode,
-    cities,
-  )
-
-  // Active City Center fallback
-  const cityCenter: LatLngPoint = useMemo(() => {
-    if (detectedCenter) return detectedCenter
-    if (cityCode && CITY_COORDINATE_FALLBACKS[cityCode]) {
-      return CITY_COORDINATE_FALLBACKS[cityCode]
-    }
-    const currentCity = cities.find((c) => c.code === cityCode)
-    if (currentCity?.code && CITY_COORDINATE_FALLBACKS[currentCity.code]) {
-      return CITY_COORDINATE_FALLBACKS[currentCity.code]
-    }
-    return { lat: 31.634, lng: 74.8723 } // Primary default (Amritsar)
-  }, [detectedCenter, cityCode, cities])
-
-  // Boundary fallback so map always shows a clear city boundary
-  const cityBoundary: number[][][] | null = useMemo(() => {
-    if (referenceBoundary && referenceBoundary[0]?.length >= 3) return referenceBoundary
-    return generateCirclePolygon(cityCenter, 9.5, 32)
-  }, [referenceBoundary, cityCenter])
+  const {
+    referenceBoundary: cityBoundary,
+    cityCenter,
+    loadedCityCode,
+    failed: cityFailed,
+    retry: retryCity,
+  } = useCityMapContext(cityCode, cities)
+  const cityReady = Boolean(cityCode && loadedCityCode === cityCode)
 
   const cityName = useMemo(() => {
     const c = cities.find((item) => item.code === cityCode)
@@ -137,16 +122,14 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   const resetForm = useCallback(() => {
     setFormError(null)
     const validCities = cities.filter((c) => c.code !== 'GLOBAL')
-    const activeCode =
-      initialCityCode || (validCities.length > 0 ? validCities[0].code : 'ATQ')
-    const activeCity = validCities.find((c) => c.code === activeCode) || validCities[0]
-    const activeName = activeCity?.name || 'Amritsar'
-    const finalCode = activeCity?.code || activeCode
+    const activeCity =
+      validCities.find((c) => c.code === initialCityCode) ?? validCities[0]
+    const finalCode = activeCity?.code ?? initialCityCode ?? ''
 
     setCityCode(finalCode)
     prevCityCodeRef.current = finalCode
-    setName(`${activeName} Surge Zone`)
-    setCode(`${finalCode}_SURGE`)
+    setName(activeCity ? `${activeCity.name} Surge Zone` : '')
+    setCode(finalCode ? `${finalCode}_SURGE` : '')
     setHasManuallyEditedCode(false)
     setIsActive(true)
     setToolMode('draw')
@@ -259,12 +242,12 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   // The default zone. Waits for the selected city, so it can never land in the last one.
   useEffect(() => {
     if (isEdit || coordinates?.[0]?.length) return
-    const ring = seedRingFor({ cityCode, loadedCityCode, center: detectedCenter, radiusKm: 2 })
+    const ring = seedRingFor({ cityCode, loadedCityCode, center: cityCenter, radiusKm: 2 })
     if (ring) {
       setCoordinates(ring)
       setFitTrigger((prev) => prev + 1)
     }
-  }, [isEdit, coordinates, cityCode, loadedCityCode, detectedCenter])
+  }, [isEdit, coordinates, cityCode, loadedCityCode, cityCenter])
 
   // Load existing zone data for edit mode
   useEffect(() => {
@@ -308,7 +291,7 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   }, [coordinates])
 
   // Centroid for Zone Center Badge
-  const newZoneCenter = useMemo<LatLngPoint>(() => {
+  const newZoneCenter = useMemo<LatLngPoint | null>(() => {
     if (uniqueVertices.length > 0) {
       const sum = uniqueVertices.reduce(
         (acc, [lng, lat]) => ({ lng: acc.lng + lng, lat: acc.lat + lat }),
@@ -322,19 +305,16 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
     return cityCenter
   }, [uniqueVertices, cityCenter])
 
-  // Validation Flags
-  const isInsideCity = useMemo(() => {
-    if (!cityBoundary?.[0] || !coordinates?.[0] || coordinates[0].length < 3) return false
-    return coordinates[0].every(([lng, lat]) => isPointInsidePolygon({ lng, lat }, cityBoundary))
-  }, [cityBoundary, coordinates])
-
-  const noIntersections = useMemo(() => !hasSelfIntersections(coordinates), [coordinates])
-  const isAreaValid = areaKm2 > 0.05
-  const allConnected = Boolean(coordinates?.[0] && coordinates[0].length >= 4)
-  const isOverallValid = isInsideCity && noIntersections && isAreaValid && allConnected
+  const validation = useMemo(
+    () => zoneChecks({ cityName, coordinates, cityBoundary }),
+    [cityName, coordinates, cityBoundary],
+  )
+  const isOverallValid = validation.ok
+  const noIntersections = !hasSelfIntersections(coordinates)
 
   // Action: Draw Circle
   const handleDrawCircle = () => {
+    if (!newZoneCenter) return
     setToolMode('circle')
     const circle = generateCirclePolygon(newZoneCenter, 2.0, 8)
     setCoordinates(circle)
@@ -713,6 +693,9 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
               </div>
 
               {/* Map Container */}
+              {!cityReady || !cityCenter ? (
+                <CityLoadStatus failed={cityFailed} cityName={cityName} onRetry={retryCity} />
+              ) : (
               <div className="relative w-full h-[255px] lg:h-[265px] rounded-xl overflow-hidden border border-slate-200/90">
                 <GoogleZoneDrawingMap
                   coordinates={coordinates}
@@ -747,7 +730,7 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
                     />
                     <span className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded bg-blue-600 inline-block"></span>
-                      <span>City Boundary</span>
+                      <span>Operating Area</span>
                     </span>
                   </label>
 
@@ -830,6 +813,7 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
                   </div>
                 </div>
               </div>
+              )}
             </div>
 
             {/* Bottom Row under Map: Zone Geometry & Validation */}
@@ -893,62 +877,16 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
                       isOverallValid ? 'text-emerald-800' : 'text-amber-900'
                     }`}
                   >
-                    Validation {isOverallValid ? 'Passed' : 'Issues'}
+                    {isOverallValid ? 'Ready to save' : 'Needs fixing'}
                   </h3>
                 </div>
 
-                <div className="space-y-1 text-[11px] font-medium">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2
-                      className={`w-3.5 h-3.5 shrink-0 ${
-                        isInsideCity ? 'text-emerald-600' : 'text-red-500'
-                      }`}
-                    />
-                    <span className={isInsideCity ? 'text-slate-700' : 'text-red-700 font-semibold'}>
-                      {isInsideCity
-                        ? 'Zone is completely inside city boundary'
-                        : 'Zone extends outside city boundary'}
-                    </span>
-                  </div>
+                <ZoneChecksList checks={validation.checks} />
 
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2
-                      className={`w-3.5 h-3.5 shrink-0 ${
-                        noIntersections ? 'text-emerald-600' : 'text-red-500'
-                      }`}
-                    />
-                    <span className={noIntersections ? 'text-slate-700' : 'text-red-700 font-semibold'}>
-                      Valid geometry (no self-intersections)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2
-                      className={`w-3.5 h-3.5 shrink-0 ${
-                        isAreaValid ? 'text-emerald-600' : 'text-red-500'
-                      }`}
-                    />
-                    <span className={isAreaValid ? 'text-slate-700' : 'text-red-700 font-semibold'}>
-                      Minimum area requirement met ({areaKm2} km²)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle2
-                      className={`w-3.5 h-3.5 shrink-0 ${
-                        allConnected ? 'text-emerald-600' : 'text-red-500'
-                      }`}
-                    />
-                    <span className={allConnected ? 'text-slate-700' : 'text-red-700 font-semibold'}>
-                      All points connected ({pointsCount} vertices)
-                    </span>
-                  </div>
-                </div>
-
-                {!isInsideCity && (
+                {!validation.insideCity && (
                   <div className="mt-2 pt-2 border-t border-amber-200/80 text-[10.5px] text-amber-900 leading-snug flex items-start gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                    <span>The surge zone boundary extends outside {cityName}&apos;s registered city boundary. Drag the vertices inside the blue boundary line.</span>
+                    <span>Drag the points inside the blue line, or press Clear All to start again from the city centre.</span>
                   </div>
                 )}
               </div>

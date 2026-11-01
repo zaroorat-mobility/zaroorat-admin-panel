@@ -6,7 +6,6 @@ import {
   Trash2,
   RotateCcw,
   Maximize2,
-  CheckCircle2,
   Copy,
   Check,
   Hexagon,
@@ -24,11 +23,10 @@ import {
   calculatePolygonAreaKm2,
   calculatePolygonPerimeterKm,
   generateCirclePolygon,
-  haversineDistanceKm,
-  hasSelfIntersections,
-  isPointInsidePolygon,
+  zoneChecks,
   type LatLngPoint,
 } from '../CreateCityModal/geoUtils'
+import { ZoneChecksList } from './ZoneChecksList'
 import { placeKind, type PlaceKind } from '../../services/geocodingService'
 import { usePlaceAutocomplete, type PlaceSuggestion } from '@/shared/hooks/usePlaceAutocomplete'
 import type { ServiceZoneDetail, ServiceZoneType } from '../../types'
@@ -398,41 +396,11 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
     )
   }, [existingZones])
 
-  // Validation criteria
-  const isInsideCity = useMemo(() => {
-    if (!cityBoundary?.[0] || !coordinates?.[0] || coordinates[0].length < 3) return true
-    return coordinates[0].every(([lng, lat]) => isPointInsidePolygon({ lng, lat }, cityBoundary))
-  }, [cityBoundary, coordinates])
-
-  // Real mathematical calculation of zone distance from city center & city radius
-  const zoneDistFromCenterKm = useMemo(() => {
-    if (!coordinates?.[0] || coordinates[0].length === 0) return 0
-    let maxDist = 0
-    for (const [lng, lat] of coordinates[0]) {
-      const d = haversineDistanceKm(cityCenter, { lat, lng })
-      if (d > maxDist) maxDist = d
-    }
-    return Number(maxDist.toFixed(1))
-  }, [coordinates, cityCenter])
-
-  const currentCityRadiusKm = useMemo(() => {
-    if (!cityBoundary?.[0] || cityBoundary[0].length === 0) return 5.0
-    let maxDist = 0
-    for (const [lng, lat] of cityBoundary[0]) {
-      const d = haversineDistanceKm(cityCenter, { lat, lng })
-      if (d > maxDist) maxDist = d
-    }
-    return Number(maxDist.toFixed(1))
-  }, [cityBoundary, cityCenter])
-
-  const recommendedRadiusKm = useMemo(() => {
-    return Math.max(Math.ceil(zoneDistFromCenterKm + 2), Math.ceil(currentCityRadiusKm + 2), 10)
-  }, [zoneDistFromCenterKm, currentCityRadiusKm])
-
-  const noIntersections = useMemo(() => !hasSelfIntersections(coordinates), [coordinates])
-  const isAreaValid = areaKm2 > 0.05
-  const allConnected = Boolean(coordinates?.[0] && coordinates[0].length >= 4)
-  const isOverallValid = isInsideCity && noIntersections && isAreaValid && allConnected
+  const validation = useMemo(
+    () => zoneChecks({ cityName, coordinates, cityBoundary }),
+    [cityName, coordinates, cityBoundary],
+  )
+  const isOverallValid = validation.ok
 
   useEffect(() => {
     onValidationChange?.(isOverallValid)
@@ -836,7 +804,7 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                 />
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-blue-600"></span>
-                  <span>City Boundary</span>
+                  <span>Operating Area</span>
                 </span>
               </label>
 
@@ -979,83 +947,29 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                   isOverallValid ? 'text-emerald-950' : 'text-amber-950'
                 }`}
               >
-                Validation {isOverallValid ? 'Passed' : 'Issues'}
+                {isOverallValid ? 'Ready to continue' : 'Needs fixing'}
               </h4>
             </div>
 
-            <div className="space-y-1.5 text-xs font-medium pl-0.5">
-              <div
-                className={`flex items-center gap-2 ${
-                  isInsideCity ? 'text-emerald-900' : 'text-red-700'
-                }`}
-              >
-                <CheckCircle2
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    isInsideCity ? 'text-emerald-600' : 'text-red-500'
-                  }`}
-                />
-                <span>Polygon is completely inside city boundary</span>
-              </div>
-              <div
-                className={`flex items-center gap-2 ${
-                  noIntersections ? 'text-emerald-900' : 'text-red-700'
-                }`}
-              >
-                <CheckCircle2
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    noIntersections ? 'text-emerald-600' : 'text-red-500'
-                  }`}
-                />
-                <span>Polygon is valid (no self-intersections)</span>
-              </div>
-              <div
-                className={`flex items-center gap-2 ${
-                  isAreaValid ? 'text-emerald-900' : 'text-red-700'
-                }`}
-              >
-                <CheckCircle2
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    isAreaValid ? 'text-emerald-600' : 'text-red-500'
-                  }`}
-                />
-                <span>Minimum area requirement met ({areaKm2.toFixed(2)} km²)</span>
-              </div>
-              <div
-                className={`flex items-center gap-2 ${
-                  allConnected ? 'text-emerald-900' : 'text-red-700'
-                }`}
-              >
-                <CheckCircle2
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    allConnected ? 'text-emerald-600' : 'text-red-500'
-                  }`}
-                />
-                <span>All points connected ({pointsCount} vertices)</span>
-              </div>
-            </div>
+            <ZoneChecksList checks={validation.checks} />
           </div>
 
-          {/* Actionable Boundary Warning Banner if polygon is outside city boundary */}
-          {!isInsideCity && (
+          {!validation.insideCity && (
             <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-3 shadow-2xs space-y-2">
               <div className="flex items-center gap-1.5 font-bold text-amber-950 text-xs">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Zone Outside Registered City Boundary</span>
+                <span>This zone is outside {cityName}</span>
               </div>
               <p className="text-[11.5px] text-amber-900 leading-relaxed">
-                The defined zone extends up to <strong>{zoneDistFromCenterKm} km</strong> from {cityName || 'the city'}&apos;s center, which exceeds the currently registered boundary radius (~{currentCityRadiusKm} km).
+                Move the points inside the blue line, or start again from the city centre.
               </p>
-              <div className="pt-2 border-t border-amber-200/80 text-[11px] text-amber-900 flex flex-col gap-1">
-                <span className="font-semibold text-slate-800">How to resolve:</span>
-                <div className="flex items-center justify-between gap-2 bg-amber-100/70 p-2 rounded-lg border border-amber-200">
-                  <span className="text-[10.5px] text-amber-950">
-                    Go to <strong>Geographic Management &gt; Cities &gt; Edit {cityName || 'City'}</strong>
-                  </span>
-                  <span className="font-bold text-amber-800 bg-white px-2 py-0.5 rounded shadow-xs text-[10.5px] shrink-0 border border-amber-300">
-                    Expand Radius &ge; {recommendedRadiusKm} km
-                  </span>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="w-full px-3 py-1.5 bg-white hover:bg-amber-100/70 border border-amber-300 rounded-lg text-xs font-bold text-amber-950 transition-colors cursor-pointer"
+              >
+                Reset zone to city centre
+              </button>
             </div>
           )}
 
