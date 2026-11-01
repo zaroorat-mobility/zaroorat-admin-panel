@@ -27,6 +27,8 @@ const CITIES = [
   { id: 'id-SGR', code: 'SGR', name: 'Srinagar', state: 'J&K', stateId: null, country: 'India', isActive: true, hasBoundary: true, zoneCount: 0 },
 ]
 
+const VEHICLE_ID = '11111111-1111-4111-8111-111111111111'
+
 const originalAdapter = api.defaults.adapter
 let container: HTMLDivElement
 let root: Root
@@ -35,6 +37,7 @@ let holdCityDetails: boolean
 let failCityDetails: boolean
 let cityBoundaries: Record<string, number[][][] | null>
 let zoneDetail: Record<string, unknown> | null
+let zoneList: Array<Record<string, unknown>>
 let sent: Array<{ method?: string; url?: string; body: Record<string, unknown> }>
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)))
@@ -112,6 +115,7 @@ beforeEach(() => {
   failCityDetails = false
   cityBoundaries = {}
   zoneDetail = null
+  zoneList = []
   sent = []
   api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
     const ok = (data: unknown) => ({ data, status: 200, statusText: 'OK', headers: {}, config })
@@ -122,6 +126,10 @@ beforeEach(() => {
     }
     if (config.url === API_ENDPOINTS.settings.mapsClientConfig) return ok({ data: { providers: {} } })
     if (config.url === API_ENDPOINTS.geographic.cities) return ok({ data: CITIES })
+    if (config.url === API_ENDPOINTS.geographic.serviceZones) return ok({ data: zoneList })
+    if (config.url === API_ENDPOINTS.vehicleTypes.list) {
+      return ok({ data: [{ id: VEHICLE_ID, code: 'CAB_ECONOMY', name: 'Economy Cab', isActive: true }] })
+    }
     const city = CITIES.find((c) => config.url === API_ENDPOINTS.geographic.city(c.id))
     if (city) {
       if (failCityDetails) throw new Error('city detail unavailable')
@@ -198,6 +206,128 @@ describe('Create zone: the default zone belongs to the selected city', () => {
     await click('Next: Vehicle Categories')
     await click('Next: Define Zone on Map')
     assert.ok(farthestFrom('SGR') < 2.1, `zone is ${farthestFrom('SGR').toFixed(1)} km from Srinagar`)
+  })
+})
+
+describe('Create zone: the form says what each setting does', () => {
+  function typeSelect(): HTMLSelectElement {
+    const select = [...container.querySelectorAll('select')].find((s) =>
+      [...s.options].some((o) => o.value === 'RESTRICTED'),
+    )
+    assert.ok(select, 'zone type select')
+    return select
+  }
+
+  async function chooseType(type: string) {
+    const select = typeSelect()
+    await act(async () => {
+      select.value = type
+      select.dispatchEvent(new window.Event('change', { bubbles: true }))
+    })
+    await settle()
+  }
+
+  it('makes a restricted zone block pickup and drop unless told otherwise', async () => {
+    await renderModal()
+    await chooseType('RESTRICTED')
+
+    const text = container.textContent ?? ''
+    assert.ok(text.includes('Create Restricted Zone'))
+    assert.ok(text.includes('Block pickups'))
+    assert.ok(text.includes('Block drop-offs'))
+
+    await click('Next: Define Zone on Map')
+    await click('Next: Review & Create')
+    await click('Create Restricted Zone')
+
+    assert.equal(sent.length, 1)
+    assert.equal(sent[0].body.zoneType, 'RESTRICTED')
+    assert.equal(sent[0].body.allowsPickup, false)
+    assert.equal(sent[0].body.allowsDropoff, false)
+  })
+
+  it('will not continue with a restricted zone that blocks nothing', async () => {
+    await renderModal()
+    await chooseType('RESTRICTED')
+    await click('Block pickups')
+    await click('Block drop-offs')
+
+    assert.equal(button('Next: Define Zone on Map').disabled, true)
+    assert.ok((container.textContent ?? '').includes('Choose at least one'))
+  })
+
+  it('skips the vehicle step for a restricted zone, which applies to all vehicles', async () => {
+    await renderModal()
+    await chooseType('RESTRICTED')
+    assert.ok(!(container.textContent ?? '').includes('Vehicle Categories'))
+  })
+
+  it('has no Priority field and sends none', async () => {
+    await renderModal()
+    assert.ok(!(container.textContent ?? '').includes('Priority'))
+
+    await click('Next: Vehicle Categories')
+    await click('Next: Define Zone on Map')
+    await click('Next: Review & Create')
+    assert.ok(!(container.textContent ?? '').includes('Priority'))
+
+    await click('Create Service Zone')
+    assert.equal('priority' in sent[0].body, false)
+  })
+
+  it('offers no drop-off switch on a service zone, where it would do nothing', async () => {
+    await renderModal()
+    const text = container.textContent ?? ''
+    assert.ok(text.includes('Allow Pickups'))
+    assert.ok(!text.includes('Allow Drop-offs'))
+  })
+
+  it('warns that the first zone closes the rest of the city', async () => {
+    await renderModal()
+    assert.ok((container.textContent ?? '').includes('rides can only start inside it'))
+  })
+
+  it('does not warn when the city already has a service zone', async () => {
+    zoneList = [
+      { id: 'z1', code: 'ATQ_SZ_01', name: 'Amritsar Zone', zoneType: 'SERVICE', cityCode: 'ATQ', cityId: 'id-ATQ', isActive: true, allowsPickup: true, allowsDropoff: true, fareRuleCount: 0 },
+    ]
+    await renderModal()
+    assert.ok(!(container.textContent ?? '').includes('rides can only start inside it'))
+  })
+
+  it('defaults to all vehicles, selects nothing, and sends no vehicle list', async () => {
+    await renderModal()
+    await click('Next: Vehicle Categories')
+
+    assert.ok((container.textContent ?? '').includes('All vehicles (recommended)'))
+    assert.ok(!(container.textContent ?? '').includes('Economy Cab'))
+
+    await click('Next: Define Zone on Map')
+    await click('Next: Review & Create')
+    await click('Create Service Zone')
+
+    assert.equal('vehicleTypeIds' in sent[0].body, false)
+  })
+
+  it('needs a vehicle before continuing with Only these, then sends just that one', async () => {
+    await renderModal()
+    await click('Next: Vehicle Categories')
+    await click('Only these')
+
+    assert.equal(button('Next: Define Zone on Map').disabled, true)
+
+    const card = [...container.querySelectorAll('div')].find(
+      (d) => d.className.includes('min-h-[148px]') && d.textContent?.includes('Economy Cab'),
+    )
+    assert.ok(card, 'vehicle card')
+    await act(async () => card.click())
+    await settle()
+
+    await click('Next: Define Zone on Map')
+    await click('Next: Review & Create')
+    await click('Create Service Zone')
+
+    assert.deepEqual(sent[0].body.vehicleTypeIds, [VEHICLE_ID])
   })
 })
 

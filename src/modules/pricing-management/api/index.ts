@@ -184,7 +184,8 @@ export const getServiceZones = async (cityCode: string): Promise<ServiceZoneOpti
   const response = await api.get<{ data: ServiceZoneOption[] }>(API_ENDPOINTS.geographic.serviceZones, {
     params: { cityCode, activeOnly: true },
   })
-  return response.data.data
+  // A fare can only apply where a ride can start, so a restricted zone is never a choice.
+  return response.data.data.filter((z) => z.zoneType === 'SERVICE' || z.zoneType === 'AIRPORT')
 }
 
 export const getFareRules = async (

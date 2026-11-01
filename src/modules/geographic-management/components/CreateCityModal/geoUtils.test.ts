@@ -5,11 +5,23 @@ import {
   generateCirclePolygon,
   haversineDistanceKm,
   seedRingFor,
+  zoneAccessDefaults,
   zoneChecks,
 } from './geoUtils'
 
 const AMRITSAR = { lat: 31.634, lng: 74.8723 }
 const BARAMULLA = { lat: 34.209, lng: 74.3436 }
+
+describe('zoneAccessDefaults', () => {
+  it('blocks pickup and drop on a restricted zone', () => {
+    assert.deepEqual(zoneAccessDefaults('RESTRICTED'), { allowsPickup: false, allowsDropoff: false })
+  })
+
+  it('allows pickup and drop on service and airport zones', () => {
+    assert.deepEqual(zoneAccessDefaults('SERVICE'), { allowsPickup: true, allowsDropoff: true })
+    assert.deepEqual(zoneAccessDefaults('AIRPORT'), { allowsPickup: true, allowsDropoff: true })
+  })
+})
 
 describe('zoneChecks', () => {
   const cityBoundary = generateCirclePolygon(BARAMULLA, 8, 32)

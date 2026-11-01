@@ -2,6 +2,8 @@
  * Geographic calculation utilities for City boundaries (WGS84).
  */
 
+import type { ServiceZoneType } from '../../types'
+
 export interface LatLngPoint {
   lat: number
   lng: number
@@ -238,4 +240,33 @@ export function hasSelfIntersections(coordinates?: number[][][] | null): boolean
   }
 
   return false
+}
+
+const ZONE_TYPE_LABELS: Record<ServiceZoneType, string> = {
+  SERVICE: 'Service Zone',
+  AIRPORT: 'Airport Zone',
+  RESTRICTED: 'Restricted Zone',
+}
+
+const ZONE_TYPE_HELP: Record<ServiceZoneType, string> = {
+  SERVICE: 'An area where rides can start.',
+  AIRPORT: 'A special place with its own fare. Rides can also start here.',
+  RESTRICTED: 'An area where pickups or drop-offs are not allowed. This always wins over other zones.',
+}
+
+export function zoneTypeLabel(type: ServiceZoneType): string {
+  return ZONE_TYPE_LABELS[type]
+}
+
+export function zoneTypeHelp(type: ServiceZoneType): string {
+  return ZONE_TYPE_HELP[type]
+}
+
+/** What a new zone of this type allows. A restricted zone exists to block, so it starts blocking. */
+export function zoneAccessDefaults(type: ServiceZoneType): {
+  allowsPickup: boolean
+  allowsDropoff: boolean
+} {
+  const allowed = type !== 'RESTRICTED'
+  return { allowsPickup: allowed, allowsDropoff: allowed }
 }

@@ -14,7 +14,12 @@ import {
 import { useCityMapContext } from '../../hooks/useCityMapContext'
 import { useToast } from '@/shared/context/toast/ToastContext'
 import { CityLoadStatus } from './CityLoadStatus'
-import { seedRingFor } from '../CreateCityModal/geoUtils'
+import {
+  seedRingFor,
+  zoneAccessDefaults,
+  zoneTypeHelp,
+  zoneTypeLabel,
+} from '../CreateCityModal/geoUtils'
 import type { ServiceZoneDetail, ServiceZoneType } from '../../types'
 
 interface CreateServiceZoneModalProps {
@@ -54,12 +59,12 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
   const [zoneType, setZoneType] = useState<ServiceZoneType>(initialZoneType)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [priority, setPriority] = useState<number>(5)
   const [isActive, setIsActive] = useState<boolean>(true)
   const [allowsPickup, setAllowsPickup] = useState<boolean>(true)
   const [allowsDropoff, setAllowsDropoff] = useState<boolean>(true)
 
   // Step 2: Vehicle Categories (Real DB UUIDs)
+  const [vehicleMode, setVehicleMode] = useState<'ALL' | 'ONLY'>('ALL')
   const [vehicleCategoryIds, setVehicleCategoryIds] = useState<string[]>([])
 
   // Step 3: Define Zone on Map
@@ -77,9 +82,9 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
       setIsActive(existingZone.isActive ?? true)
       setAllowsPickup(existingZone.allowsPickup ?? true)
       setAllowsDropoff(existingZone.allowsDropoff ?? true)
-      if (existingZone.vehicleTypeIds && existingZone.vehicleTypeIds.length > 0) {
-        setVehicleCategoryIds(existingZone.vehicleTypeIds)
-      }
+      const vehicleIds = existingZone.vehicleTypeIds ?? []
+      setVehicleMode(vehicleIds.length > 0 ? 'ONLY' : 'ALL')
+      setVehicleCategoryIds(vehicleIds)
       if (existingZone.boundary && existingZone.boundary[0]?.length >= 3) {
         setCoordinates(existingZone.boundary)
       }
@@ -141,21 +146,16 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
     prevCityCodeRef.current = finalCode
     setZoneType(initialZoneType)
     prevZoneTypeRef.current = initialZoneType
-    setPriority(5)
     setIsActive(true)
-    setAllowsPickup(true)
-    setAllowsDropoff(true)
+    const access = zoneAccessDefaults(initialZoneType)
+    setAllowsPickup(access.allowsPickup)
+    setAllowsDropoff(access.allowsDropoff)
+    setVehicleMode('ALL')
     setVehicleCategoryIds([])
     setCoordinates(null)
 
-    const typeLabel =
-      initialZoneType === 'AIRPORT'
-        ? 'Airport Zone'
-        : initialZoneType === 'RESTRICTED'
-        ? 'Restricted Zone'
-        : 'Service Zone'
     // Until the city list arrives there is nothing true to say; the effect below fills these in.
-    setName(activeCity ? `${activeCity.name} ${typeLabel}` : '')
+    setName(activeCity ? `${activeCity.name} ${zoneTypeLabel(initialZoneType)}` : '')
     setCode(finalCode ? getNextAvailableZoneCode(finalCode, initialZoneType) : '')
   }, [validCities, initialCityCode, initialZoneType, getNextAvailableZoneCode])
 
@@ -181,15 +181,14 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
       const cityChanged = prevCityCodeRef.current !== cityCode
       const typeChanged = prevZoneTypeRef.current !== zoneType
       if (cityChanged || typeChanged) {
-        const typeLabel =
-          zoneType === 'AIRPORT'
-            ? 'Airport Zone'
-            : zoneType === 'RESTRICTED'
-            ? 'Restricted Zone'
-            : 'Service Zone'
-        setName(`${cityName} ${typeLabel}`)
+        setName(`${cityName} ${zoneTypeLabel(zoneType)}`)
         setCode(getNextAvailableZoneCode(cityCode, zoneType))
         if (cityChanged) setCoordinates(null)
+        if (typeChanged) {
+          const access = zoneAccessDefaults(zoneType)
+          setAllowsPickup(access.allowsPickup)
+          setAllowsDropoff(access.allowsDropoff)
+        }
         prevCityCodeRef.current = cityCode
         prevZoneTypeRef.current = zoneType
       }
@@ -228,12 +227,16 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
 
   if (!isOpen) return null
 
+  const isRestricted = zoneType === 'RESTRICTED'
+  const typeLabel = zoneTypeLabel(zoneType)
+
+  // A restricted zone applies to every vehicle, so there is no vehicle step to show.
   const steps = [
     { n: 1, label: 'Zone Information' },
     { n: 2, label: 'Vehicle Categories' },
     { n: 3, label: 'Define Zone on Map' },
     { n: 4, label: isEdit ? 'Review & Update' : 'Review & Create' },
-  ]
+  ].filter((s) => !(isRestricted && s.n === 2))
 
   // Code uniqueness check (excludes self if in edit mode)
   const normalizedCode = code.trim().toUpperCase()
@@ -244,9 +247,18 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
       ),
   )
 
+  const blocksSomething = !allowsPickup || !allowsDropoff
   const canProceedStep1 = Boolean(
-    cityReady && name.trim() && code.trim() && !isCodeTaken,
+    cityReady && name.trim() && code.trim() && !isCodeTaken && (!isRestricted || blocksSomething),
   )
+  const canProceedStep2 = isRestricted || vehicleMode === 'ALL' || vehicleCategoryIds.length > 0
+
+  // ponytail: the backend closes the rest of a city once its first zone exists. Phase 1 replaces this warning with a setting.
+  const isFirstCoverageZone =
+    !isEdit &&
+    !isRestricted &&
+    cityReady &&
+    !existingZonesList.some((z) => z.isActive && z.zoneType !== 'RESTRICTED')
   const canProceedStep3 = Boolean(
     coordinates?.[0]?.length && coordinates[0].length >= 4 && isMapValid,
   )
@@ -266,7 +278,10 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
     }
 
     // Only pass valid UUID strings to backend
-    const validVehicleTypeUuids = vehicleCategoryIds.filter((id) => UUID_REGEX.test(id))
+    const validVehicleTypeUuids =
+      isRestricted || vehicleMode === 'ALL'
+        ? []
+        : vehicleCategoryIds.filter((id) => UUID_REGEX.test(id))
 
     try {
       if (isEdit && zoneId) {
@@ -283,7 +298,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
           },
         })
         showToastSuccess(
-          'Service Zone Updated',
+          `${typeLabel} Updated`,
           `Zone "${name.trim()}" has been updated successfully.`,
         )
         onSuccess?.(result as unknown as ServiceZoneDetail)
@@ -301,7 +316,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
           ...(validVehicleTypeUuids.length > 0 ? { vehicleTypeIds: validVehicleTypeUuids } : {}),
         })
         showToastSuccess(
-          'Service Zone Created',
+          `${typeLabel} Created`,
           `Zone "${name.trim()}" (${code.trim().toUpperCase()}) has been created successfully for ${cityName}.`,
         )
         resetForm()
@@ -313,7 +328,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
         err instanceof Error
           ? err.message
           : (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data
-              ?.error?.message ?? (isEdit ? 'Failed to update service zone.' : 'Failed to create service zone.')
+              ?.error?.message ?? (isEdit ? 'Failed to update this zone.' : 'Failed to create this zone.')
       setErrorBanner(message)
     }
   }
@@ -337,12 +352,10 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
             <div className="w-1.5 h-6 bg-[#1F2B6D] rounded-full mt-0.5"></div>
             <div>
               <h2 className="text-xl font-bold text-[#1F2B6D]">
-                {isEdit ? `Edit Service Zone: ${existingZone?.name || name}` : 'Create Service Zone'}
+                {isEdit ? `Edit ${typeLabel}: ${existingZone?.name || name}` : `Create ${typeLabel}`}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                {isEdit
-                  ? 'Update service zone boundary, vehicle categories, and operational rules.'
-                  : 'Define a service zone within the city boundary and assign vehicle categories.'}
+                {zoneTypeHelp(zoneType)}
               </p>
             </div>
           </div>
@@ -370,8 +383,10 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                     onClick={() => {
                       if (s.n === 1) setCurrentStep(1)
                       else if (s.n === 2 && canProceedStep1) setCurrentStep(2)
-                      else if (s.n === 3 && canProceedStep1) setCurrentStep(3)
-                      else if (s.n === 4 && canProceedStep1 && canProceedStep3) setCurrentStep(4)
+                      else if (s.n === 3 && canProceedStep1 && canProceedStep2) setCurrentStep(3)
+                      else if (s.n === 4 && canProceedStep1 && canProceedStep2 && canProceedStep3) {
+                        setCurrentStep(4)
+                      }
                     }}
                     className="flex items-center gap-2 shrink-0 cursor-pointer text-left"
                   >
@@ -382,7 +397,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                           : 'border border-slate-300 text-slate-500 bg-white'
                       }`}
                     >
-                      {isCompleted ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : s.n}
+                      {isCompleted ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : i + 1}
                     </div>
                     <span
                       className={`text-xs font-bold leading-tight ${
@@ -415,6 +430,13 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
           </div>
         )}
 
+        {isFirstCoverageZone && (currentStep === 1 || currentStep === 4) && (
+          <div className="shrink-0 mx-6 mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-xs font-medium text-amber-950">
+            This is the first zone in {cityName}. After you create it, rides can only start inside it,
+            and the rest of {cityName} stops taking rides.
+          </div>
+        )}
+
         {/* ── Body Container ───────────────────────────────────── */}
         <div className="flex-1 min-h-0 px-6 py-3.5 bg-slate-50/60 overflow-y-auto">
           {isEdit && isLoadingZone ? (
@@ -435,8 +457,6 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                   setName={setName}
                   code={code}
                   setCode={setCode}
-                  priority={priority}
-                  setPriority={setPriority}
                   isActive={isActive}
                   setIsActive={setIsActive}
                   allowsPickup={allowsPickup}
@@ -454,6 +474,8 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
 
               {currentStep === 2 && (
                 <Step3VehicleCategories
+                  mode={vehicleMode}
+                  setMode={setVehicleMode}
                   selectedCategoryIds={vehicleCategoryIds}
                   setSelectedCategoryIds={setVehicleCategoryIds}
                   cityName={cityName}
@@ -486,11 +508,10 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                   zoneType={zoneType}
                   name={name}
                   code={code}
-                  priority={priority}
                   isActive={isActive}
                   allowsPickup={allowsPickup}
                   allowsDropoff={allowsDropoff}
-                  vehicleCategoryIds={vehicleCategoryIds}
+                  vehicleCategoryIds={vehicleMode === 'ALL' ? [] : vehicleCategoryIds}
                   coordinates={coordinates}
                   cityBoundary={dbCityBoundary}
                   cityCenter={dbCityCenter}
@@ -519,7 +540,9 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
             {currentStep > 1 && (
               <button
                 type="button"
-                onClick={() => setCurrentStep((p) => (p - 1) as 1 | 2 | 3)}
+                onClick={() =>
+                  setCurrentStep((p) => (p === 3 && isRestricted ? 1 : ((p - 1) as 1 | 2 | 3)))
+                }
                 className="px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <span>← Back</span>
@@ -533,18 +556,19 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
               <button
                 type="button"
                 disabled={!canProceedStep1}
-                onClick={() => setCurrentStep(2)}
+                onClick={() => setCurrentStep(isRestricted ? 3 : 2)}
                 className="px-5 py-2 bg-[#1F2B6D] hover:bg-[#182258] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
               >
-                <span>Next: Vehicle Categories →</span>
+                <span>{isRestricted ? 'Next: Define Zone on Map →' : 'Next: Vehicle Categories →'}</span>
               </button>
             )}
 
             {currentStep === 2 && (
               <button
                 type="button"
+                disabled={!canProceedStep2}
                 onClick={() => setCurrentStep(3)}
-                className="px-5 py-2 bg-[#1F2B6D] hover:bg-[#182258] text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+                className="px-5 py-2 bg-[#1F2B6D] hover:bg-[#182258] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
               >
                 <span>Next: Define Zone on Map →</span>
               </button>
@@ -574,7 +598,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                     <span>{isEdit ? 'Saving Changes...' : 'Creating Zone...'}</span>
                   </>
                 ) : (
-                  <span>{isEdit ? 'Save Changes' : 'Create Service Zone →'}</span>
+                  <span>{isEdit ? 'Save Changes' : `Create ${typeLabel} →`}</span>
                 )}
               </button>
             )}

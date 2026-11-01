@@ -4,7 +4,6 @@ import {
   Layers,
   Tag,
   Hash,
-  ListOrdered,
   RotateCw,
   Car,
   Flag,
@@ -15,8 +14,45 @@ import {
 } from 'lucide-react'
 import { CityLoadStatus } from './CityLoadStatus'
 import { ServiceZoneCityPreviewMap } from './ServiceZoneCityPreviewMap'
-import { calculatePolygonAreaKm2, type LatLngPoint } from '../CreateCityModal/geoUtils'
+import { calculatePolygonAreaKm2, zoneTypeHelp, type LatLngPoint } from '../CreateCityModal/geoUtils'
 import type { CityListItem, ServiceZoneListItem, ServiceZoneType } from '../../types'
+
+const SwitchCard: React.FC<{
+  icon: React.ReactNode
+  label: string
+  hint: string
+  on: boolean
+  onToggle: () => void
+}> = ({ icon, label, hint, on, onToggle }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={on}
+    onClick={onToggle}
+    className="w-full text-left bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex items-center justify-between gap-2 cursor-pointer"
+  >
+    <span className="flex items-center gap-2.5">
+      <span className="w-8 h-8 rounded-lg bg-blue-50 text-[#1F2B6D] flex items-center justify-center shrink-0 border border-blue-100/70">
+        {icon}
+      </span>
+      <span>
+        <span className="block text-xs font-bold text-slate-900 leading-tight">{label}</span>
+        <span className="block text-[10px] text-slate-500 mt-0.5 leading-snug">{hint}</span>
+      </span>
+    </span>
+    <span
+      className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${
+        on ? 'bg-[#1F2B6D]' : 'bg-slate-300'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+          on ? 'translate-x-4' : 'translate-x-0'
+        }`}
+      />
+    </span>
+  </button>
+)
 
 interface Step1ZoneInformationProps {
   cities: CityListItem[]
@@ -28,8 +64,6 @@ interface Step1ZoneInformationProps {
   setName: (name: string) => void
   code: string
   setCode: (code: string) => void
-  priority: number
-  setPriority: (priority: number) => void
   isActive: boolean
   setIsActive: (active: boolean) => void
   allowsPickup: boolean
@@ -54,8 +88,6 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
   setName,
   code,
   setCode,
-  priority,
-  setPriority,
   isActive,
   setIsActive,
   allowsPickup,
@@ -114,7 +146,7 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900">Zone Information</h3>
-            <p className="text-xs text-slate-500">Provide basic details for this service zone.</p>
+            <p className="text-xs text-slate-500">Provide basic details for this zone.</p>
           </div>
         </div>
 
@@ -165,7 +197,7 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
                 ▼
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Type of zone that defines service availability.</p>
+            <p className="text-[10px] text-slate-400 mt-1">{zoneTypeHelp(zoneType)}</p>
           </div>
         </div>
 
@@ -238,24 +270,8 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
           </p>
         </div>
 
-        {/* Row 4: Priority & Status */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold text-slate-900 mb-1">Priority</label>
-            <div className="relative">
-              <ListOrdered className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={priority}
-                onChange={(e) => setPriority(Number(e.target.value))}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 outline-none focus:border-[#1F2B6D] focus:ring-1 focus:ring-[#1F2B6D] transition-colors"
-              />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">Higher priority zones take precedence when zones overlap.</p>
-          </div>
-
+        {/* Row 4: Status */}
+        <div>
           <div>
             <label className="block text-xs font-bold text-slate-900 mb-1">Status</label>
             <div className="relative">
@@ -280,62 +296,44 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
           </div>
         </div>
 
-        {/* Row 5: Allow Pickups & Drop-offs Toggle Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#1F2B6D] flex items-center justify-center shrink-0 border border-blue-100/70">
-                <Car className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-900 leading-tight">Allow Pickups</p>
-                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                  Riders can be picked up within this zone.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAllowsPickup(!allowsPickup)}
-              className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                allowsPickup ? 'bg-[#1F2B6D]' : 'bg-slate-300'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                  allowsPickup ? 'translate-x-4' : 'translate-x-0'
-                }`}
+        {/* Row 5: What this zone allows or blocks */}
+        {zoneType === 'RESTRICTED' ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3">
+              <SwitchCard
+                icon={<Car className="w-4 h-4" />}
+                label="Block pickups"
+                hint="Rides cannot start inside this zone."
+                on={!allowsPickup}
+                onToggle={() => setAllowsPickup(!allowsPickup)}
               />
-            </button>
-          </div>
-
-          <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#1F2B6D] flex items-center justify-center shrink-0 border border-blue-100/70">
-                <Flag className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-900 leading-tight">Allow Drop-offs</p>
-                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                  Riders can be dropped off within this zone.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAllowsDropoff(!allowsDropoff)}
-              className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                allowsDropoff ? 'bg-[#1F2B6D]' : 'bg-slate-300'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                  allowsDropoff ? 'translate-x-4' : 'translate-x-0'
-                }`}
+              <SwitchCard
+                icon={<Flag className="w-4 h-4" />}
+                label="Block drop-offs"
+                hint="Rides cannot end inside this zone."
+                on={!allowsDropoff}
+                onToggle={() => setAllowsDropoff(!allowsDropoff)}
               />
-            </button>
+            </div>
+            {allowsPickup && allowsDropoff && (
+              <p className="text-[11px] font-semibold text-red-600">
+                Choose at least one. A restricted zone that blocks nothing has no effect.
+              </p>
+            )}
           </div>
-        </div>
+        ) : (
+          <SwitchCard
+            icon={<Car className="w-4 h-4" />}
+            label="Allow Pickups"
+            hint={
+              zoneType === 'AIRPORT'
+                ? 'Turn off for drop-only, if you have no pickup permission at this airport.'
+                : 'Rides can start inside this zone.'
+            }
+            on={allowsPickup}
+            onToggle={() => setAllowsPickup(!allowsPickup)}
+          />
+        )}
 
         {/* Row 6: Important Notes */}
         <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3 flex items-start gap-2.5">

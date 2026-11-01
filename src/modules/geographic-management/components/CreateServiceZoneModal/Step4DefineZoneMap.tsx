@@ -453,7 +453,7 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
         <div>
           <h3 className="text-sm font-bold text-slate-900">Define Zone on Map</h3>
           <p className="text-xs text-slate-500">
-            Draw the service zone on the map. The zone must be completely inside the city boundary.
+            Draw this zone on the map. It must be inside the blue line, the city&apos;s Operating Area.
           </p>
         </div>
       </div>

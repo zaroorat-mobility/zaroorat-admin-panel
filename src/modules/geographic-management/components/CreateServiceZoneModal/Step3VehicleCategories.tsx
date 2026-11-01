@@ -1,10 +1,9 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useMemo } from 'react'
 import {
   Car,
   Bike,
   Truck,
   Check,
-  Info,
   MapPin,
   Loader2,
   AlertTriangle,
@@ -60,12 +59,16 @@ const CarpoolIcon = ({ className = 'w-7 h-7 text-[#1F2B6D]' }: { className?: str
 )
 
 interface Step3VehicleCategoriesProps {
+  mode: 'ALL' | 'ONLY'
+  setMode: (mode: 'ALL' | 'ONLY') => void
   selectedCategoryIds: string[]
   setSelectedCategoryIds: (ids: string[]) => void
   cityName: string
 }
 
 export const Step3VehicleCategories: React.FC<Step3VehicleCategoriesProps> = ({
+  mode,
+  setMode,
   selectedCategoryIds,
   setSelectedCategoryIds,
   cityName: _cityName,
@@ -105,14 +108,6 @@ export const Step3VehicleCategories: React.FC<Step3VehicleCategoriesProps> = ({
       }
     })
   }, [rawTypes])
-
-  // Automatically select all active vehicle categories by default if nothing selected yet
-  useEffect(() => {
-    if (categories.length > 0 && selectedCategoryIds.length === 0) {
-      const activeIds = categories.filter((c) => c.isActive !== false).map((c) => c.id)
-      setSelectedCategoryIds(activeIds.length > 0 ? activeIds : categories.map((c) => c.id))
-    }
-  }, [categories, selectedCategoryIds.length, setSelectedCategoryIds])
 
   const toggleCategory = (id: string) => {
     setSelectedCategoryIds(
@@ -175,12 +170,12 @@ export const Step3VehicleCategories: React.FC<Step3VehicleCategoriesProps> = ({
           <div>
             <h3 className="text-sm font-bold text-slate-900">Vehicle Categories</h3>
             <p className="text-xs text-slate-500">
-              Select which vehicle categories are allowed in this zone.
+              Choose which vehicles can start rides in this zone.
             </p>
           </div>
         </div>
 
-        {categories.length > 0 && (
+        {mode === 'ONLY' && categories.length > 0 && (
           <button
             type="button"
             onClick={handleSelectAll}
@@ -191,7 +186,35 @@ export const Step3VehicleCategories: React.FC<Step3VehicleCategoriesProps> = ({
         )}
       </div>
 
-      {/* ── 2-Column Layout matching screenshot ───────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {(
+          [
+            ['ALL', 'All vehicles (recommended)', 'Includes any vehicle type you add later.'],
+            ['ONLY', 'Only these', 'Limit this zone to the vehicles you choose.'],
+          ] as const
+        ).map(([value, label, hint]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={mode === value}
+            onClick={() => setMode(value)}
+            className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
+              mode === value
+                ? 'border-[#1F2B6D] bg-blue-50/50 ring-1 ring-[#1F2B6D]'
+                : 'border-slate-200 bg-white hover:border-slate-300'
+            }`}
+          >
+            <span className="block text-xs font-bold text-slate-900">{label}</span>
+            <span className="block text-[10.5px] text-slate-500 mt-0.5">{hint}</span>
+          </button>
+        ))}
+      </div>
+
+      {mode === 'ONLY' && selectedCategoryIds.length === 0 && (
+        <p className="text-[11px] font-semibold text-red-600">Choose at least one vehicle to continue.</p>
+      )}
+
+      {mode === 'ONLY' && (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* ── LEFT COLUMN: Category Cards + Important Info ──────── */}
         <div className="lg:col-span-7 xl:col-span-8 space-y-4">
@@ -248,20 +271,6 @@ export const Step3VehicleCategories: React.FC<Step3VehicleCategoriesProps> = ({
             </div>
           )}
 
-          {/* Important Information Callout Card matching screenshot */}
-          <div className="bg-blue-50/60 border border-blue-200/80 rounded-xl p-3.5 flex items-start gap-3">
-            <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
-              <Info className="w-3.5 h-3.5" />
-            </div>
-            <div className="text-xs text-slate-700 leading-relaxed">
-              <p className="font-bold text-[#1F2B6D] mb-1">Important Information</p>
-              <ul className="space-y-1 text-[11px] text-slate-600">
-                <li>• If you do not select any vehicle categories, all vehicle types will be allowed in this zone.</li>
-                <li>• You can configure vehicle type specific pricing rules later.</li>
-                <li>• Vehicle category availability can be changed anytime by editing the zone.</li>
-              </ul>
-            </div>
-          </div>
         </div>
 
         {/* ── RIGHT COLUMN: Selected Categories & Coverage Preview ── */}
@@ -348,6 +357,7 @@ export const Step3VehicleCategories: React.FC<Step3VehicleCategoriesProps> = ({
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }

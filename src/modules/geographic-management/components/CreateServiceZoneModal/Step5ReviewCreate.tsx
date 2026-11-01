@@ -4,13 +4,11 @@ import {
   Layers,
   Tag,
   Hash,
-  ListOrdered,
   Car,
   Flag,
   ToggleRight,
   Bike,
   Truck,
-  CheckCircle2,
   Edit2,
   Map as MapIcon,
   Compass,
@@ -76,7 +74,6 @@ interface Step5ReviewCreateProps {
   zoneType: ServiceZoneType
   name: string
   code: string
-  priority: number
   isActive: boolean
   allowsPickup: boolean
   allowsDropoff: boolean
@@ -99,7 +96,6 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
   zoneType,
   name,
   code,
-  priority,
   isActive,
   allowsPickup,
   allowsDropoff,
@@ -167,14 +163,6 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
 
   // Resolve selected vehicle categories dynamically from live DB types
   const selectedVehicles = useMemo(() => {
-    if (vehicleCategoryIds.length === 0) {
-      // If none explicitly selected, all active types are enabled
-      return allVehicleTypes.map((v) => ({
-        id: v.id,
-        code: v.code,
-        name: v.name,
-      }))
-    }
     return vehicleCategoryIds
       .map((id) => allVehicleTypes.find((v) => v.id === id))
       .filter((v): v is NonNullable<typeof v> => Boolean(v))
@@ -218,7 +206,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
               </div>
               <div>
                 <h4 className="text-xs font-bold text-slate-900 leading-tight">Zone Information</h4>
-                <p className="text-[10px] text-slate-400">Review the basic details for this service zone.</p>
+                <p className="text-[10px] text-slate-400">Review the basic details for this zone.</p>
               </div>
             </div>
 
@@ -272,33 +260,25 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
 
             <div className="py-1.5 flex items-center justify-between">
               <div className="flex items-center gap-2 text-slate-600">
-                <ListOrdered className="w-3.5 h-3.5 text-slate-400" />
-                <span>Priority</span>
-              </div>
-              <span className="font-bold text-slate-900">{priority}</span>
-            </div>
-
-            <div className="py-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-600">
                 <Car className="w-3.5 h-3.5 text-slate-400" />
-                <span>Allow Pickups</span>
+                <span>Pickups</span>
               </div>
-              <div className="flex items-center gap-1 text-emerald-700 font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{allowsPickup ? 'Yes' : 'No'}</span>
-              </div>
+              <span className={`font-bold ${allowsPickup ? 'text-emerald-700' : 'text-red-600'}`}>
+                {allowsPickup ? 'Allowed' : 'Blocked'}
+              </span>
             </div>
 
-            <div className="py-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-600">
-                <Flag className="w-3.5 h-3.5 text-slate-400" />
-                <span>Allow Drop-offs</span>
+            {zoneType === 'RESTRICTED' && (
+              <div className="py-1.5 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Flag className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Drop-offs</span>
+                </div>
+                <span className={`font-bold ${allowsDropoff ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {allowsDropoff ? 'Allowed' : 'Blocked'}
+                </span>
               </div>
-              <div className="flex items-center gap-1 text-emerald-700 font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{allowsDropoff ? 'Yes' : 'No'}</span>
-              </div>
-            </div>
+            )}
 
             <div className="py-1.5 flex items-center justify-between">
               <div className="flex items-center gap-2 text-slate-600">
@@ -314,6 +294,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
         </div>
 
         {/* Card 2: Vehicle Categories */}
+        {zoneType !== 'RESTRICTED' && (
         <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -339,7 +320,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
           <div className="flex flex-wrap gap-2 pt-1">
             {selectedVehicles.length === 0 ? (
               <p className="text-xs text-slate-400 py-1 italic">
-                All vehicle categories enabled by default.
+                All vehicles, including any you add later.
               </p>
             ) : (
               selectedVehicles.map((item) => (
@@ -354,6 +335,8 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
             )}
           </div>
         </div>
+
+        )}
 
         {/* Card 3: Geometry Details */}
         <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2">
@@ -416,7 +399,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
             </div>
             <div>
               <h4 className="text-xs font-bold text-slate-900 leading-tight">Map Preview</h4>
-              <p className="text-[10px] text-slate-400">This is how the service zone will look on the map.</p>
+              <p className="text-[10px] text-slate-400">This is how the zone will look on the map.</p>
             </div>
           </div>
 
