@@ -468,6 +468,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                   cityName={cityName}
                   cityFailed={cityFailed}
                   onRetryCity={retryCity}
+                  isEdit={isEdit}
                   existingZones={existingZonesList}
                 />
               )}

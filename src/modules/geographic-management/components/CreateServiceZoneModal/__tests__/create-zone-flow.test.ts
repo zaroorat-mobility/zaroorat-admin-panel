@@ -332,6 +332,63 @@ describe('Create zone: the form says what each setting does', () => {
 })
 
 describe('Create zone: honest messages and no invented city data', () => {
+  it('resets an airport zone to the city centre, as the button says', async () => {
+    await renderModal({ initialZoneType: 'AIRPORT' })
+    await click('Next: Vehicle Categories')
+    await click('Next: Define Zone on Map')
+
+    // Amritsar airport is 11 km out, beyond this city's 8 km Operating Area.
+    assert.ok((container.textContent ?? '').includes('Part of this zone is outside Amritsar'))
+
+    await click('Reset zone to city centre')
+
+    assert.ok(farthestFrom('ATQ') < 2.1, `zone is ${farthestFrom('ATQ').toFixed(1)} km from Amritsar`)
+    assert.ok((container.textContent ?? '').includes('Inside Amritsar'))
+  })
+
+  it('does not spin forever on a zone whose city is not in the active list', async () => {
+    zoneDetail = {
+      id: 'zone-2',
+      code: 'OLD_SZ_01',
+      name: 'Old Zone',
+      zoneType: 'SERVICE',
+      cityCode: 'OLD',
+      cityId: 'id-OLD',
+      isActive: true,
+      allowsPickup: true,
+      allowsDropoff: true,
+      fareRuleCount: 0,
+      boundary: generateCirclePolygon(CENTERS.ATQ, 2, 8),
+      vehicleTypeIds: [],
+      vehicleTypeCodes: [],
+    }
+    await renderModal({ zoneId: 'zone-2' })
+    assert.ok((container.textContent ?? '').includes('Could not load the Operating Area'))
+  })
+
+  it('shows city and zone code as fixed when editing, because the server cannot change them', async () => {
+    zoneDetail = {
+      id: 'zone-1',
+      code: 'BRM_SZ_01',
+      name: 'Baramulla Service Zone',
+      zoneType: 'SERVICE',
+      cityCode: 'BRM',
+      cityId: 'id-BRM',
+      isActive: true,
+      allowsPickup: true,
+      allowsDropoff: true,
+      fareRuleCount: 0,
+      boundary: generateCirclePolygon(CENTERS.BRM, 2, 8),
+      vehicleTypeIds: [],
+      vehicleTypeCodes: [],
+    }
+    await renderModal({ zoneId: 'zone-1' })
+    assert.equal(citySelect().disabled, true)
+    const codeInput = [...container.querySelectorAll('input')].find((i) => i.value === 'BRM_SZ_01')
+    assert.ok(codeInput, 'zone code input')
+    assert.equal(codeInput.disabled, true)
+  })
+
   it('explains a zone outside the city and resets it, without advising a bigger city', async () => {
     zoneDetail = {
       id: 'zone-1',

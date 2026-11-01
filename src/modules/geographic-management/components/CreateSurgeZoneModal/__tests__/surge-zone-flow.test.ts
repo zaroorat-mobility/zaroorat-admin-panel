@@ -41,6 +41,16 @@ beforeEach(() => {
     const ok = (data: unknown) => ({ data, status: 200, statusText: 'OK', headers: {}, config })
     if (config.url === API_ENDPOINTS.settings.mapsClientConfig) return ok({ data: { providers: {} } })
     if (config.url === API_ENDPOINTS.surgeZones.list) return ok([])
+    if (config.url === API_ENDPOINTS.surgeZones.detail('sz1')) {
+      return ok({
+        id: 'sz1',
+        cityCode: 'ATQ',
+        name: 'Amritsar Surge Zone',
+        isActive: true,
+        createdAt: '2026-11-01T00:00:00.000Z',
+        boundary: generateCirclePolygon(CENTERS.ATQ, 2, 8),
+      })
+    }
     if (config.url === API_ENDPOINTS.geographic.cities) return ok({ data: CITIES })
     const city = CITIES.find((c) => config.url === API_ENDPOINTS.geographic.city(c.id))
     if (city) {
@@ -112,6 +122,34 @@ describe('Create surge zone: the default zone belongs to the selected city', () 
     // The backend has no code for a surge zone, so the form must not ask for one.
     assert.ok(!text.includes('Zone Code'))
     assert.ok(!text.toLowerCase().includes('dynamic'))
+  })
+
+  it('shows the city as fixed when editing, because the server cannot change it', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await act(async () =>
+      root.render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(
+            ToastProvider,
+            null,
+            createElement(
+              MemoryRouter,
+              null,
+              createElement(CreateSurgeZoneModal, { isOpen: true, onClose: () => {}, zoneId: 'sz1' }),
+            ),
+          ),
+        ),
+      ),
+    )
+    await settle()
+
+    const select = [...container.querySelectorAll('select')].find((s) =>
+      [...s.options].some((o) => o.value === 'NEW'),
+    )
+    assert.ok(select, 'city select')
+    assert.equal(select.disabled, true)
   })
 
   it('stops with Try again when the city will not load, and invents nothing', async () => {

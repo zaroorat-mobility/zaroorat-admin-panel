@@ -961,11 +961,13 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
                 <span>This zone is outside {cityName}</span>
               </div>
               <p className="text-[11.5px] text-amber-900 leading-relaxed">
-                Move the points inside the blue line, or start again from the city centre.
+                {zoneType === 'AIRPORT'
+                  ? 'If the airport itself is outside the blue line, widen the Operating Area under Cities first.'
+                  : 'Move the points inside the blue line, or start again from the city centre.'}
               </p>
               <button
                 type="button"
-                onClick={handleClearAll}
+                onClick={() => handleDrawAtLocation(cityCenter.lat, cityCenter.lng, 2)}
                 className="w-full px-3 py-1.5 bg-white hover:bg-amber-100/70 border border-amber-300 rounded-lg text-xs font-bold text-amber-950 transition-colors cursor-pointer"
               >
                 Reset zone to city centre

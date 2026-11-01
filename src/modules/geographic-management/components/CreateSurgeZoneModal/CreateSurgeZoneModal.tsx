@@ -477,6 +477,7 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
                 <div className="relative">
                   <select
                     value={cityCode}
+                    disabled={isEdit}
                     onChange={(e) => {
                       const newCode = e.target.value
                       setCityCode(newCode)

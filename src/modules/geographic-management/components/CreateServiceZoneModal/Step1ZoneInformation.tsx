@@ -75,6 +75,7 @@ interface Step1ZoneInformationProps {
   cityName: string
   cityFailed: boolean
   onRetryCity: () => void
+  isEdit: boolean
   existingZones?: ServiceZoneListItem[]
 }
 
@@ -99,6 +100,7 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
   cityName,
   cityFailed,
   onRetryCity,
+  isEdit,
   existingZones = [],
 }) => {
   // Regenerate code from cityCode + name with collision avoidance
@@ -160,8 +162,9 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
               <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <select
                 value={cityCode}
+                disabled={isEdit}
                 onChange={(e) => setCityCode(e.target.value)}
-                className="w-full pl-9 pr-7 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-[#1F2B6D] focus:ring-1 focus:ring-[#1F2B6D] transition-colors cursor-pointer appearance-none"
+                className="w-full pl-9 pr-7 py-2 bg-white disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-[#1F2B6D] focus:ring-1 focus:ring-[#1F2B6D] transition-colors cursor-pointer appearance-none"
               >
                 {cities
                   .filter((c) => c.code !== 'GLOBAL')
@@ -175,7 +178,9 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
                 ▼
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Select the city where this zone will be created.</p>
+            <p className="text-[10px] text-slate-400 mt-1">
+              {isEdit ? 'A zone cannot move to another city.' : 'Select the city where this zone will be created.'}
+            </p>
           </div>
 
           <div>
@@ -229,6 +234,7 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
             <input
               type="text"
               value={code}
+              disabled={isEdit}
               onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
               placeholder={`e.g. ${cityCode || 'ZONE'}_SZ_01`}
               className={`w-full pl-9 pr-28 py-2 bg-white border rounded-lg text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 outline-none transition-colors ${
@@ -238,7 +244,7 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
               }`}
             />
             <div className="absolute right-2 flex items-center gap-1.5">
-              {isCodeTaken ? (
+              {isEdit ? null : isCodeTaken ? (
                 <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 text-rose-600" />
                   Already in use
@@ -249,14 +255,16 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
                   Available
                 </span>
               ) : null}
-              <button
-                type="button"
-                onClick={handleRegenerateCode}
-                title="Regenerate code"
-                className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-[#1F2B6D] transition-colors cursor-pointer"
-              >
-                <RotateCw className="w-3.5 h-3.5" />
-              </button>
+              {!isEdit && (
+                <button
+                  type="button"
+                  onClick={handleRegenerateCode}
+                  title="Regenerate code"
+                  className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-[#1F2B6D] transition-colors cursor-pointer"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
           <p className="text-[10px] text-slate-400 mt-1">
@@ -264,6 +272,8 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
               <span className="text-red-500 font-semibold">
                 This code already exists for {cityName}. Please choose a unique zone code.
               </span>
+            ) : isEdit ? (
+              'A zone code cannot be changed.'
             ) : (
               'Automatically generated from city and name. Must be unique within the city.'
             )}

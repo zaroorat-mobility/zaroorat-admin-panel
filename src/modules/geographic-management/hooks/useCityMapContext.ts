@@ -54,7 +54,7 @@ export function useCityMapContext(cityCode: string, cities: CityListItem[]) {
     cityCenter: current?.center ?? null,
     mapReady: Boolean(current),
     loadedCityCode: current && !current.failed ? cityCode : null,
-    failed: Boolean(current?.failed),
+    failed: Boolean(current?.failed) || Boolean(cityCode && cities.length > 0 && !cityId),
     retry,
   }
 }
