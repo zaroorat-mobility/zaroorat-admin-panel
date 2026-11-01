@@ -75,6 +75,11 @@ export const API_ENDPOINTS = {
   },
   vehicleTypes: {
     list: '/vehicle-types',
+    adminList: '/admin/vehicle-types',
+    create: '/admin/vehicle-types',
+    update: (id: string) => `/admin/vehicle-types/${id}`,
+    toggle: (id: string) => `/admin/vehicle-types/${id}/toggle`,
+    reorder: '/admin/vehicle-types/reorder',
   },
   fareRules: {
     list: '/admin/fare-rules',

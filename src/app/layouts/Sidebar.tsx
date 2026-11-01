@@ -92,6 +92,7 @@ const navItems: NavItem[] = [
     icon: Car,
     children: [
       { href: "/vehicle-management/vehicles", label: "Vehicles Directory", icon: Car, permission: "vehicles:read" },
+      { href: "/vehicle-management/services", label: "Fleet Services", icon: Tag, permission: "vehicles:read" },
     ],
   },
   {
