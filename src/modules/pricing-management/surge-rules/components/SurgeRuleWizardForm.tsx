@@ -4,25 +4,41 @@ import { Button } from '@/shared/components/ui/Button'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react'
 import { useSurgeZones } from '../../hooks'
+import { surgeWindowRange } from '../../api'
 import { useCities, useStates } from '@/modules/geographic-management/hooks'
 import type { SurgeRule } from '../types'
 import type { VehicleType } from '@/modules/driver-management/types'
 
 const UNSET_ZONE = '__unset__'
 
+export const SURGE_PRESETS = [1.2, 1.5, 1.8, 2.0] as const
+
+const VEHICLE_CHOICES: Array<{ value: VehicleType; label: string }> = [
+  { value: 'cab', label: 'Economy Cab' },
+  { value: 'auto', label: 'Auto' },
+  { value: 'bike', label: 'Bike' },
+]
+
+export function surgeMultiplierError(multiplier: number): string | null {
+  if (!(multiplier > 1)) return 'Surge must be above 1.0x. At 1.0x riders pay the normal fare.'
+  if (multiplier > 2) return 'Surge cannot be above 2.0x.'
+  return null
+}
+
 interface SurgeRuleWizardFormProps {
   initialValues?: SurgeRule | null
-  onSubmit: (data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt' | 'version'>) => void
+  onSubmit: (data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt'>) => void
   loading?: boolean
 }
 
-type StepType = 'basic' | 'multiplier' | 'thresholds' | 'validity' | 'review'
+type StepType = 'basic' | 'multiplier' | 'hours' | 'validity' | 'review'
 
 export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
   initialValues,
   onSubmit,
   loading
 }) => {
+  const isEdit = Boolean(initialValues)
   const [activeStep, setActiveStep] = useState<StepType>('basic')
   const { data: surgeZones = [], isLoading: zonesLoading } = useSurgeZones()
   const { data: states = [] } = useStates({ countryCode: 'IN', activeOnly: true })
@@ -40,12 +56,6 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
         : ['cab']
   )
   const [multiplier, setMultiplier] = useState<number>(initialValues?.multiplier || 1.2)
-  const [demandThresholdPct, setDemandThresholdPct] = useState<number | ''>(
-    initialValues?.demandThresholdPct ?? '',
-  )
-  const [supplyThresholdPct, setSupplyThresholdPct] = useState<number | ''>(
-    initialValues?.supplyThresholdPct ?? '',
-  )
   const [peakHourStart, setPeakHourStart] = useState(initialValues?.peakHourStart || '')
   const [peakHourEnd, setPeakHourEnd] = useState(initialValues?.peakHourEnd || '')
   const [isPeakHourOnly, setIsPeakHourOnly] = useState(initialValues?.isPeakHourOnly ?? false)
@@ -96,30 +106,32 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
 
     if (step === 'basic') {
       if (!ruleName.trim()) errs.ruleName = 'Rule name is required.'
-      if (!zoneId) errs.zoneId = 'Surge zone is required.'
+      if (!isEdit && !zoneId) errs.zoneId = 'Surge zone is required.'
     }
 
     if (step === 'multiplier') {
-      if (multiplier < 0.5) errs.multiplier = 'Multiplier must be at least 0.5x.'
-      if (multiplier > 2.0) errs.multiplier = 'Multiplier cannot exceed 2.0x.'
+      const problem = surgeMultiplierError(multiplier)
+      if (problem) errs.multiplier = problem
     }
 
-    if (step === 'thresholds') {
-      if (demandThresholdPct !== '' && (demandThresholdPct < 0 || demandThresholdPct > 100)) {
-        errs.demandThresholdPct = 'Demand threshold must be between 0 and 100.'
-      }
-      if (supplyThresholdPct !== '' && (supplyThresholdPct < 0 || supplyThresholdPct > 100)) {
-        errs.supplyThresholdPct = 'Supply threshold must be between 0 and 100.'
-      }
+    if (step === 'hours') {
       if (isPeakHourOnly && (!peakHourStart || !peakHourEnd)) {
-        errs.peakHourStart = 'Peak hour start and end are required when peak-hour only is enabled.'
+        errs.peakHourStart = 'Choose both times, or turn off Repeat every day.'
       }
     }
 
     if (step === 'validity') {
-      if (!effectiveFrom) errs.effectiveFrom = 'Effective From date is required.'
-      if (startTime && !endTime) errs.endTime = 'End Time is required if Start Time is provided.'
-      if (endTime && !startTime) errs.startTime = 'Start Time is required if End Time is provided.'
+      if (!effectiveFrom) {
+        errs.effectiveFrom = 'Start date is required.'
+      } else {
+        const range = surgeWindowRange({ effectiveFrom, effectiveTo, startTime, endTime })
+        if (range.endsAt && new Date(range.endsAt) <= new Date(range.startsAt)) {
+          errs.endTime = 'The end must be after the start.'
+        }
+      }
+      if (isEdit && initialValues?.effectiveTo && !effectiveTo) {
+        errs.effectiveTo = 'An end date cannot be removed. Create a new rule with no end date.'
+      }
     }
 
     setErrors(errs)
@@ -127,11 +139,11 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
   }
 
   const stepsList: { id: StepType; label: string }[] = [
-    { id: 'basic', label: '1. Basic Configuration' },
-    { id: 'multiplier', label: '2. Multiplier Setting' },
-    { id: 'thresholds', label: '3. Demand & Peak Rules' },
-    { id: 'validity', label: '4. Validity Schedule' },
-    { id: 'review', label: '5. Review & Publish' }
+    { id: 'basic', label: '1. Where and Which Vehicles' },
+    { id: 'multiplier', label: '2. Multiplier' },
+    { id: 'hours', label: '3. Daily Hours' },
+    { id: 'validity', label: '4. Dates' },
+    { id: 'review', label: isEdit ? '5. Review' : '5. Review & Create' }
   ]
 
   const handleStepChange = (targetStepId: StepType) => {
@@ -176,8 +188,6 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
       cityCode: selectedZone?.cityCode ?? (cityCode || undefined),
       vehicleType: vehicleTypes,
       multiplier,
-      demandThresholdPct: demandThresholdPct === '' ? null : demandThresholdPct,
-      supplyThresholdPct: supplyThresholdPct === '' ? null : supplyThresholdPct,
       peakHourStart: peakHourStart || null,
       peakHourEnd: peakHourEnd || null,
       isPeakHourOnly,
@@ -199,7 +209,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
             <div className="space-y-4 text-xs">
               <div className="border-b pb-3 mb-2">
                 <h3 className="font-bold text-slate-800 text-sm">Surge Rule Settings</h3>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Configure rule name, geographic scope, surge zone, and vehicle types.</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Name this rule, then choose the area and vehicles it applies to.</p>
               </div>
 
               <div className="space-y-1">
@@ -214,6 +224,14 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                 {errors.ruleName && <p className="text-[10px] text-rose-500 font-bold">{errors.ruleName}</p>}
               </div>
 
+              {isEdit ? (
+                <div className="space-y-1 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 p-3">
+                  <p><strong>Surge Zone:</strong> {initialValues?.zoneName ?? '—'}</p>
+                  <p><strong>Vehicles:</strong> {initialValues?.vehicleLabel ?? '—'}</p>
+                  <p className="text-[10px] text-slate-500">To change the zone or vehicles, create a new rule.</p>
+                </div>
+              ) : (
+              <>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">State (filter)</label>
@@ -277,38 +295,40 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
               <div className="space-y-1.5 text-left">
                 <label className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Target Vehicle Types</label>
                 <div className="flex gap-4 items-center bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-border">
-                  {(['cab', 'auto', 'bike'] as const).map(type => (
-                    <label key={type} className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
+                  {VEHICLE_CHOICES.map(({ value, label }) => (
+                    <label key={value} className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
                       <input
                         type="checkbox"
-                        checked={vehicleTypes.includes(type)}
+                        checked={vehicleTypes.includes(value)}
                         onChange={(e) => {
                           const next = e.target.checked
-                            ? [...vehicleTypes, type]
-                            : vehicleTypes.filter(t => t !== type)
+                            ? [...vehicleTypes, value]
+                            : vehicleTypes.filter(t => t !== value)
                           if (next.length > 0) setVehicleTypes(next)
                         }}
                         className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                       />
-                      <span className="capitalize">{type}</span>
+                      <span>{label}</span>
                     </label>
                   ))}
                 </div>
               </div>
+              </>
+              )}
             </div>
           )}
 
           {activeStep === 'multiplier' && (
             <div className="space-y-4 text-xs">
               <div className="border-b pb-3 mb-2">
-                <h3 className="font-bold text-slate-800 text-sm">Surge Factor Pricing</h3>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Determine the surge multiplier rate.</p>
+                <h3 className="font-bold text-slate-800 text-sm">Multiplier</h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Riders pay the normal fare times this number, up to 2.0x.</p>
               </div>
 
               <div className="space-y-3">
                 <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Surge Multiplier Factor</label>
                 <div className="grid grid-cols-4 gap-2 mb-3">
-                  {[0.5, 1.0, 1.5, 2.0].map((val) => (
+                  {SURGE_PRESETS.map((val) => (
                     <button
                       key={val}
                       type="button"
@@ -327,11 +347,11 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                   <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Or Custom Multiplier (x)</label>
                   <input
                     type="number"
-                    min="0.5"
+                    min="1.1"
                     max="2.0"
                     step="0.1"
                     value={multiplier}
-                    onChange={(e) => setMultiplier(parseFloat(e.target.value) || 1.0)}
+                    onChange={(e) => setMultiplier(parseFloat(e.target.value) || 0)}
                     className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
                   />
                   {errors.multiplier && <p className="text-[10px] text-rose-500 font-bold">{errors.multiplier}</p>}
@@ -340,45 +360,11 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
             </div>
           )}
 
-          {activeStep === 'thresholds' && (
+          {activeStep === 'hours' && (
             <div className="space-y-4 text-xs">
               <div className="border-b pb-3 mb-2">
-                <h3 className="font-bold text-slate-800 text-sm">Demand, Supply & Peak-Hour Rules</h3>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Optional triggers that gate when this surge window can activate.</p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Demand Threshold (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={demandThresholdPct}
-                    onChange={(e) => setDemandThresholdPct(e.target.value === '' ? '' : Number(e.target.value))}
-                    placeholder="e.g. 75"
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                  />
-                  <p className="text-[9px] text-slate-400">Activate when ride demand exceeds this % of capacity.</p>
-                  {errors.demandThresholdPct && <p className="text-[10px] text-rose-500 font-bold">{errors.demandThresholdPct}</p>}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Supply Threshold (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={supplyThresholdPct}
-                    onChange={(e) => setSupplyThresholdPct(e.target.value === '' ? '' : Number(e.target.value))}
-                    placeholder="e.g. 25"
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                  />
-                  <p className="text-[9px] text-slate-400">Activate when available driver supply falls below this %.</p>
-                  {errors.supplyThresholdPct && <p className="text-[10px] text-rose-500 font-bold">{errors.supplyThresholdPct}</p>}
-                </div>
+                <h3 className="font-bold text-slate-800 text-sm">Daily Hours</h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Optional. Limit this rule to the same hours each day. 22:00 to 02:00 runs overnight.</p>
               </div>
 
               <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
@@ -388,12 +374,12 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                   onChange={(e) => setIsPeakHourOnly(e.target.checked)}
                   className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                 />
-                <span>Restrict to peak-hour window only</span>
+                <span>Repeat every day at these hours</span>
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Peak Hour Start</label>
+                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">From</label>
                   <input
                     type="time"
                     value={peakHourStart}
@@ -403,7 +389,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Peak Hour End</label>
+                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">To</label>
                   <input
                     type="time"
                     value={peakHourEnd}
@@ -420,40 +406,40 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
           {activeStep === 'validity' && (
             <div className="space-y-4 text-xs">
               <div className="border-b pb-3 mb-2">
-                <h3 className="font-bold text-slate-800 text-sm">Validity Window & Scheduled Hours</h3>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Determine when the surge rules are active.</p>
+                <h3 className="font-bold text-slate-800 text-sm">Dates</h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">When this rule starts and ends. Leave the end empty to keep it running.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Effective From</label>
+                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Start Date</label>
                   <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]" />
                   {errors.effectiveFrom && <p className="text-[10px] text-rose-500 font-bold">{errors.effectiveFrom}</p>}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Effective To (Optional)</label>
+                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">End Date (Optional)</label>
                   <input type="date" value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]" />
+                  {errors.effectiveTo && <p className="text-[10px] text-rose-500 font-bold">{errors.effectiveTo}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Daily Start Time (Optional)</label>
+                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Start time on first day (Optional)</label>
                   <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]" />
-                  {errors.startTime && <p className="text-[10px] text-rose-500 font-bold">{errors.startTime}</p>}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Daily End Time (Optional)</label>
+                  <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">End time on last day (Optional)</label>
                   <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]" />
                   {errors.endTime && <p className="text-[10px] text-rose-500 font-bold">{errors.endTime}</p>}
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Initial Publish Status</label>
+                <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Status</label>
                 <select value={status} onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')} className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]">
                   <option value="active">Active</option>
-                  <option value="inactive">Inactive / Draft</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </div>
             </div>
@@ -462,21 +448,19 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
           {activeStep === 'review' && (
             <div className="space-y-4 text-xs">
               <div className="border-b pb-3 mb-2">
-                <h3 className="font-bold text-slate-800 text-sm">Review Surge Configuration</h3>
+                <h3 className="font-bold text-slate-800 text-sm">Review</h3>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
                 <div className="space-y-2">
                   <p><strong>Rule Name:</strong> {ruleName}</p>
-                  <p><strong>Surge Zone:</strong> {selectedZone?.name ?? '—'} {selectedZone?.cityCode ? `(${selectedZone.cityCode})` : ''}</p>
-                  <p><strong>Vehicle Category:</strong> <span className="uppercase font-bold text-primary">{vehicleTypes.join(', ')}</span></p>
+                  <p><strong>Surge Zone:</strong> {isEdit ? (initialValues?.zoneName ?? '—') : (selectedZone?.name ?? '—')} {selectedZone?.cityCode ? `(${selectedZone.cityCode})` : ''}</p>
+                  <p><strong>Vehicles:</strong> <span className="font-bold text-primary">{isEdit ? (initialValues?.vehicleLabel ?? '—') : VEHICLE_CHOICES.filter((v) => vehicleTypes.includes(v.value)).map((v) => v.label).join(', ')}</span></p>
                   <p><strong>Multiplier:</strong> <span className="px-2 py-0.5 rounded font-black text-rose-700 bg-rose-50 border border-rose-100">{multiplier}x</span></p>
                 </div>
                 <div className="space-y-2 border-l pl-4">
-                  <p><strong>Demand Threshold:</strong> {demandThresholdPct === '' ? '—' : `${demandThresholdPct}%`}</p>
-                  <p><strong>Supply Threshold:</strong> {supplyThresholdPct === '' ? '—' : `${supplyThresholdPct}%`}</p>
-                  <p><strong>Peak Hours:</strong> {isPeakHourOnly && peakHourStart && peakHourEnd ? `${peakHourStart} – ${peakHourEnd}` : 'Not restricted'}</p>
-                  <p><strong>Validity:</strong> {effectiveFrom} {effectiveTo ? `to ${effectiveTo}` : 'onwards'}</p>
+                  <p><strong>Daily Hours:</strong> {isPeakHourOnly && peakHourStart && peakHourEnd ? `${peakHourStart} – ${peakHourEnd}` : 'All day'}</p>
+                  <p><strong>Dates:</strong> {effectiveFrom} {effectiveTo ? `to ${effectiveTo}` : 'onwards'}</p>
                 </div>
               </div>
             </div>
@@ -491,7 +475,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
             {activeStep === 'review' ? (
               <Button type="button" onClick={handlePublish} disabled={loading} className="h-9 px-4 text-xs font-bold rounded-lg bg-primary hover:bg-primary/95 text-white gap-1.5">
                 <Save className="h-4 w-4" />
-                <span>{initialValues ? `Publish New Version (V${initialValues.version + 1})` : 'Publish Surge Rule'}</span>
+                <span>{isEdit ? 'Save Changes' : 'Create Surge Rule'}</span>
               </Button>
             ) : (
               <Button type="button" onClick={handleNext} className="h-9 px-4 text-xs font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white gap-1">

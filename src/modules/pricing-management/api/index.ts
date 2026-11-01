@@ -11,6 +11,13 @@ const CODE_TO_UI: Record<string, VehicleType> = {
   BIKE: 'bike',
 }
 
+const VEHICLE_LABELS: Record<string, string> = {
+  CAB_ECONOMY: 'Economy Cab',
+  CAB_PREMIUM: 'Premium Cab',
+  AUTO: 'Auto',
+  BIKE: 'Bike',
+}
+
 const UI_TO_CODE: Record<string, string> = {
   cab: 'CAB_ECONOMY',
   auto: 'AUTO',
@@ -36,8 +43,6 @@ export interface SurgeWindowDto {
   vehicleTypeId: string | null
   multiplier: number | string
   reason: string | null
-  demandThresholdPct?: number | string | null
-  supplyThresholdPct?: number | string | null
   peakHourStart?: string | null
   peakHourEnd?: string | null
   isPeakHourOnly?: boolean
@@ -94,34 +99,75 @@ function padTime(t: string): string {
   return t.length === 5 ? `${t}:00` : t
 }
 
-function combineDateTime(date: string, time?: string): string {
+export function combineDateTime(date: string, time?: string): string {
   const t = time ? padTime(time) : '00:00:00'
   return new Date(`${date}T${t}`).toISOString()
 }
 
-function windowToSurgeRule(window: SurgeWindowDto): SurgeRule {
+export function endOfDayExclusive(date: string): string {
+  const next = new Date(`${date}T00:00:00`)
+  next.setDate(next.getDate() + 1)
+  return next.toISOString()
+}
+
+/** The stored start and end for what the form holds. */
+export function surgeWindowRange(rule: {
+  effectiveFrom: string
+  effectiveTo?: string | undefined
+  startTime?: string | undefined
+  endTime?: string | undefined
+}): { startsAt: string; endsAt?: string } {
+  const startsAt = combineDateTime(rule.effectiveFrom, rule.startTime)
+  if (rule.effectiveTo) {
+    return {
+      startsAt,
+      endsAt: rule.endTime
+        ? combineDateTime(rule.effectiveTo, rule.endTime)
+        : endOfDayExclusive(rule.effectiveTo),
+    }
+  }
+  if (rule.endTime) return { startsAt, endsAt: combineDateTime(rule.effectiveFrom, rule.endTime) }
+  return { startsAt }
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+const localDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+const localTime = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+const isLocalMidnight = (d: Date) => d.getHours() === 0 && d.getMinutes() === 0
+
+/** A rule's dates and times as the admin entered them, for the form and the screens. */
+function windowToFormTimes(window: SurgeWindowDto) {
+  // ponytail: browser-local time, correct while all admins and cities are IST; use City.timezone when a non-IST city launches.
   const starts = new Date(window.startsAt)
-  const ends = window.endsAt ? new Date(window.endsAt) : null
+  const times: Pick<SurgeRule, 'effectiveFrom' | 'startTime' | 'effectiveTo' | 'endTime'> = {
+    effectiveFrom: localDate(starts),
+    startTime: isLocalMidnight(starts) ? undefined : localTime(starts),
+  }
+  if (!window.endsAt) return times
+  const ends = new Date(window.endsAt)
+  if (isLocalMidnight(ends)) {
+    // The stored end is the start of the next day, so the admin's last day is the day before.
+    const lastDay = new Date(ends)
+    lastDay.setDate(lastDay.getDate() - 1)
+    return { ...times, effectiveTo: localDate(lastDay) }
+  }
+  return { ...times, effectiveTo: localDate(ends), endTime: localTime(ends) }
+}
+
+export function windowToSurgeRule(window: SurgeWindowDto): SurgeRule {
   const code = window.vehicleTypeCode ?? null
   return {
     id: window.id,
     ruleName: window.reason || window.zoneName || 'Surge Window',
-    version: 1,
     vehicleType: code ? (CODE_TO_UI[code] ?? 'cab') : 'cab',
+    vehicleLabel: code ? (VEHICLE_LABELS[code] ?? code) : 'All vehicles',
     zoneId: window.zoneId,
     zoneName: window.zoneName,
     multiplier: toNum(window.multiplier),
-    demandThresholdPct:
-      window.demandThresholdPct != null ? toNum(window.demandThresholdPct) : null,
-    supplyThresholdPct:
-      window.supplyThresholdPct != null ? toNum(window.supplyThresholdPct) : null,
     peakHourStart: window.peakHourStart ?? null,
     peakHourEnd: window.peakHourEnd ?? null,
     isPeakHourOnly: window.isPeakHourOnly ?? false,
-    startTime: starts.toISOString().slice(11, 16),
-    endTime: ends ? ends.toISOString().slice(11, 16) : undefined,
-    effectiveFrom: starts.toISOString().slice(0, 10),
-    effectiveTo: ends ? ends.toISOString().slice(0, 10) : undefined,
+    ...windowToFormTimes(window),
     status: window.isActive ? 'active' : 'inactive',
     createdAt: window.createdAt,
     updatedAt: window.createdAt,
@@ -268,29 +314,22 @@ export const getSurgeRuleById = async (id: string): Promise<SurgeRule> => {
 }
 
 export const createSurgeRule = async (
-  data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt' | 'version'>,
+  data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt'>,
 ): Promise<SurgeRule> => {
   const zoneId = data.zoneId ?? (await resolveCitywideZoneId())
   const types = Array.isArray(data.vehicleType)
     ? data.vehicleType
     : [data.vehicleType as VehicleType]
   const vehicleTypeIds = await resolveVehicleTypeIds(types)
-  const startsAt = combineDateTime(data.effectiveFrom, data.startTime)
-  const endsAt = data.effectiveTo
-    ? combineDateTime(data.effectiveTo, data.endTime)
-    : data.endTime
-      ? combineDateTime(data.effectiveFrom, data.endTime)
-      : undefined
+  const { startsAt, endsAt } = surgeWindowRange(data)
 
   let createdId: string | null = null
   const surgePayload = {
     zoneId,
-    multiplier: Math.min(2, Math.max(1, data.multiplier)),
+    multiplier: data.multiplier,
     startsAt,
     ...(endsAt ? { endsAt } : {}),
     reason: data.ruleName,
-    ...(data.demandThresholdPct != null ? { demandThresholdPct: data.demandThresholdPct } : {}),
-    ...(data.supplyThresholdPct != null ? { supplyThresholdPct: data.supplyThresholdPct } : {}),
     ...(data.peakHourStart ? { peakHourStart: data.peakHourStart } : {}),
     ...(data.peakHourEnd ? { peakHourEnd: data.peakHourEnd } : {}),
     ...(data.isPeakHourOnly !== undefined ? { isPeakHourOnly: data.isPeakHourOnly } : {}),
@@ -315,28 +354,20 @@ export const updateSurgeRule = async (
 ): Promise<SurgeRule> => {
   const existing = await getSurgeRuleById(id)
   const merged = { ...existing, ...updates }
-  const startsAt = combineDateTime(
-    merged.effectiveFrom,
-    merged.startTime,
-  )
-  const endsAt = merged.effectiveTo
-    ? combineDateTime(merged.effectiveTo, merged.endTime)
-    : merged.endTime
-      ? combineDateTime(merged.effectiveFrom, merged.endTime)
-      : undefined
+  const before = surgeWindowRange(existing)
+  const after = surgeWindowRange(merged)
 
   const body: Record<string, unknown> = {
-    multiplier: Math.min(2, Math.max(1, merged.multiplier)),
-    startsAt,
+    multiplier: merged.multiplier,
     reason: merged.ruleName,
     isActive: merged.status === 'active',
-    demandThresholdPct: merged.demandThresholdPct ?? null,
-    supplyThresholdPct: merged.supplyThresholdPct ?? null,
     peakHourStart: merged.peakHourStart ?? null,
     peakHourEnd: merged.peakHourEnd ?? null,
     isPeakHourOnly: merged.isPeakHourOnly ?? false,
   }
-  if (endsAt) body.endsAt = endsAt
+  // The form holds minutes, the database holds more. Send a time only if the admin changed it.
+  if (after.startsAt !== before.startsAt) body.startsAt = after.startsAt
+  if (after.endsAt && after.endsAt !== before.endsAt) body.endsAt = after.endsAt
 
   await api.patch(API_ENDPOINTS.surgeWindows.update(id), body)
   return getSurgeRuleById(id)

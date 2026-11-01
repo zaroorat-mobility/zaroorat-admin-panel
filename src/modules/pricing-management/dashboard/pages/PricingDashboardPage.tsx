@@ -207,7 +207,6 @@ export const PricingDashboardPage: React.FC = () => {
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-800 dark:text-slate-200">{rule.ruleName}</span>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border">V{rule.version}</span>
                           </div>
                           <div className="flex items-center gap-4 text-[10px] text-slate-550 dark:text-slate-400">
                             <span className="uppercase font-bold text-amber-600 flex items-center gap-1">

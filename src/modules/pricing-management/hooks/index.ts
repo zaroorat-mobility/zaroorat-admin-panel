@@ -115,7 +115,7 @@ export const useSurgeRule = (id: string) => {
 export const useCreateSurgeRule = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt' | 'version'>) =>
+    mutationFn: (data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt'>) =>
       PricingManagementService.createSurgeRule(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pricing-management', 'surge-rules'] })

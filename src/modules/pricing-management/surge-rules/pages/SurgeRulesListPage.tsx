@@ -24,7 +24,6 @@ import {
   ToggleLeft,
   ToggleRight,
   Eye,
-  Clock,
   Calendar
 } from 'lucide-react'
 import type { SurgeRule } from '../types'
@@ -78,21 +77,15 @@ export const SurgeRulesListPage: React.FC = () => {
       render: (val: string) => <span className="font-bold text-slate-800 dark:text-slate-100">{val}</span>
     },
     {
-      key: 'version',
-      label: 'Version',
-      align: 'center',
-      render: (val: number) => <span className="font-semibold text-slate-650 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200">V{val}</span>
-    },
-    {
       key: 'vehicleType',
-      label: 'Vehicle Type',
+      label: 'Vehicles',
       align: 'left',
-      render: (val: string) => (
+      render: (val: string, row) => (
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded bg-primary/10 text-primary">
             {val === 'bike' ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
           </div>
-          <span className="font-bold text-slate-700 dark:text-slate-200 uppercase text-[10px] tracking-wider">{val}</span>
+          <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px] tracking-wider">{row.vehicleLabel ?? val}</span>
         </div>
       )
     },
@@ -115,20 +108,8 @@ export const SurgeRulesListPage: React.FC = () => {
       )
     },
     {
-      key: 'demandThresholdPct',
-      label: 'Thresholds',
-      align: 'center',
-      render: (_, row) => (
-        <span className="text-[10px] text-slate-500 font-mono">
-          {row.demandThresholdPct != null || row.supplyThresholdPct != null
-            ? `D:${row.demandThresholdPct ?? '—'}% S:${row.supplyThresholdPct ?? '—'}%`
-            : '—'}
-        </span>
-      )
-    },
-    {
       key: 'isPeakHourOnly',
-      label: 'Peak Hours',
+      label: 'Daily Hours',
       align: 'center',
       render: (_, row) => (
         <span className="text-[10px] text-slate-500 font-mono">
@@ -145,19 +126,8 @@ export const SurgeRulesListPage: React.FC = () => {
       render: (val: string) => <StatusBadge status={val} />
     },
     {
-      key: 'startTime',
-      label: 'Time Window',
-      align: 'center',
-      render: (_, row) => (
-        <span className="flex items-center gap-1 justify-center text-[10px] text-slate-500 font-mono">
-          <Clock className="h-3.5 w-3.5 text-slate-400" />
-          {row.startTime && row.endTime ? `${row.startTime} - ${row.endTime}` : 'All Day'}
-        </span>
-      )
-    },
-    {
       key: 'effectiveFrom',
-      label: 'Validity Dates',
+      label: 'Dates',
       align: 'center',
       render: (_, row) => (
         <span className="flex items-center gap-1 justify-center text-[10px] text-slate-500 font-mono">

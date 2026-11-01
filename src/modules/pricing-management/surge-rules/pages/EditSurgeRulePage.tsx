@@ -46,7 +46,7 @@ export const EditSurgeRulePage: React.FC = () => {
     <PageWrapper>
       <PageHeader
         title={`Edit Surge Rule: ${rule.ruleName}`}
-        description={`Modify parameters. Saving will create Version V${rule.version + 1} and deactivate V${rule.version}.`}
+        description="Changes apply to new bookings as soon as you save. Rides already booked keep their fare."
         onBack={() => navigate('/pricing-management/surge-rules')}
       />
 

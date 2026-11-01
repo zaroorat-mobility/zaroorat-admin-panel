@@ -109,6 +109,9 @@ describe('Create surge zone: the default zone belongs to the selected city', () 
     const text = container.textContent ?? ''
     assert.ok(text.includes('Inside Newtown'))
     assert.ok(!text.includes('City Boundary'))
+    // The backend has no code for a surge zone, so the form must not ask for one.
+    assert.ok(!text.includes('Zone Code'))
+    assert.ok(!text.toLowerCase().includes('dynamic'))
   })
 
   it('stops with Try again when the city will not load, and invents nothing', async () => {

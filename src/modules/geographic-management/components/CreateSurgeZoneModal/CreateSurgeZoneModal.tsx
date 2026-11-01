@@ -76,8 +76,6 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   // Form State
   const [cityCode, setCityCode] = useState(initialCityCode || '')
   const [name, setName] = useState('')
-  const [code, setCode] = useState('')
-  const [hasManuallyEditedCode, setHasManuallyEditedCode] = useState(false)
   const [isActive, setIsActive] = useState<boolean>(true)
 
   // Geometry & Map Tooling
@@ -129,8 +127,6 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
     setCityCode(finalCode)
     prevCityCodeRef.current = finalCode
     setName(activeCity ? `${activeCity.name} Surge Zone` : '')
-    setCode(finalCode ? `${finalCode}_SURGE` : '')
-    setHasManuallyEditedCode(false)
     setIsActive(true)
     setToolMode('draw')
     setCoordinates(null)
@@ -151,20 +147,17 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
       if (prevCityCodeRef.current !== cityCode) {
         setCoordinates(null)
         setName(`${cityName} Surge Zone`)
-        setCode(`${cityCode}_SURGE`)
-        setHasManuallyEditedCode(false)
         prevCityCodeRef.current = cityCode
       }
     }
   }, [isEdit, cityCode, cityName])
 
-  // Automatically suggest name & code based on selected city if not edited
+  // Suggest a name from the selected city, unless the admin typed their own.
   useEffect(() => {
     if (!zoneId && cityName && cityName !== 'City') {
       setName((prev) => (!prev || prev.includes('Surge Zone') ? `${cityName} Surge Zone` : prev))
-      setCode((prev) => (!prev || prev.endsWith('_SURGE') ? `${cityCode || 'ZONE'}_SURGE` : prev))
     }
-  }, [cityName, cityCode, zoneId])
+  }, [cityName, zoneId])
 
   // Contextual Service Zones in this City
   const { zones: existingServiceZones } = useCityZonesWithBoundaries(cityCode)
@@ -223,21 +216,6 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
       }
     }
   }, [cities, cityCode, initialCityCode])
-
-  // Auto-generate code when city or name changes
-  useEffect(() => {
-    if (!hasManuallyEditedCode && cityCode) {
-      const prefix = cityCode
-      const suffix = name
-        .replace(new RegExp(`^${cityName}`, 'i'), '')
-        .trim()
-        .replace(/[^a-zA-Z0-9]/g, '_')
-        .replace(/_+/g, '_')
-        .toUpperCase()
-      const gen = suffix ? `${prefix}_${suffix}` : `${prefix}_SURGE`
-      setCode(gen.replace(/_SURGE_SURGE$/, '_SURGE'))
-    }
-  }, [cityCode, cityName, name, hasManuallyEditedCode])
 
   // The default zone. Waits for the selected city, so it can never land in the last one.
   useEffect(() => {
@@ -453,10 +431,10 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
           </button>
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              <span>Create Surge Zone</span>
+              <span>{isEdit ? 'Edit Surge Zone' : 'Create Surge Zone'}</span>
             </h1>
             <p className="text-xs text-slate-500 font-normal mt-0.5">
-              Define an area where dynamic pricing (surge) will be applied during specific time windows.
+              An area for surge pricing. The price and times are set in Surge Rules.
             </p>
           </div>
         </div>
@@ -502,11 +480,9 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
                     onChange={(e) => {
                       const newCode = e.target.value
                       setCityCode(newCode)
-                      setHasManuallyEditedCode(false)
                       const targetCity = cities.find((c) => c.code === newCode)
                       const targetName = targetCity?.name || newCode
                       setName(`${targetName} Surge Zone`)
-                      setCode(`${newCode}_SURGE`)
                     }}
                     className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all cursor-pointer"
                   >
@@ -533,32 +509,6 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
                   placeholder={`e.g. ${cityName || 'City'} Surge Zone`}
                   className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
                 />
-              </div>
-
-              {/* Zone Code */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Zone Code
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    value={code}
-                    onChange={(e) => {
-                      setCode(e.target.value.toUpperCase())
-                      setHasManuallyEditedCode(true)
-                    }}
-                    placeholder={`${cityCode || 'CITY'}_SURGE`}
-                    className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-3 pr-24 text-xs font-mono font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-                  />
-                  <div className="absolute right-2.5 flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md pointer-events-none">
-                    <Check className="w-3 h-3 stroke-[2.5]" />
-                    <span>Available</span>
-                  </div>
-                </div>
-                <p className="text-[11px] text-slate-500 font-normal leading-normal">
-                  Auto-generated from city and zone name. You can edit if needed.
-                </p>
               </div>
 
               {/* Active Toggle */}
@@ -588,10 +538,10 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
             <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-100/90 flex items-start gap-2.5">
               <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <div className="space-y-0.5 text-xs text-blue-950">
-                <p className="font-semibold text-blue-900">Dynamic Multipliers</p>
+                <p className="font-semibold text-blue-900">Price and times</p>
                 <p className="text-[11px] text-blue-800/90 leading-relaxed font-normal">
-                  Surge multipliers (1.0x – 2.0x) and active time windows are scheduled under{' '}
-                  <span className="font-semibold text-blue-900">Pricing Management &gt; Surge Windows</span>.
+                  This zone only marks the area. Set the multiplier and times under{' '}
+                  <span className="font-semibold text-blue-900">Pricing Management &gt; Surge Rules</span>.
                 </p>
               </div>
             </div>
