@@ -65,6 +65,19 @@ export function generateCirclePolygon(
 }
 
 /**
+ * The default zone for a new polygon, or null until the selected city has loaded.
+ */
+export function seedRingFor(input: {
+  cityCode: string
+  loadedCityCode: string | null
+  center: LatLngPoint | null
+  radiusKm: number
+}): number[][][] | null {
+  if (!input.center || input.loadedCityCode !== input.cityCode) return null
+  return generateCirclePolygon(input.center, input.radiusKm, 8)
+}
+
+/**
  * Great-circle distance between two points in kilometers (Haversine formula).
  */
 export function haversineDistanceKm(p1: LatLngPoint, p2: LatLngPoint): number {

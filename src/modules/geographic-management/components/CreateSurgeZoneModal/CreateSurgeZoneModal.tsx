@@ -30,6 +30,7 @@ import {
   generateCirclePolygon,
   hasSelfIntersections,
   isPointInsidePolygon,
+  seedRingFor,
   CITY_COORDINATE_FALLBACKS,
   type LatLngPoint,
 } from '../CreateCityModal/geoUtils'
@@ -101,7 +102,7 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
   const [formError, setFormError] = useState<string | null>(null)
 
   // City Map Context (Boundary + Center)
-  const { referenceBoundary, cityCenter: detectedCenter } = useCityMapContext(
+  const { referenceBoundary, cityCenter: detectedCenter, loadedCityCode } = useCityMapContext(
     cityCode,
     cities,
   )
@@ -149,10 +150,7 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
     setHasManuallyEditedCode(false)
     setIsActive(true)
     setToolMode('draw')
-    const activeCenter =
-      (finalCode && CITY_COORDINATE_FALLBACKS[finalCode]) || { lat: 31.634, lng: 74.8723 }
-    setCoordinates(generateCirclePolygon(activeCenter, 2.0, 8))
-    setFitTrigger((prev) => prev + 1)
+    setCoordinates(null)
   }, [cities, initialCityCode])
 
   // Reset form whenever modal opens in create mode
@@ -164,19 +162,18 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
     wasOpenRef.current = isOpen
   }, [isOpen, isEdit, resetForm])
 
-  // Track city change and immediately reseed geometry, name, and camera
+  // A new city starts with a new zone, drawn once that city has loaded.
   useEffect(() => {
     if (!isEdit && cityCode) {
       if (prevCityCodeRef.current !== cityCode) {
-        setCoordinates(generateCirclePolygon(cityCenter, 2.0, 8))
+        setCoordinates(null)
         setName(`${cityName} Surge Zone`)
         setCode(`${cityCode}_SURGE`)
         setHasManuallyEditedCode(false)
-        setFitTrigger((prev) => prev + 1)
         prevCityCodeRef.current = cityCode
       }
     }
-  }, [isEdit, cityCode, cityName, cityCenter])
+  }, [isEdit, cityCode, cityName])
 
   // Automatically suggest name & code based on selected city if not edited
   useEffect(() => {
@@ -259,13 +256,15 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
     }
   }, [cityCode, cityName, name, hasManuallyEditedCode])
 
-  // Seed default 8-point polygon centered on city
+  // The default zone. Waits for the selected city, so it can never land in the last one.
   useEffect(() => {
-    if (!isEdit && (!coordinates || !coordinates[0]?.length) && cityCenter) {
-      const defaultRing = generateCirclePolygon(cityCenter, 2.0, 8)
-      setCoordinates(defaultRing)
+    if (isEdit || coordinates?.[0]?.length) return
+    const ring = seedRingFor({ cityCode, loadedCityCode, center: detectedCenter, radiusKm: 2 })
+    if (ring) {
+      setCoordinates(ring)
+      setFitTrigger((prev) => prev + 1)
     }
-  }, [isEdit, coordinates, cityCenter])
+  }, [isEdit, coordinates, cityCode, loadedCityCode, detectedCenter])
 
   // Load existing zone data for edit mode
   useEffect(() => {
@@ -528,10 +527,6 @@ export const CreateSurgeZoneModal: React.FC<CreateSurgeZoneModalProps> = ({
                       const targetName = targetCity?.name || newCode
                       setName(`${targetName} Surge Zone`)
                       setCode(`${newCode}_SURGE`)
-                      const newCenter =
-                        CITY_COORDINATE_FALLBACKS[newCode] || { lat: 31.634, lng: 74.8723 }
-                      setCoordinates(generateCirclePolygon(newCenter, 2.0, 8))
-                      setFitTrigger((prev) => prev + 1)
                     }}
                     className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all cursor-pointer"
                   >

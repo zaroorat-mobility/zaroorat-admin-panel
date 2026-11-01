@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { X, Check, Loader2 } from 'lucide-react'
 import { Step1ZoneInformation } from './Step1ZoneInformation'
 import { Step3VehicleCategories } from './Step3VehicleCategories'
-import { Step4DefineZoneMap } from './Step4DefineZoneMap'
+import { KNOWN_AIRPORTS, Step4DefineZoneMap } from './Step4DefineZoneMap'
 import { Step5ReviewCreate } from './Step5ReviewCreate'
 import {
   useCities,
@@ -13,7 +13,7 @@ import {
 } from '../../hooks'
 import { useCityMapContext } from '../../hooks/useCityMapContext'
 import { useToast } from '@/shared/context/toast/ToastContext'
-import { generateCirclePolygon, type LatLngPoint } from '../CreateCityModal/geoUtils'
+import { generateCirclePolygon, seedRingFor, type LatLngPoint } from '../CreateCityModal/geoUtils'
 import type { ServiceZoneDetail, ServiceZoneType } from '../../types'
 
 interface CreateServiceZoneModalProps {
@@ -106,10 +106,11 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
     useCityZonesWithBoundaries(cityCode)
 
   // Fetch reference city boundary and center from DB
-  const { referenceBoundary: dbCityBoundary, cityCenter: dbCityCenter } = useCityMapContext(
-    cityCode,
-    cities,
-  )
+  const {
+    referenceBoundary: dbCityBoundary,
+    cityCenter: dbCityCenter,
+    loadedCityCode,
+  } = useCityMapContext(cityCode, cities)
 
   // Current city metadata
   const currentCityObj = useMemo(() => {
@@ -210,21 +211,25 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
             : 'Service Zone'
         setName(`${cityName} ${typeLabel}`)
         setCode(getNextAvailableZoneCode(cityCode, zoneType))
-        if (cityChanged) {
-          setCoordinates(generateCirclePolygon(cityCenter, 2.0, 8))
-        }
+        if (cityChanged) setCoordinates(null)
         prevCityCodeRef.current = cityCode
         prevZoneTypeRef.current = zoneType
       }
     }
-  }, [isEdit, cityCode, cityName, zoneType, cityCenter, getNextAvailableZoneCode])
+  }, [isEdit, cityCode, cityName, zoneType, getNextAvailableZoneCode])
 
-  // Automatically seed initial 8-point zone polygon when entering Step 3 if not yet drawn
+  // The default zone on the map step. Waits for the selected city, so it can never land in the last one.
   useEffect(() => {
-    if (currentStep === 3 && (!coordinates || !coordinates[0]?.length)) {
-      setCoordinates(generateCirclePolygon(cityCenter, 2.0, 8))
-    }
-  }, [currentStep, cityCenter, coordinates])
+    if (currentStep !== 3 || coordinates?.[0]?.length) return
+    const airport = zoneType === 'AIRPORT' ? KNOWN_AIRPORTS[cityCode.toUpperCase()] : undefined
+    const ring = seedRingFor({
+      cityCode,
+      loadedCityCode,
+      center: airport ?? dbCityCenter,
+      radiusKm: airport?.defaultRadiusKm ?? 2,
+    })
+    if (ring) setCoordinates(ring)
+  }, [currentStep, coordinates, cityCode, loadedCityCode, dbCityCenter, zoneType])
 
   const isPending = isEdit ? updateZoneMutation.isPending : createZoneMutation.isPending
 

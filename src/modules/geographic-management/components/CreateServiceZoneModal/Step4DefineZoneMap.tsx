@@ -231,20 +231,6 @@ export const Step4DefineZoneMap: React.FC<Step4DefineZoneMapProps> = ({
     isAirport?: boolean
   } | null>(null)
 
-  // Seed default 8-point polygon: if Airport Zone, center directly on airport coordinates!
-  useEffect(() => {
-    if (!coordinates || !coordinates[0]?.length) {
-      const airport = (cityCode && KNOWN_AIRPORTS[cityCode.toUpperCase()]) || null
-      const initialCenter =
-        zoneType === 'AIRPORT' && airport
-          ? { lat: airport.lat, lng: airport.lng }
-          : cityCenter
-      const initialRadius = zoneType === 'AIRPORT' && airport ? airport.defaultRadiusKm : 2.0
-      const defaultRing = generateCirclePolygon(initialCenter, initialRadius, 8)
-      setCoordinates(defaultRing)
-    }
-  }, [coordinates, cityCenter, setCoordinates, zoneType, cityCode])
-
   // 1-Click: Locate Airport camera
   const handleLocateAirport = () => {
     if (!currentAirport) return
