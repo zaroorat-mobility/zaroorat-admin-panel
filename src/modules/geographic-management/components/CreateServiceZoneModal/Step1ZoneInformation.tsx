@@ -354,7 +354,9 @@ export const Step1ZoneInformation: React.FC<Step1ZoneInformationProps> = ({
             <p className="font-bold text-[#1F2B6D] mb-0.5">Important Notes</p>
             <ul className="space-y-0.5 text-[10.5px]">
               <li>• The zone must be inside the city&apos;s Operating Area.</li>
-              <li>• You can assign multiple vehicle categories in the next step.</li>
+              {zoneType !== 'RESTRICTED' && (
+                <li>• You can choose which vehicles can use this zone in the next step.</li>
+              )}
               <li>• The zone code must be unique within the city.</li>
             </ul>
           </div>

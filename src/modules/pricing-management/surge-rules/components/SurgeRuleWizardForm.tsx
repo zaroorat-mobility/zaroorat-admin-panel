@@ -139,11 +139,11 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
   }
 
   const stepsList: { id: StepType; label: string }[] = [
-    { id: 'basic', label: '1. Where and Which Vehicles' },
-    { id: 'multiplier', label: '2. Multiplier' },
-    { id: 'hours', label: '3. Daily Hours' },
-    { id: 'validity', label: '4. Dates' },
-    { id: 'review', label: isEdit ? '5. Review' : '5. Review & Create' }
+    { id: 'basic', label: 'Where and Which Vehicles' },
+    { id: 'multiplier', label: 'Multiplier' },
+    { id: 'hours', label: 'Daily Hours' },
+    { id: 'validity', label: 'Dates' },
+    { id: 'review', label: isEdit ? 'Review' : 'Review & Create' }
   ]
 
   const handleStepChange = (targetStepId: StepType) => {

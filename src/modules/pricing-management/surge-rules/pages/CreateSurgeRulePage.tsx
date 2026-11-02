@@ -21,7 +21,7 @@ export const CreateSurgeRulePage: React.FC = () => {
     <PageWrapper>
       <PageHeader
         title="Create Surge Rule"
-        description="Establish new multipliers, validity timelines, and active periods for vehicle categories."
+        description="Raise the fare in an area, for the vehicles and times you choose."
         onBack={() => navigate('/pricing-management/surge-rules')}
       />
 

@@ -260,6 +260,7 @@ describe('Create zone: the form says what each setting does', () => {
     await renderModal()
     await chooseType('RESTRICTED')
     assert.ok(!(container.textContent ?? '').includes('Vehicle Categories'))
+    assert.ok(!(container.textContent ?? '').includes('vehicle categories'))
   })
 
   it('has no Priority field and sends none', async () => {
