@@ -38,6 +38,7 @@ let failCityDetails: boolean
 let cityBoundaries: Record<string, number[][][] | null>
 let zoneDetail: Record<string, unknown> | null
 let zoneList: Array<Record<string, unknown>>
+let coverageMode: 'WHOLE_CITY' | 'ZONES_ONLY'
 let sent: Array<{ method?: string; url?: string; body: Record<string, unknown> }>
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)))
@@ -116,6 +117,7 @@ beforeEach(() => {
   cityBoundaries = {}
   zoneDetail = null
   zoneList = []
+  coverageMode = 'WHOLE_CITY'
   sent = []
   api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
     const ok = (data: unknown) => ({ data, status: 200, statusText: 'OK', headers: {}, config })
@@ -143,6 +145,7 @@ beforeEach(() => {
           currency: 'INR',
           launchedAt: null,
           center: CENTERS[city.code],
+          coverageMode,
           boundary:
             city.code in cityBoundaries
               ? cityBoundaries[city.code]
@@ -283,17 +286,17 @@ describe('Create zone: the form says what each setting does', () => {
     assert.ok(!text.includes('Allow Drop-offs'))
   })
 
-  it('warns that the first zone closes the rest of the city', async () => {
+  it('says a service zone does not limit where rides start in a whole-city city', async () => {
+    coverageMode = 'WHOLE_CITY'
     await renderModal()
-    assert.ok((container.textContent ?? '').includes('rides can only start inside it'))
+    assert.ok((container.textContent ?? '').includes('does not limit where rides start'))
+    assert.ok(!(container.textContent ?? '').includes('stops taking rides'))
   })
 
-  it('does not warn when the city already has a service zone', async () => {
-    zoneList = [
-      { id: 'z1', code: 'ATQ_SZ_01', name: 'Amritsar Zone', zoneType: 'SERVICE', cityCode: 'ATQ', cityId: 'id-ATQ', isActive: true, allowsPickup: true, allowsDropoff: true, fareRuleCount: 0 },
-    ]
+  it('says nothing of the kind in a city limited to its zones', async () => {
+    coverageMode = 'ZONES_ONLY'
     await renderModal()
-    assert.ok(!(container.textContent ?? '').includes('rides can only start inside it'))
+    assert.ok(!(container.textContent ?? '').includes('does not limit where rides start'))
   })
 
   it('defaults to all vehicles, selects nothing, and sends no vehicle list', async () => {

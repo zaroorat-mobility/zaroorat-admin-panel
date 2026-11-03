@@ -99,6 +99,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
   const {
     referenceBoundary: dbCityBoundary,
     cityCenter: dbCityCenter,
+    coverageMode,
     loadedCityCode,
     failed: cityFailed,
     retry: retryCity,
@@ -253,12 +254,8 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
   )
   const canProceedStep2 = isRestricted || vehicleMode === 'ALL' || vehicleCategoryIds.length > 0
 
-  // ponytail: the backend closes the rest of a city once its first zone exists. Phase 1 replaces this warning with a setting.
-  const isFirstCoverageZone =
-    !isEdit &&
-    !isRestricted &&
-    cityReady &&
-    !existingZonesList.some((z) => z.isActive && z.zoneType !== 'RESTRICTED')
+  // In a whole-city city a service zone only sets its own fares and vehicles.
+  const zoneLeavesCityOpen = cityReady && zoneType === 'SERVICE' && coverageMode === 'WHOLE_CITY'
   const canProceedStep3 = Boolean(
     coordinates?.[0]?.length && coordinates[0].length >= 4 && isMapValid,
   )
@@ -430,10 +427,10 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
           </div>
         )}
 
-        {isFirstCoverageZone && (currentStep === 1 || currentStep === 4) && (
-          <div className="shrink-0 mx-6 mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-xs font-medium text-amber-950">
-            This is the first zone in {cityName}. After you create it, rides can only start inside it,
-            and the rest of {cityName} stops taking rides.
+        {zoneLeavesCityOpen && (currentStep === 1 || currentStep === 4) && (
+          <div className="shrink-0 mx-6 mt-2 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs font-medium text-slate-800">
+            {cityName} takes rides anywhere in its Operating Area, so this zone does not limit where
+            rides start. It sets its own fares and vehicles.
           </div>
         )}
 

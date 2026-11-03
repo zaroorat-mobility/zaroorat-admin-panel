@@ -107,6 +107,9 @@ export const API_ENDPOINTS = {
     update: (id: string) => `/admin/surge-windows/${id}`,
     delete: (id: string) => `/admin/surge-windows/${id}`,
   },
+  surgeSettings: {
+    update: (cityCode: string) => `/admin/surge-settings/${cityCode}`,
+  },
   cancellationPolicies: {
     list: '/admin/cancellation-policies',
     detail: (id: string) => `/admin/cancellation-policies/${id}`,
@@ -182,6 +185,7 @@ export const API_ENDPOINTS = {
     reconcileApply: '/admin/geographic/states/reconcile/apply',
     cities: '/admin/geographic/cities',
     city: (id: string) => `/admin/geographic/cities/${id}`,
+    citySetup: (id: string) => `/admin/geographic/cities/${id}/setup`,
     serviceZones: '/admin/geographic/service-zones',
     serviceZone: (id: string) => `/admin/geographic/service-zones/${id}`,
     activateServiceZone: (id: string) => `/admin/geographic/service-zones/${id}/activate`,

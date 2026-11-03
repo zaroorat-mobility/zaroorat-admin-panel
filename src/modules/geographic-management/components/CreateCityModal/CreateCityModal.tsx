@@ -5,8 +5,14 @@ import { Step2Boundary } from './Step2Boundary'
 import { Step3ReviewCreate } from './Step3ReviewCreate'
 import type { OfficialCityItem } from './officialCitiesCatalog'
 import { generateCirclePolygon, type LatLngPoint } from './geoUtils'
-import { useCity, useCreateCity, useStates, useUpdateCity } from '../../hooks'
-import type { CityDetail } from '../../types'
+import { useCity, useCitySetup, useCreateCity, useStates, useUpdateCity } from '../../hooks'
+import { updateSurgeCap } from '../../api'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
+import type { CityDetail, CoverageMode } from '../../types'
+
+/** The backend's MAX_SURGE_MULTIPLIER. A city cap can only lower it. */
+const SURGE_CAP_LIMIT = 2
 
 interface CreateCityModalProps {
   isOpen: boolean
@@ -23,7 +29,9 @@ export const CreateCityModal: React.FC<CreateCityModalProps> = ({
 }) => {
   const isEdit = Boolean(cityId)
   const { data: cityData, isLoading: isLoadingCity } = useCity(cityId || '')
+  const { data: citySetup } = useCitySetup(cityId || '')
   const { data: statesList = [] } = useStates({ countryCode: 'IN', activeOnly: true })
+  const canSetSurgeCap = hasPermission(useAuthStore((s) => s.user), 'pricing:write')
   const createCityMutation = useCreateCity()
   const updateCityMutation = useUpdateCity()
 
@@ -49,8 +57,12 @@ export const CreateCityModal: React.FC<CreateCityModalProps> = ({
     generateCirclePolygon({ lat: 12.9716, lng: 77.5946 }, 5, 64),
   )
   const [isBoundaryValid, setIsBoundaryValid] = useState(true)
+  const [coverageMode, setCoverageMode] = useState<CoverageMode>('WHOLE_CITY')
+  const [surgeCap, setSurgeCap] = useState('2')
 
-  // In edit mode: populate fields when cityData arrives from backend
+  // In edit mode: populate fields when cityData arrives from backend. Only cityData is a
+  // dependency: statesList is a new [] each render while loading, and setCenter makes a new
+  // object, so depending on it re-ran this effect forever.
   useEffect(() => {
     if (isEdit && cityData) {
       setCityName(cityData.name)
@@ -69,13 +81,15 @@ export const CreateCityModal: React.FC<CreateCityModalProps> = ({
         setBoundary(cityData.boundary)
         setBoundaryType('polygon')
       }
-
-      const matchedState = statesList.find((s) => s.id === cityData.stateId)
-      if (matchedState) {
-        setSelectedStateCode(matchedState.code)
-      }
+      setCoverageMode(cityData.coverageMode ?? 'WHOLE_CITY')
+      setSurgeCap(String(cityData.maxSurgeMultiplier ?? SURGE_CAP_LIMIT))
     }
-  }, [isEdit, cityData, statesList])
+  }, [isEdit, cityData])
+
+  useEffect(() => {
+    const matchedState = isEdit ? statesList.find((s) => s.id === cityData?.stateId) : undefined
+    if (matchedState) setSelectedStateCode(matchedState.code)
+  }, [isEdit, cityData?.stateId, statesList])
 
   // In create mode: Auto-select Karnataka & Bengaluru on initial mount
   useEffect(() => {
@@ -132,6 +146,11 @@ export const CreateCityModal: React.FC<CreateCityModalProps> = ({
 
   const handleSubmit = async () => {
     setErrorBanner(null)
+    const cap = Number(surgeCap)
+    if (canSetSurgeCap && !(cap >= 1 && cap <= SURGE_CAP_LIMIT)) {
+      setErrorBanner(`The surge cap must be between 1.0x and ${SURGE_CAP_LIMIT.toFixed(1)}x.`)
+      return
+    }
     const payload = {
       code: cityCode.toUpperCase(),
       name: cityName.trim(),
@@ -141,18 +160,27 @@ export const CreateCityModal: React.FC<CreateCityModalProps> = ({
       center: { lat: Number(center.lat.toFixed(6)), lng: Number(center.lng.toFixed(6)) },
       boundary,
       isActive,
+      coverageMode,
     }
 
     try {
-      if (isEdit && cityId) {
-        const result = await updateCityMutation.mutateAsync({ id: cityId, payload })
-        onSuccess?.(result as unknown as CityDetail)
-        onClose()
-      } else {
-        const result = await createCityMutation.mutateAsync(payload)
-        onSuccess?.(result)
-        onClose()
+      const result =
+        isEdit && cityId
+          ? ((await updateCityMutation.mutateAsync({ id: cityId, payload })) as unknown as CityDetail)
+          : await createCityMutation.mutateAsync(payload)
+      onSuccess?.(result)
+
+      const savedCap = cityData?.maxSurgeMultiplier ?? SURGE_CAP_LIMIT
+      if (canSetSurgeCap && cap !== savedCap) {
+        try {
+          await updateSurgeCap(payload.code, cap)
+        } catch (capErr: unknown) {
+          const reason = capErr instanceof Error ? capErr.message : 'unknown error'
+          setErrorBanner(`The city was saved, but the surge cap was not saved: ${reason}`)
+          return
+        }
       }
+      onClose()
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -274,7 +302,7 @@ export const CreateCityModal: React.FC<CreateCityModalProps> = ({
         )}
 
         {/* ── Body: Swapped per Step ───────────────────────────── */}
-        <div className="flex-1 min-h-0 px-7 py-3 bg-slate-50/60 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 px-7 py-3 bg-slate-50/60 overflow-y-auto flex flex-col">
           {isEdit && isLoadingCity ? (
             <div className="flex-1 flex flex-col items-center justify-center space-y-3 py-16">
               <Loader2 className="w-8 h-8 animate-spin text-[#1F2B6D]" />
@@ -323,6 +351,12 @@ export const CreateCityModal: React.FC<CreateCityModalProps> = ({
                   boundary={boundary}
                   setBoundary={setBoundary}
                   selectedOfficialCity={selectedOfficialCity}
+                  coverageMode={coverageMode}
+                  setCoverageMode={setCoverageMode}
+                  savedCoverageMode={isEdit ? cityData?.coverageMode ?? 'WHOLE_CITY' : null}
+                  zonesCoveredPct={citySetup?.zonesCoveredPct ?? null}
+                  surgeCap={canSetSurgeCap ? surgeCap : null}
+                  setSurgeCap={setSurgeCap}
                   onValidationChange={setIsBoundaryValid}
                   onBack={() => setCurrentStep(1)}
                   onCancel={onClose}
@@ -345,6 +379,8 @@ export const CreateCityModal: React.FC<CreateCityModalProps> = ({
                   boundaryType={boundaryType}
                   radiusKm={radiusKm}
                   boundary={boundary}
+                  coverageMode={coverageMode}
+                  surgeCap={canSetSurgeCap ? surgeCap : null}
                   isSubmitting={isPending}
                   onEditCityInfo={() => setCurrentStep(1)}
                   onEditBoundary={() => setCurrentStep(2)}
