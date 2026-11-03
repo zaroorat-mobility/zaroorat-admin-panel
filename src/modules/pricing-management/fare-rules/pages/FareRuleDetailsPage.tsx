@@ -77,7 +77,7 @@ export const FareRuleDetailsPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="p-1.5 rounded bg-primary/10 text-primary">
-                    {rule.vehicleType === 'bike' ? <Bike className="h-4 w-4" /> : <Car className="h-4 w-4" />}
+                    {rule.vehicleType === 'BIKE' ? <Bike className="h-4 w-4" /> : <Car className="h-4 w-4" />}
                   </span>
                   <div>
                     <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">{rule.ruleName}</h3>

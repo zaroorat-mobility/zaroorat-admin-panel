@@ -152,7 +152,7 @@ export const PricingDashboardPage: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-4 text-[10px] text-slate-550 dark:text-slate-400">
                             <span className="uppercase font-bold text-primary flex items-center gap-1">
-                              {rule.vehicleType === 'bike' ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
+                              {rule.vehicleType === 'BIKE' ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
                               {rule.vehicleType}
                             </span>
                             <span className="font-semibold text-slate-500">{rule.cityCode}</span>

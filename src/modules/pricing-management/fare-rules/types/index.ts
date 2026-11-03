@@ -1,12 +1,12 @@
 import type { BaseEntity } from '@/shared/types'
-import type { VehicleType } from '@/modules/driver-management/types'
 
 export type RideServiceTypeUi = 'instant' | 'scheduled' | 'rental' | 'outstation'
 
 export interface FareRule extends BaseEntity {
   ruleName: string
   version: number
-  vehicleType: VehicleType
+  /** The vehicle type code, e.g. CAB_MINI_AC. The server looks it up in its table. */
+  vehicleType: string
   cityCode: string
   serviceType: RideServiceTypeUi | null
   serviceZoneId: string | null

@@ -104,7 +104,7 @@ export const FareRulesListPage: React.FC = () => {
       render: (val: string) => (
         <div className="flex items-center gap-2">
           <div className="p-1 rounded bg-primary/10 text-primary">
-            {val === 'bike' ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
+            {val === 'BIKE' ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
           </div>
           <span className="font-bold text-slate-700 dark:text-slate-200 uppercase text-[10px] tracking-wider">{val}</span>
         </div>

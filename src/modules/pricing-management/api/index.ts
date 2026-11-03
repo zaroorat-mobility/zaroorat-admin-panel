@@ -48,6 +48,8 @@ function toNum(value: number | string): number {
 function normalizeFare(rule: ApiFareRule): FareRule {
   return {
     ...rule,
+    // The server's `vehicleType` is a cab/auto/bike guess that calls every cab "cab".
+    vehicleType: rule.vehicleTypeCode ?? rule.vehicleType,
     cityCode: rule.cityCode ?? 'GLOBAL',
     serviceType: rule.serviceType ?? null,
     serviceZoneId: rule.serviceZoneId ?? null,
