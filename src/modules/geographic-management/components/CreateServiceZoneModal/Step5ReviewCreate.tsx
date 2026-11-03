@@ -25,6 +25,7 @@ import {
 } from '../CreateCityModal/geoUtils'
 import { ZoneChecksList } from './ZoneChecksList'
 import { useVehicleTypes } from '../../hooks'
+import { vehicleTypeLabel } from '../../hooks/useVehicleTypes'
 import type { ServiceZoneDetail, ServiceZoneType } from '../../types'
 
 
@@ -169,7 +170,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
       .map((v) => ({
         id: v.id,
         code: v.code,
-        name: v.name,
+        name: vehicleTypeLabel(v),
       }))
   }, [vehicleCategoryIds, allVehicleTypes])
 

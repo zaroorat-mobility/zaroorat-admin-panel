@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Save } from 'lucide-react'
 import { useSurgeZones } from '../../hooks'
 import { surgeWindowRange } from '../../api'
 import { useCities, useStates } from '@/modules/geographic-management/hooks'
-import { useVehicleTypes } from '@/modules/geographic-management/hooks/useVehicleTypes'
+import { useVehicleTypes, vehicleTypeLabel } from '@/modules/geographic-management/hooks/useVehicleTypes'
 import type { SurgeRule } from '../types'
 
 const UNSET_ZONE = '__unset__'
@@ -320,7 +320,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                           }
                           className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                         />
-                        <span>{vehicle.name}</span>
+                        <span>{vehicleTypeLabel(vehicle)}</span>
                       </label>
                     ))}
                   </div>
@@ -473,7 +473,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                     ? (initialValues?.vehicleLabel ?? '—')
                     : vehicleMode === 'ALL'
                       ? 'All vehicles'
-                      : activeVehicleTypes.filter((v) => vehicleTypeIds.includes(v.id)).map((v) => v.name).join(', ')}</span></p>
+                      : activeVehicleTypes.filter((v) => vehicleTypeIds.includes(v.id)).map(vehicleTypeLabel).join(', ')}</span></p>
                   <p><strong>Multiplier:</strong> <span className="px-2 py-0.5 rounded font-black text-rose-700 bg-rose-50 border border-rose-100">{multiplier}x</span></p>
                 </div>
                 <div className="space-y-2 border-l pl-4">

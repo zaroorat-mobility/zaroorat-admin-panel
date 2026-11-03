@@ -9,6 +9,7 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import { useVehicleTypes } from '../../hooks'
+import { vehicleTypeLabel } from '../../hooks/useVehicleTypes'
 
 export interface VehicleCategoryItem {
   id: string
@@ -101,7 +102,7 @@ export const Step3VehicleCategories: React.FC<Step3VehicleCategoriesProps> = ({
       return {
         id: v.id,
         code: v.code,
-        name: v.name,
+        name: vehicleTypeLabel(v),
         description,
         passengerCapacity: v.passengerCapacity,
         isActive: v.isActive,
