@@ -2,28 +2,6 @@ import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import type { QueryParams, PaginatedResponse } from '@/shared/types'
 import type { FareRule, CityOption, ServiceZoneOption } from '../fare-rules/types'
 import type { SurgeRule, CancellationRule } from '../types'
-import type { VehicleType } from '@/modules/driver-management/types'
-
-const CODE_TO_UI: Record<string, VehicleType> = {
-  CAB_ECONOMY: 'cab',
-  CAB_PREMIUM: 'cab',
-  AUTO: 'auto',
-  BIKE: 'bike',
-}
-
-const VEHICLE_LABELS: Record<string, string> = {
-  CAB_ECONOMY: 'Economy Cab',
-  CAB_PREMIUM: 'Premium Cab',
-  AUTO: 'Auto',
-  BIKE: 'Bike',
-}
-
-const UI_TO_CODE: Record<string, string> = {
-  cab: 'CAB_ECONOMY',
-  auto: 'AUTO',
-  bike: 'BIKE',
-  carpool: 'CAB_ECONOMY',
-}
 
 type ApiFareRule = Omit<FareRule, 'nightStartTime' | 'nightEndTime'> & {
   nightStartTime?: string
@@ -52,6 +30,7 @@ export interface SurgeWindowDto {
   createdAt: string
   zoneName?: string
   vehicleTypeCode?: string | null
+  vehicleTypeName?: string | null
 }
 
 export interface SurgeZoneDto {
@@ -60,12 +39,6 @@ export interface SurgeZoneDto {
   name: string
   isActive: boolean
   createdAt: string
-}
-
-interface VehicleTypeDto {
-  id: string
-  code: string
-  name: string
 }
 
 function toNum(value: number | string): number {
@@ -159,8 +132,7 @@ export function windowToSurgeRule(window: SurgeWindowDto): SurgeRule {
   return {
     id: window.id,
     ruleName: window.reason || window.zoneName || 'Surge Window',
-    vehicleType: code ? (CODE_TO_UI[code] ?? 'cab') : 'cab',
-    vehicleLabel: code ? (VEHICLE_LABELS[code] ?? code) : 'All vehicles',
+    vehicleLabel: code ? (window.vehicleTypeName ?? code) : 'All vehicles',
     zoneId: window.zoneId,
     zoneName: window.zoneName,
     multiplier: toNum(window.multiplier),
@@ -194,21 +166,6 @@ async function resolveCitywideZoneId(): Promise<string> {
     throw new Error('No surge zone configured. Seed development pricing fixtures first.')
   }
   return citywide.id
-}
-
-async function resolveVehicleTypeIds(types: VehicleType[]): Promise<string[]> {
-  const response = await api.get<{ data: VehicleTypeDto[] }>(API_ENDPOINTS.vehicleTypes.list)
-  const catalog = response.data.data
-  const ids: string[] = []
-  for (const ui of types) {
-    const code = UI_TO_CODE[ui]
-    const match = catalog.find((row) => row.code === code)
-    if (!match) {
-      throw new Error(`Vehicle type ${code} is not configured`)
-    }
-    ids.push(match.id)
-  }
-  return ids
 }
 
 // ─── Fare rules ───────────────────────────────────────────────────────────────
@@ -292,10 +249,11 @@ export const getSurgeRules = async (
   let rules = response.data.map(windowToSurgeRule)
   const search = ((params?.search as string) || '').toLowerCase()
   if (search) {
-    rules = rules.filter((r) => {
-      const vt = Array.isArray(r.vehicleType) ? r.vehicleType.join(', ') : r.vehicleType
-      return r.ruleName.toLowerCase().includes(search) || vt.toLowerCase().includes(search)
-    })
+    rules = rules.filter(
+      (r) =>
+        r.ruleName.toLowerCase().includes(search) ||
+        (r.vehicleLabel ?? '').toLowerCase().includes(search),
+    )
   }
   return {
     data: rules,
@@ -317,10 +275,10 @@ export const createSurgeRule = async (
   data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt'>,
 ): Promise<SurgeRule> => {
   const zoneId = data.zoneId ?? (await resolveCitywideZoneId())
-  const types = Array.isArray(data.vehicleType)
-    ? data.vehicleType
-    : [data.vehicleType as VehicleType]
-  const vehicleTypeIds = await resolveVehicleTypeIds(types)
+  // No vehicle chosen means one rule for every vehicle, sent without a vehicle id.
+  const vehicleTargets: Array<string | null> = data.vehicleTypeIds?.length
+    ? data.vehicleTypeIds
+    : [null]
   const { startsAt, endsAt } = surgeWindowRange(data)
 
   let createdId: string | null = null
@@ -334,10 +292,11 @@ export const createSurgeRule = async (
     ...(data.peakHourEnd ? { peakHourEnd: data.peakHourEnd } : {}),
     ...(data.isPeakHourOnly !== undefined ? { isPeakHourOnly: data.isPeakHourOnly } : {}),
   }
-  for (const vehicleTypeId of vehicleTypeIds) {
+  // ponytail: one request per vehicle, so a failure part way leaves some saved; Task 16 sends one rule.
+  for (const vehicleTypeId of vehicleTargets) {
     const response = await api.post<SurgeWindowDto>(API_ENDPOINTS.surgeWindows.create, {
       ...surgePayload,
-      vehicleTypeId,
+      ...(vehicleTypeId ? { vehicleTypeId } : {}),
     })
     createdId = response.data.id
     if (data.status === 'inactive' && createdId) {

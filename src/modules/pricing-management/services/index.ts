@@ -88,10 +88,9 @@ const createSurgeRule = async (
   data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt'>,
 ): Promise<SurgeRule> => {
   const rule = await pricingApi.createSurgeRule(data)
-  const vt = Array.isArray(rule.vehicleType) ? rule.vehicleType.join(', ') : rule.vehicleType
   logAuditAction(
     `Created Surge Rule: ${rule.ruleName}`,
-    `Vehicle: ${vt.toUpperCase()}, Multiplier: ${rule.multiplier}x, Status: ${rule.status}`,
+    `Vehicle: ${rule.vehicleLabel ?? 'All vehicles'}, Multiplier: ${rule.multiplier}x, Status: ${rule.status}`,
     rule.id,
     'fare_config',
   )

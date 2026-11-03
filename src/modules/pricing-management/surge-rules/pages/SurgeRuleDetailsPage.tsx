@@ -102,8 +102,8 @@ export const SurgeRuleDetailsPage: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500">Vehicles:</span>
                   <span className="font-bold text-slate-800 dark:text-white flex items-center gap-1">
-                    {rule.vehicleType === 'bike' ? <Bike className="h-3.5 w-3.5 text-slate-450" /> : <Car className="h-3.5 w-3.5 text-slate-450" />}
-                    {rule.vehicleLabel ?? rule.vehicleType}
+                    {/bike/i.test(rule.vehicleLabel ?? '') ? <Bike className="h-3.5 w-3.5 text-slate-450" /> : <Car className="h-3.5 w-3.5 text-slate-450" />}
+                    {rule.vehicleLabel ?? 'All vehicles'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">

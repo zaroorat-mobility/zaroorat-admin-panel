@@ -9,13 +9,16 @@ import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { InternalAxiosRequestConfig } from 'axios'
-import { api } from '@/infrastructure/api'
+import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import { SurgeRuleWizardForm, surgeMultiplierError, SURGE_PRESETS } from '../components/SurgeRuleWizardForm'
 import type { SurgeRule } from '../types'
 
 const originalAdapter = api.defaults.adapter
 let container: HTMLDivElement
 let root: Root
+let submitted: Array<Record<string, unknown>>
+const MINI = '22222222-2222-4222-8222-222222222222'
+const XL = '33333333-3333-4333-8333-333333333333'
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)))
 const settle = async () => {
@@ -25,7 +28,6 @@ const settle = async () => {
 const existing: SurgeRule = {
   id: 'w1',
   ruleName: 'Evening',
-  vehicleType: 'cab',
   vehicleLabel: 'Premium Cab',
   zoneId: 'z1',
   zoneName: 'Lal Chowk',
@@ -46,7 +48,7 @@ async function render(initialValues?: SurgeRule) {
         { client },
         createElement(SurgeRuleWizardForm, {
           ...(initialValues ? { initialValues } : {}),
-          onSubmit: () => {},
+          onSubmit: (data: Record<string, unknown>) => submitted.push(data),
         }),
       ),
     ),
@@ -64,13 +66,26 @@ async function openStep(label: string) {
 const text = () => container.textContent ?? ''
 
 beforeEach(() => {
-  api.defaults.adapter = async (config: InternalAxiosRequestConfig) => ({
-    data: { data: [] },
-    status: 200,
-    statusText: 'OK',
-    headers: {},
-    config,
-  })
+  submitted = []
+  api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+    const reply = (data: unknown) => ({ data, status: 200, statusText: 'OK', headers: {}, config })
+    if (config.url === API_ENDPOINTS.surgeZones.list) {
+      return reply([{ id: 'z1', cityCode: 'SGR', name: 'Lal Chowk', isActive: true, createdAt: '' }])
+    }
+    if (config.url === API_ENDPOINTS.geographic.cities) {
+      return reply({ data: [{ id: 'c1', code: 'SGR', name: 'Srinagar', stateId: null, isActive: true }] })
+    }
+    if (config.url === API_ENDPOINTS.vehicleTypes.list) {
+      return reply({
+        data: [
+          { id: MINI, code: 'CAB_MINI_AC', name: 'Mini AC', isActive: true },
+          { id: XL, code: 'CAB_XL_AC', name: 'XL AC', isActive: true },
+          { id: 'old', code: 'CAB_ECONOMY', name: 'Retired Cab', isActive: false },
+        ],
+      })
+    }
+    return reply({ data: [] })
+  }
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -100,6 +115,83 @@ describe('surgeMultiplierError', () => {
 })
 
 describe('SurgeRuleWizardForm', () => {
+  async function fillFirstStep() {
+    const name = container.querySelector<HTMLInputElement>('input[type="text"]')
+    assert.ok(name, 'rule name')
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set?.call(
+        name,
+        'Evening',
+      )
+      name.dispatchEvent(new window.Event('input', { bubbles: true }))
+    })
+    const zone = [...container.querySelectorAll('select')].find((s) =>
+      [...s.options].some((o) => o.value === 'z1'),
+    )
+    assert.ok(zone, 'surge zone')
+    await act(async () => {
+      zone.value = 'z1'
+      zone.dispatchEvent(new window.Event('change', { bubbles: true }))
+    })
+    await settle()
+  }
+
+  const button = (label: string) => {
+    const found = [...container.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes(label),
+    )
+    assert.ok(found, `button "${label}"`)
+    return found
+  }
+  const click = async (label: string) => {
+    await act(async () => button(label).click())
+    await settle()
+  }
+  const finish = async () => {
+    for (let i = 0; i < 4; i++) await click('Next')
+    await click('Create Surge Rule')
+  }
+
+  it('defaults to all vehicles, and sends no vehicle list', async () => {
+    await render()
+    assert.ok(text().includes('All vehicles (recommended)'))
+    assert.ok(!text().includes('Mini AC'), 'the list stays closed until asked for')
+
+    await fillFirstStep()
+    await finish()
+    assert.equal(submitted.length, 1)
+    assert.deepEqual(submitted[0].vehicleTypeIds, [])
+  })
+
+  it('offers the real active vehicle types, and sends the ones chosen', async () => {
+    await render()
+    await fillFirstStep()
+    await click('Only these')
+
+    assert.ok(text().includes('Mini AC'))
+    assert.ok(text().includes('XL AC'))
+    assert.ok(!text().includes('Retired Cab'), 'a retired type would charge nobody')
+
+    const mini = [...container.querySelectorAll('label')].find((l) =>
+      l.textContent?.includes('Mini AC'),
+    )
+    const checkbox = mini?.querySelector('input')
+    assert.ok(checkbox, 'Mini AC checkbox')
+    await act(async () => checkbox.click())
+    await settle()
+
+    await finish()
+    assert.deepEqual(submitted[0].vehicleTypeIds, [MINI])
+  })
+
+  it('will not continue with Only these and nothing chosen', async () => {
+    await render()
+    await fillFirstStep()
+    await click('Only these')
+    await click('Next')
+    assert.ok(text().includes('Choose at least one vehicle'))
+  })
+
   it('has no demand or supply step, and calls daily hours what they are', async () => {
     await render(existing)
     assert.ok(!text().includes('Demand'))

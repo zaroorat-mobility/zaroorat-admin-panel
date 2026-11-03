@@ -6,18 +6,12 @@ import { ChevronLeft, ChevronRight, Save } from 'lucide-react'
 import { useSurgeZones } from '../../hooks'
 import { surgeWindowRange } from '../../api'
 import { useCities, useStates } from '@/modules/geographic-management/hooks'
+import { useVehicleTypes } from '@/modules/geographic-management/hooks/useVehicleTypes'
 import type { SurgeRule } from '../types'
-import type { VehicleType } from '@/modules/driver-management/types'
 
 const UNSET_ZONE = '__unset__'
 
 export const SURGE_PRESETS = [1.2, 1.5, 1.8, 2.0] as const
-
-const VEHICLE_CHOICES: Array<{ value: VehicleType; label: string }> = [
-  { value: 'cab', label: 'Economy Cab' },
-  { value: 'auto', label: 'Auto' },
-  { value: 'bike', label: 'Bike' },
-]
 
 export function surgeMultiplierError(multiplier: number): string | null {
   if (!(multiplier > 1)) return 'Surge must be above 1.0x. At 1.0x riders pay the normal fare.'
@@ -43,18 +37,16 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
   const { data: surgeZones = [], isLoading: zonesLoading } = useSurgeZones()
   const { data: states = [] } = useStates({ countryCode: 'IN', activeOnly: true })
   const { data: cities = [] } = useCities(true)
+  const { data: vehicleCatalog = [] } = useVehicleTypes()
+  // A retired type has no riders, so a rule for it would charge nobody.
+  const activeVehicleTypes = useMemo(() => vehicleCatalog.filter((v) => v.isActive), [vehicleCatalog])
 
   const [ruleName, setRuleName] = useState(initialValues?.ruleName || '')
   const [stateId, setStateId] = useState('')
   const [cityCode, setCityCode] = useState(initialValues?.cityCode || '')
   const [zoneId, setZoneId] = useState(initialValues?.zoneId || '')
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(
-    Array.isArray(initialValues?.vehicleType)
-      ? initialValues.vehicleType
-      : initialValues?.vehicleType
-        ? [initialValues.vehicleType as VehicleType]
-        : ['cab']
-  )
+  const [vehicleMode, setVehicleMode] = useState<'ALL' | 'ONLY'>('ALL')
+  const [vehicleTypeIds, setVehicleTypeIds] = useState<string[]>([])
   const [multiplier, setMultiplier] = useState<number>(initialValues?.multiplier || 1.2)
   const [peakHourStart, setPeakHourStart] = useState(initialValues?.peakHourStart || '')
   const [peakHourEnd, setPeakHourEnd] = useState(initialValues?.peakHourEnd || '')
@@ -107,6 +99,9 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
     if (step === 'basic') {
       if (!ruleName.trim()) errs.ruleName = 'Rule name is required.'
       if (!isEdit && !zoneId) errs.zoneId = 'Surge zone is required.'
+      if (!isEdit && vehicleMode === 'ONLY' && vehicleTypeIds.length === 0) {
+        errs.vehicleTypeIds = 'Choose at least one vehicle, or pick All vehicles.'
+      }
     }
 
     if (step === 'multiplier') {
@@ -186,7 +181,7 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
       zoneId,
       zoneName: selectedZone?.name,
       cityCode: selectedZone?.cityCode ?? (cityCode || undefined),
-      vehicleType: vehicleTypes,
+      vehicleTypeIds: vehicleMode === 'ALL' ? [] : vehicleTypeIds,
       multiplier,
       peakHourStart: peakHourStart || null,
       peakHourEnd: peakHourEnd || null,
@@ -293,25 +288,44 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
               </div>
 
               <div className="space-y-1.5 text-left">
-                <label className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Target Vehicle Types</label>
-                <div className="flex gap-4 items-center bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-border">
-                  {VEHICLE_CHOICES.map(({ value, label }) => (
-                    <label key={value} className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={vehicleTypes.includes(value)}
-                        onChange={(e) => {
-                          const next = e.target.checked
-                            ? [...vehicleTypes, value]
-                            : vehicleTypes.filter(t => t !== value)
-                          if (next.length > 0) setVehicleTypes(next)
-                        }}
-                        className="rounded border-border text-primary focus:ring-primary h-4 w-4"
-                      />
-                      <span>{label}</span>
-                    </label>
+                <label className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Vehicles</label>
+                <div className="flex gap-2">
+                  {([['ALL', 'All vehicles (recommended)'], ['ONLY', 'Only these']] as const).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={vehicleMode === mode}
+                      onClick={() => setVehicleMode(mode)}
+                      className={`py-1.5 px-3 border text-xs font-semibold rounded-lg ${
+                        vehicleMode === mode
+                          ? 'bg-primary/10 border-primary text-primary'
+                          : 'bg-slate-50 border-border text-slate-650 hover:bg-slate-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
                   ))}
                 </div>
+                {vehicleMode === 'ONLY' && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 items-center bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-border">
+                    {activeVehicleTypes.map((vehicle) => (
+                      <label key={vehicle.id} className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={vehicleTypeIds.includes(vehicle.id)}
+                          onChange={(e) =>
+                            setVehicleTypeIds((ids) =>
+                              e.target.checked ? [...ids, vehicle.id] : ids.filter((id) => id !== vehicle.id),
+                            )
+                          }
+                          className="rounded border-border text-primary focus:ring-primary h-4 w-4"
+                        />
+                        <span>{vehicle.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {errors.vehicleTypeIds && <p className="text-[10px] text-rose-500 font-bold">{errors.vehicleTypeIds}</p>}
               </div>
               </>
               )}
@@ -455,7 +469,11 @@ export const SurgeRuleWizardForm: React.FC<SurgeRuleWizardFormProps> = ({
                 <div className="space-y-2">
                   <p><strong>Rule Name:</strong> {ruleName}</p>
                   <p><strong>Surge Zone:</strong> {isEdit ? (initialValues?.zoneName ?? '—') : (selectedZone?.name ?? '—')} {selectedZone?.cityCode ? `(${selectedZone.cityCode})` : ''}</p>
-                  <p><strong>Vehicles:</strong> <span className="font-bold text-primary">{isEdit ? (initialValues?.vehicleLabel ?? '—') : VEHICLE_CHOICES.filter((v) => vehicleTypes.includes(v.value)).map((v) => v.label).join(', ')}</span></p>
+                  <p><strong>Vehicles:</strong> <span className="font-bold text-primary">{isEdit
+                    ? (initialValues?.vehicleLabel ?? '—')
+                    : vehicleMode === 'ALL'
+                      ? 'All vehicles'
+                      : activeVehicleTypes.filter((v) => vehicleTypeIds.includes(v.id)).map((v) => v.name).join(', ')}</span></p>
                   <p><strong>Multiplier:</strong> <span className="px-2 py-0.5 rounded font-black text-rose-700 bg-rose-50 border border-rose-100">{multiplier}x</span></p>
                 </div>
                 <div className="space-y-2 border-l pl-4">

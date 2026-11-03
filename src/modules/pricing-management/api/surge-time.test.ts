@@ -108,11 +108,15 @@ describe('surge rule vehicles', () => {
     assert.equal(windowToSurgeRule(dto({ vehicleTypeCode: null })).vehicleLabel, 'All vehicles')
   })
 
-  it('names a rule with one vehicle', () => {
-    assert.equal(
-      windowToSurgeRule(dto({ vehicleTypeCode: 'CAB_PREMIUM' })).vehicleLabel,
-      'Premium Cab',
+  it('names a rule with one vehicle by its real name', () => {
+    const rule = windowToSurgeRule(
+      dto({ vehicleTypeCode: 'CAB_PREMIUM_AC', vehicleTypeName: 'Premium AC' }),
     )
+    assert.equal(rule.vehicleLabel, 'Premium AC')
+  })
+
+  it('falls back to the code if the server sends no name', () => {
+    assert.equal(windowToSurgeRule(dto({ vehicleTypeCode: 'CAB_XL_AC' })).vehicleLabel, 'CAB_XL_AC')
   })
 })
 
@@ -156,7 +160,7 @@ describe('saving a surge rule', () => {
 
     await createSurgeRule({
       ruleName: 'Evening',
-      vehicleType: ['cab'],
+      vehicleTypeIds: [],
       zoneId: 'z1',
       multiplier: 1.3,
       effectiveFrom: '2026-11-10',
@@ -167,5 +171,29 @@ describe('saving a surge rule', () => {
     assert.equal(posts[0].multiplier, 1.3)
     assert.equal('demandThresholdPct' in posts[0], false)
     assert.equal(posts[0].startsAt, combineDateTime('2026-11-10', '17:00'))
+  })
+
+  const rule = {
+    ruleName: 'Evening',
+    zoneId: 'z1',
+    multiplier: 1.3,
+    effectiveFrom: '2026-11-10',
+    status: 'active' as const,
+  }
+
+  it('makes one all-vehicles rule when no vehicle is chosen', async () => {
+    const { posts } = fakeServer(dto())
+    await createSurgeRule({ ...rule, vehicleTypeIds: [] })
+    assert.equal(posts.length, 1)
+    assert.equal('vehicleTypeId' in posts[0], false)
+  })
+
+  it('uses the real vehicle ids it was given, never an old code', async () => {
+    const { posts } = fakeServer(dto())
+    await createSurgeRule({ ...rule, vehicleTypeIds: ['v-mini', 'v-xl'] })
+    assert.deepEqual(
+      posts.map((p) => p.vehicleTypeId),
+      ['v-mini', 'v-xl'],
+    )
   })
 })

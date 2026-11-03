@@ -77,15 +77,15 @@ export const SurgeRulesListPage: React.FC = () => {
       render: (val: string) => <span className="font-bold text-slate-800 dark:text-slate-100">{val}</span>
     },
     {
-      key: 'vehicleType',
+      key: 'vehicleLabel',
       label: 'Vehicles',
       align: 'left',
-      render: (val: string, row) => (
+      render: (val: string | undefined) => (
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded bg-primary/10 text-primary">
-            {val === 'bike' ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
+            {/bike/i.test(val ?? '') ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
           </div>
-          <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px] tracking-wider">{row.vehicleLabel ?? val}</span>
+          <span className="font-bold text-slate-700 dark:text-slate-200 text-[10px] tracking-wider">{val ?? 'All vehicles'}</span>
         </div>
       )
     },
