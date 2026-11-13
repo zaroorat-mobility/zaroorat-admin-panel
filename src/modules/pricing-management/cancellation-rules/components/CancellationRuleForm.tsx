@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
 import { Save, AlertCircle } from 'lucide-react'
 import type { CancellationRule, CancellationActor, CancellationScenario, CancellationChargeType } from '../types'
+import { NotAppliedNotice } from './NotAppliedNotice'
 
 interface CancellationRuleFormProps {
   initialValues?: CancellationRule | null
@@ -52,6 +53,7 @@ export const CancellationRuleForm: React.FC<CancellationRuleFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 text-left">
+      <NotAppliedNotice />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         
         {/* Left Side fields */}

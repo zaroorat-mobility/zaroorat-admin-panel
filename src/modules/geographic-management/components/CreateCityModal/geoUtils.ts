@@ -2,28 +2,15 @@
  * Geographic calculation utilities for City boundaries (WGS84).
  */
 
+import type { ServiceZoneType } from '../../types'
+
 export interface LatLngPoint {
   lat: number
   lng: number
 }
 
-export const CITY_COORDINATE_FALLBACKS: Record<string, LatLngPoint> = {
-  ATQ: { lat: 31.634, lng: 74.8723 }, // Amritsar, Punjab
-  LUH: { lat: 30.901, lng: 75.8573 }, // Ludhiana, Punjab
-  JUC: { lat: 31.326, lng: 75.5762 }, // Jalandhar, Punjab
-  PTA: { lat: 30.3398, lng: 76.3869 }, // Patiala, Punjab
-  IXC: { lat: 30.7333, lng: 76.7794 }, // Chandigarh
-  CHD: { lat: 30.7333, lng: 76.7794 }, // Chandigarh
-  SGR: { lat: 34.0837, lng: 74.7973 }, // Srinagar, J&K
-  JMU: { lat: 32.7266, lng: 74.857 }, // Jammu, J&K
-  BRM: { lat: 34.2017, lng: 74.3436 }, // Baramulla, J&K
-  BLR: { lat: 12.9716, lng: 77.5946 }, // Bangalore
-  PNQ: { lat: 18.5204, lng: 73.8567 }, // Pune
-  DEL: { lat: 28.6139, lng: 77.209 }, // Delhi
-  BOM: { lat: 19.076, lng: 72.8777 }, // Mumbai
-}
-
 const EARTH_RADIUS_KM = 6371
+const MIN_ZONE_AREA_KM2 = 0.05
 
 /**
  * Generate a smooth circular polygon (GeoJSON ring format: [[[lng, lat], ...]])
@@ -62,6 +49,87 @@ export function generateCirclePolygon(
   }
 
   return [ring]
+}
+
+/**
+ * The default zone for a new polygon, or null until the selected city has loaded.
+ */
+export function seedRingFor(input: {
+  cityCode: string
+  loadedCityCode: string | null
+  center: LatLngPoint | null
+  radiusKm: number
+}): number[][][] | null {
+  if (!input.center || input.loadedCityCode !== input.cityCode) return null
+  return generateCirclePolygon(input.center, input.radiusKm, 8)
+}
+
+/**
+ * The middle of a boundary's points, used when a city has a boundary but no saved centre.
+ */
+export function boundaryCenter(coordinates?: number[][][] | null): LatLngPoint | null {
+  const ring = coordinates?.[0]
+  if (!ring || ring.length < 3) return null
+  const first = ring[0]
+  const last = ring[ring.length - 1]
+  const points = first[0] === last[0] && first[1] === last[1] ? ring.slice(0, -1) : ring
+  const sum = points.reduce((acc, [lng, lat]) => ({ lat: acc.lat + lat, lng: acc.lng + lng }), {
+    lat: 0,
+    lng: 0,
+  })
+  return { lat: sum.lat / points.length, lng: sum.lng / points.length }
+}
+
+export interface ZoneCheck {
+  ok: boolean
+  label: string
+}
+
+/**
+ * Whether a drawn zone can be saved, in words the admin can act on. Each label says what is
+ * true now, so a failed check never reads like a passed one.
+ */
+export function zoneChecks(input: {
+  cityName: string
+  coordinates?: number[][][] | null
+  cityBoundary?: number[][][] | null
+}): { ok: boolean; insideCity: boolean; checks: ZoneCheck[] } {
+  const { cityName, coordinates, cityBoundary } = input
+  const ring = coordinates?.[0] ?? []
+  if (ring.length < 4) {
+    return {
+      ok: false,
+      insideCity: true,
+      checks: [{ ok: false, label: 'Add at least 3 points' }],
+    }
+  }
+
+  const insideCity = ring.every(([lng, lat]) => isPointInsidePolygon({ lng, lat }, cityBoundary))
+  const noCrossing = !hasSelfIntersections(coordinates)
+  const area = calculatePolygonAreaKm2(coordinates)
+  const bigEnough = area > MIN_ZONE_AREA_KM2
+
+  return {
+    ok: insideCity && noCrossing && bigEnough,
+    insideCity,
+    checks: [
+      {
+        ok: insideCity,
+        label: insideCity ? `Inside ${cityName}` : `Part of this zone is outside ${cityName}`,
+      },
+      {
+        ok: noCrossing,
+        label: noCrossing ? 'Lines do not cross' : 'The lines of this zone cross each other',
+      },
+      {
+        ok: bigEnough,
+        label: bigEnough
+          ? `Area is ${area.toFixed(2)} km²`
+          : `This zone is too small (${area.toFixed(2)} km²)`,
+      },
+      { ok: true, label: `${ring.length - 1} points` },
+    ],
+  }
 }
 
 /**
@@ -172,4 +240,33 @@ export function hasSelfIntersections(coordinates?: number[][][] | null): boolean
   }
 
   return false
+}
+
+const ZONE_TYPE_LABELS: Record<ServiceZoneType, string> = {
+  SERVICE: 'Service Zone',
+  AIRPORT: 'Airport Zone',
+  RESTRICTED: 'Restricted Zone',
+}
+
+const ZONE_TYPE_HELP: Record<ServiceZoneType, string> = {
+  SERVICE: 'An area where rides can start.',
+  AIRPORT: 'A special place with its own fare. Rides can also start here.',
+  RESTRICTED: 'An area where pickups or drop-offs are not allowed. This always wins over other zones.',
+}
+
+export function zoneTypeLabel(type: ServiceZoneType): string {
+  return ZONE_TYPE_LABELS[type]
+}
+
+export function zoneTypeHelp(type: ServiceZoneType): string {
+  return ZONE_TYPE_HELP[type]
+}
+
+/** What a new zone of this type allows. A restricted zone exists to block, so it starts blocking. */
+export function zoneAccessDefaults(type: ServiceZoneType): {
+  allowsPickup: boolean
+  allowsDropoff: boolean
+} {
+  const allowed = type !== 'RESTRICTED'
+  return { allowsPickup: allowed, allowsDropoff: allowed }
 }

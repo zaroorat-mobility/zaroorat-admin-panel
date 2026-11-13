@@ -4,7 +4,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { FormTabs } from '@/shared/components/ui/FormTabs'
 import { ChevronLeft, ChevronRight, Save, Info, Sparkles, CheckCircle2 } from 'lucide-react'
 import type { FareRule, RideServiceTypeUi, ServiceZoneOption, CityOption } from '../types'
-import type { VehicleType } from '@/modules/driver-management/types'
+import { useVehicleTypes, vehicleTypeLabel } from '@/modules/geographic-management/hooks/useVehicleTypes'
 import { FareRulePreviewCard } from './FareRulePreviewCard'
 import { getCities, getServiceZones } from '../../api'
 
@@ -29,7 +29,15 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
 
   // Form states
   const [ruleName, setRuleName] = useState(initialValues?.ruleName || '')
-  const [vehicleType, setVehicleType] = useState<VehicleType>(initialValues?.vehicleType || 'cab')
+  const { data: vehicleCatalog = [] } = useVehicleTypes()
+  const [vehicleType, setVehicleType] = useState(initialValues?.vehicleType ?? '')
+  // Active types only: the server refuses a new fare on a retired one. A rule already on a
+  // retired type keeps it as a choice, so editing its fare does not move it.
+  const vehicleChoices = vehicleCatalog.filter((v) => v.isActive || v.code === initialValues?.vehicleType)
+  const vehicleName = (code: string) => {
+    const match = vehicleCatalog.find((v) => v.code === code)
+    return match ? `${vehicleTypeLabel(match)}${match.isActive ? '' : ' (retired)'}` : code
+  }
   const [cityCode, setCityCode] = useState(
     initialValues?.cityCode || presetCityCode || 'GLOBAL',
   )
@@ -92,6 +100,7 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
     
     if (step === 'basic') {
       if (!ruleName.trim()) errs.ruleName = 'Rule name is required.'
+      if (!vehicleType) errs.vehicleType = 'Choose the vehicle type this fare is for.'
       if (!effectiveFrom) errs.effectiveFrom = 'Effective From date is required.'
     }
 
@@ -242,13 +251,15 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
                       <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Vehicle Type</label>
                       <select
                         value={vehicleType}
-                        onChange={(e) => setVehicleType(e.target.value as VehicleType)}
+                        onChange={(e) => setVehicleType(e.target.value)}
                         className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
                       >
-                        <option value="cab">Cab</option>
-                        <option value="auto">Auto</option>
-                        <option value="bike">Bike</option>
+                        <option value="">Choose a vehicle</option>
+                        {vehicleChoices.map((v) => (
+                          <option key={v.id} value={v.code}>{vehicleName(v.code)}</option>
+                        ))}
                       </select>
+                      {errors.vehicleType && <p className="text-[10px] text-rose-500 font-bold">{errors.vehicleType}</p>}
                     </div>
 
                     <div className="space-y-1">
@@ -605,7 +616,7 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
                     <div className="space-y-2">
                       <p className="text-[9px] font-bold text-slate-400 uppercase">Rule Metadata</p>
                       <p><strong>Name:</strong> {ruleName}</p>
-                      <p><strong>Vehicle Category:</strong> <span className="uppercase font-bold text-primary">{vehicleType}</span></p>
+                      <p><strong>Vehicle Category:</strong> <span className="font-bold text-primary">{vehicleName(vehicleType)}</span></p>
                       <p><strong>City:</strong> {cityCode}</p>
                       <p><strong>Service Type:</strong> {serviceType || 'All types'}</p>
                       <p><strong>Zone:</strong> {serviceZoneId ? (serviceZones.find(z => z.id === serviceZoneId)?.name ?? serviceZoneId) : 'Citywide default'}</p>
@@ -629,7 +640,7 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
                       <div>
                         <p className="font-bold">Auto-Deactivation Event</p>
                         <p className="text-[10px] text-amber-700/90 leading-relaxed mt-0.5">
-                          Activating this configuration will automatically deactivate any other active rule for the same <strong>{vehicleType.toUpperCase()}</strong>, city, service type, and zone combination. Historical data remains intact as Version {initialValues ? initialValues.version : 1}.
+                          Activating this configuration will automatically deactivate any other active rule for the same <strong>{vehicleName(vehicleType)}</strong>, city, service type, and zone combination. Historical data remains intact as Version {initialValues ? initialValues.version : 1}.
                         </p>
                       </div>
                     </div>

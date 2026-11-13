@@ -4,13 +4,11 @@ import {
   Layers,
   Tag,
   Hash,
-  ListOrdered,
   Car,
   Flag,
   ToggleRight,
   Bike,
   Truck,
-  CheckCircle2,
   Edit2,
   Map as MapIcon,
   Compass,
@@ -22,11 +20,12 @@ import { GoogleZoneViewer } from '@/shared/components/maps/google/GoogleZoneView
 import {
   calculatePolygonAreaKm2,
   calculatePolygonPerimeterKm,
-  hasSelfIntersections,
-  isPointInsidePolygon,
+  zoneChecks,
   type LatLngPoint,
 } from '../CreateCityModal/geoUtils'
+import { ZoneChecksList } from './ZoneChecksList'
 import { useVehicleTypes } from '../../hooks'
+import { vehicleTypeLabel } from '../../hooks/useVehicleTypes'
 import type { ServiceZoneDetail, ServiceZoneType } from '../../types'
 
 
@@ -76,7 +75,6 @@ interface Step5ReviewCreateProps {
   zoneType: ServiceZoneType
   name: string
   code: string
-  priority: number
   isActive: boolean
   allowsPickup: boolean
   allowsDropoff: boolean
@@ -99,7 +97,6 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
   zoneType,
   name,
   code,
-  priority,
   isActive,
   allowsPickup,
   allowsDropoff,
@@ -167,34 +164,20 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
 
   // Resolve selected vehicle categories dynamically from live DB types
   const selectedVehicles = useMemo(() => {
-    if (vehicleCategoryIds.length === 0) {
-      // If none explicitly selected, all active types are enabled
-      return allVehicleTypes.map((v) => ({
-        id: v.id,
-        code: v.code,
-        name: v.name,
-      }))
-    }
     return vehicleCategoryIds
       .map((id) => allVehicleTypes.find((v) => v.id === id))
       .filter((v): v is NonNullable<typeof v> => Boolean(v))
       .map((v) => ({
         id: v.id,
         code: v.code,
-        name: v.name,
+        name: vehicleTypeLabel(v),
       }))
   }, [vehicleCategoryIds, allVehicleTypes])
 
-  // Validation checks
-  const isInsideCity = useMemo(() => {
-    if (!cityBoundary?.[0] || !coordinates?.[0] || coordinates[0].length < 3) return true
-    const samplePt = { lng: coordinates[0][0][0], lat: coordinates[0][0][1] }
-    return isPointInsidePolygon(samplePt, cityBoundary)
-  }, [cityBoundary, coordinates])
-
-  const noIntersections = useMemo(() => !hasSelfIntersections(coordinates), [coordinates])
-  const isAreaValid = areaKm2 > 0.05
-  const allConnected = Boolean(coordinates?.[0] && coordinates[0].length >= 4)
+  const validation = useMemo(
+    () => zoneChecks({ cityName, coordinates, cityBoundary }),
+    [cityName, coordinates, cityBoundary],
+  )
 
   const renderVehicleIcon = (code: string) => {
     const c = code.toUpperCase()
@@ -224,7 +207,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
               </div>
               <div>
                 <h4 className="text-xs font-bold text-slate-900 leading-tight">Zone Information</h4>
-                <p className="text-[10px] text-slate-400">Review the basic details for this service zone.</p>
+                <p className="text-[10px] text-slate-400">Review the basic details for this zone.</p>
               </div>
             </div>
 
@@ -278,33 +261,25 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
 
             <div className="py-1.5 flex items-center justify-between">
               <div className="flex items-center gap-2 text-slate-600">
-                <ListOrdered className="w-3.5 h-3.5 text-slate-400" />
-                <span>Priority</span>
-              </div>
-              <span className="font-bold text-slate-900">{priority}</span>
-            </div>
-
-            <div className="py-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-600">
                 <Car className="w-3.5 h-3.5 text-slate-400" />
-                <span>Allow Pickups</span>
+                <span>Pickups</span>
               </div>
-              <div className="flex items-center gap-1 text-emerald-700 font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{allowsPickup ? 'Yes' : 'No'}</span>
-              </div>
+              <span className={`font-bold ${allowsPickup ? 'text-emerald-700' : 'text-red-600'}`}>
+                {allowsPickup ? 'Allowed' : 'Blocked'}
+              </span>
             </div>
 
-            <div className="py-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-600">
-                <Flag className="w-3.5 h-3.5 text-slate-400" />
-                <span>Allow Drop-offs</span>
+            {zoneType === 'RESTRICTED' && (
+              <div className="py-1.5 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Flag className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Drop-offs</span>
+                </div>
+                <span className={`font-bold ${allowsDropoff ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {allowsDropoff ? 'Allowed' : 'Blocked'}
+                </span>
               </div>
-              <div className="flex items-center gap-1 text-emerald-700 font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{allowsDropoff ? 'Yes' : 'No'}</span>
-              </div>
-            </div>
+            )}
 
             <div className="py-1.5 flex items-center justify-between">
               <div className="flex items-center gap-2 text-slate-600">
@@ -320,6 +295,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
         </div>
 
         {/* Card 2: Vehicle Categories */}
+        {zoneType !== 'RESTRICTED' && (
         <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -345,7 +321,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
           <div className="flex flex-wrap gap-2 pt-1">
             {selectedVehicles.length === 0 ? (
               <p className="text-xs text-slate-400 py-1 italic">
-                All vehicle categories enabled by default.
+                All vehicles, including any you add later.
               </p>
             ) : (
               selectedVehicles.map((item) => (
@@ -360,6 +336,8 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
             )}
           </div>
         </div>
+
+        )}
 
         {/* Card 3: Geometry Details */}
         <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs space-y-2">
@@ -422,7 +400,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
             </div>
             <div>
               <h4 className="text-xs font-bold text-slate-900 leading-tight">Map Preview</h4>
-              <p className="text-[10px] text-slate-400">This is how the service zone will look on the map.</p>
+              <p className="text-[10px] text-slate-400">This is how the zone will look on the map.</p>
             </div>
           </div>
 
@@ -448,7 +426,7 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
                 />
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded bg-blue-600"></span>
-                  <span>City Boundary</span>
+                  <span>Operating Area</span>
                 </span>
               </label>
 
@@ -532,51 +510,14 @@ export const Step5ReviewCreate: React.FC<Step5ReviewCreateProps> = ({
             </div>
           </div>
 
-          <div className="bg-emerald-50/80 border border-emerald-200/80 rounded-xl p-3 space-y-1.5 text-xs text-emerald-950 font-medium">
-            <div className="flex items-center gap-2">
-              <CheckCircle2
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  isInsideCity ? 'text-emerald-600' : 'text-red-500'
-                }`}
-              />
-              <span className={isInsideCity ? 'text-emerald-900' : 'text-red-700 font-bold'}>
-                {isInsideCity
-                  ? 'Polygon is completely inside city boundary'
-                  : 'Warning: Polygon must be inside city boundary'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  noIntersections ? 'text-emerald-600' : 'text-red-500'
-                }`}
-              />
-              <span className={noIntersections ? 'text-emerald-900' : 'text-red-700 font-bold'}>
-                {noIntersections
-                  ? 'Polygon is valid (no self-intersections)'
-                  : 'Warning: Polygon contains self-intersections'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  isAreaValid ? 'text-emerald-600' : 'text-red-500'
-                }`}
-              />
-              <span className={isAreaValid ? 'text-emerald-900' : 'text-red-700 font-bold'}>
-                Minimum area requirement met ({areaKm2.toFixed(2)} km²)
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  allConnected ? 'text-emerald-600' : 'text-red-500'
-                }`}
-              />
-              <span className={allConnected ? 'text-emerald-900' : 'text-red-700 font-bold'}>
-                All points connected ({pointsCount} vertices)
-              </span>
-            </div>
+          <div
+            className={`border rounded-xl p-3 ${
+              validation.ok
+                ? 'bg-emerald-50/80 border-emerald-200/80'
+                : 'bg-amber-50/80 border-amber-200/80'
+            }`}
+          >
+            <ZoneChecksList checks={validation.checks} />
           </div>
         </div>
       </div>

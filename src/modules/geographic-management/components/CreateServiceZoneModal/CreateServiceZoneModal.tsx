@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { X, Check, Loader2 } from 'lucide-react'
 import { Step1ZoneInformation } from './Step1ZoneInformation'
 import { Step3VehicleCategories } from './Step3VehicleCategories'
-import { Step4DefineZoneMap } from './Step4DefineZoneMap'
+import { KNOWN_AIRPORTS, Step4DefineZoneMap } from './Step4DefineZoneMap'
 import { Step5ReviewCreate } from './Step5ReviewCreate'
 import {
   useCities,
@@ -13,7 +13,13 @@ import {
 } from '../../hooks'
 import { useCityMapContext } from '../../hooks/useCityMapContext'
 import { useToast } from '@/shared/context/toast/ToastContext'
-import { generateCirclePolygon, type LatLngPoint } from '../CreateCityModal/geoUtils'
+import { CityLoadStatus } from './CityLoadStatus'
+import {
+  seedRingFor,
+  zoneAccessDefaults,
+  zoneTypeHelp,
+  zoneTypeLabel,
+} from '../CreateCityModal/geoUtils'
 import type { ServiceZoneDetail, ServiceZoneType } from '../../types'
 
 interface CreateServiceZoneModalProps {
@@ -26,22 +32,6 @@ interface CreateServiceZoneModalProps {
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-const CITY_COORDINATE_FALLBACKS: Record<string, LatLngPoint> = {
-  ATQ: { lat: 31.634, lng: 74.8723 }, // Amritsar, Punjab
-  LUH: { lat: 30.901, lng: 75.8573 }, // Ludhiana, Punjab
-  JUC: { lat: 31.326, lng: 75.5762 }, // Jalandhar, Punjab
-  PTA: { lat: 30.3398, lng: 76.3869 }, // Patiala, Punjab
-  IXC: { lat: 30.7333, lng: 76.7794 }, // Chandigarh
-  CHD: { lat: 30.7333, lng: 76.7794 }, // Chandigarh
-  SGR: { lat: 34.0837, lng: 74.7973 }, // Srinagar, J&K
-  JMU: { lat: 32.7266, lng: 74.857 }, // Jammu, J&K
-  BRM: { lat: 34.2017, lng: 74.3436 }, // Baramulla, J&K
-  BLR: { lat: 12.9716, lng: 77.5946 }, // Bangalore
-  PNQ: { lat: 18.5204, lng: 73.8567 }, // Pune
-  DEL: { lat: 28.6139, lng: 77.209 }, // Delhi
-  BOM: { lat: 19.076, lng: 72.8777 }, // Mumbai
-}
 
 export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
   isOpen,
@@ -69,12 +59,12 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
   const [zoneType, setZoneType] = useState<ServiceZoneType>(initialZoneType)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [priority, setPriority] = useState<number>(5)
   const [isActive, setIsActive] = useState<boolean>(true)
   const [allowsPickup, setAllowsPickup] = useState<boolean>(true)
   const [allowsDropoff, setAllowsDropoff] = useState<boolean>(true)
 
   // Step 2: Vehicle Categories (Real DB UUIDs)
+  const [vehicleMode, setVehicleMode] = useState<'ALL' | 'ONLY'>('ALL')
   const [vehicleCategoryIds, setVehicleCategoryIds] = useState<string[]>([])
 
   // Step 3: Define Zone on Map
@@ -92,9 +82,9 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
       setIsActive(existingZone.isActive ?? true)
       setAllowsPickup(existingZone.allowsPickup ?? true)
       setAllowsDropoff(existingZone.allowsDropoff ?? true)
-      if (existingZone.vehicleTypeIds && existingZone.vehicleTypeIds.length > 0) {
-        setVehicleCategoryIds(existingZone.vehicleTypeIds)
-      }
+      const vehicleIds = existingZone.vehicleTypeIds ?? []
+      setVehicleMode(vehicleIds.length > 0 ? 'ONLY' : 'ALL')
+      setVehicleCategoryIds(vehicleIds)
       if (existingZone.boundary && existingZone.boundary[0]?.length >= 3) {
         setCoordinates(existingZone.boundary)
       }
@@ -106,32 +96,22 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
     useCityZonesWithBoundaries(cityCode)
 
   // Fetch reference city boundary and center from DB
-  const { referenceBoundary: dbCityBoundary, cityCenter: dbCityCenter } = useCityMapContext(
-    cityCode,
-    cities,
-  )
+  const {
+    referenceBoundary: dbCityBoundary,
+    cityCenter: dbCityCenter,
+    coverageMode,
+    loadedCityCode,
+    failed: cityFailed,
+    retry: retryCity,
+  } = useCityMapContext(cityCode, cities)
 
   // Current city metadata
   const currentCityObj = useMemo(() => {
-    return validCities.find((c) => c.code === cityCode) || validCities[0] || null
+    return validCities.find((c) => c.code === cityCode) || null
   }, [validCities, cityCode])
 
-  const cityName = currentCityObj?.name || 'Amritsar'
-
-  // Centroid fallback
-  const cityCenter: LatLngPoint = useMemo(() => {
-    if (dbCityCenter) return dbCityCenter
-    if (cityCode && CITY_COORDINATE_FALLBACKS[cityCode]) {
-      return CITY_COORDINATE_FALLBACKS[cityCode]
-    }
-    return { lat: 31.634, lng: 74.8723 }
-  }, [dbCityCenter, cityCode])
-
-  // Boundary fallback
-  const cityBoundary: number[][][] | null = useMemo(() => {
-    if (dbCityBoundary && dbCityBoundary[0]?.length >= 3) return dbCityBoundary
-    return generateCirclePolygon(cityCenter, 9.5, 32)
-  }, [dbCityBoundary, cityCenter])
+  const cityName = currentCityObj?.name ?? ''
+  const cityReady = Boolean(cityCode && loadedCityCode === cityCode)
 
   // Generate unique non-colliding zone code
   const getNextAvailableZoneCode = useCallback(
@@ -160,31 +140,24 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
   const resetForm = useCallback(() => {
     setCurrentStep(1)
     setErrorBanner(null)
-    const activeCode =
-      initialCityCode || (validCities.length > 0 ? validCities[0].code : 'ATQ')
-    const activeCity = validCities.find((c) => c.code === activeCode) || validCities[0]
-    const activeName = activeCity?.name || 'Amritsar'
-    const finalCode = activeCity?.code || activeCode
+    const activeCity = validCities.find((c) => c.code === initialCityCode) ?? validCities[0]
+    const finalCode = activeCity?.code ?? initialCityCode
 
     setCityCode(finalCode)
     prevCityCodeRef.current = finalCode
     setZoneType(initialZoneType)
     prevZoneTypeRef.current = initialZoneType
-    setPriority(5)
     setIsActive(true)
-    setAllowsPickup(true)
-    setAllowsDropoff(true)
+    const access = zoneAccessDefaults(initialZoneType)
+    setAllowsPickup(access.allowsPickup)
+    setAllowsDropoff(access.allowsDropoff)
+    setVehicleMode('ALL')
     setVehicleCategoryIds([])
     setCoordinates(null)
 
-    const typeLabel =
-      initialZoneType === 'AIRPORT'
-        ? 'Airport Zone'
-        : initialZoneType === 'RESTRICTED'
-        ? 'Restricted Zone'
-        : 'Service Zone'
-    setName(`${activeName} ${typeLabel}`)
-    setCode(getNextAvailableZoneCode(finalCode, initialZoneType))
+    // Until the city list arrives there is nothing true to say; the effect below fills these in.
+    setName(activeCity ? `${activeCity.name} ${zoneTypeLabel(initialZoneType)}` : '')
+    setCode(finalCode ? getNextAvailableZoneCode(finalCode, initialZoneType) : '')
   }, [validCities, initialCityCode, initialZoneType, getNextAvailableZoneCode])
 
   // Reset form whenever modal opens in create mode
@@ -196,35 +169,45 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
     wasOpenRef.current = isOpen
   }, [isOpen, isEdit, resetForm])
 
+  // The modal can open before the city list has loaded.
+  useEffect(() => {
+    if (isOpen && !isEdit && !cityCode && validCities.length > 0) {
+      setCityCode(validCities[0].code)
+    }
+  }, [isOpen, isEdit, cityCode, validCities])
+
   // In create mode: update default name, code and coordinates when cityCode or zoneType changes
   useEffect(() => {
     if (!isEdit && cityCode) {
       const cityChanged = prevCityCodeRef.current !== cityCode
       const typeChanged = prevZoneTypeRef.current !== zoneType
       if (cityChanged || typeChanged) {
-        const typeLabel =
-          zoneType === 'AIRPORT'
-            ? 'Airport Zone'
-            : zoneType === 'RESTRICTED'
-            ? 'Restricted Zone'
-            : 'Service Zone'
-        setName(`${cityName} ${typeLabel}`)
+        setName(`${cityName} ${zoneTypeLabel(zoneType)}`)
         setCode(getNextAvailableZoneCode(cityCode, zoneType))
-        if (cityChanged) {
-          setCoordinates(generateCirclePolygon(cityCenter, 2.0, 8))
+        if (cityChanged) setCoordinates(null)
+        if (typeChanged) {
+          const access = zoneAccessDefaults(zoneType)
+          setAllowsPickup(access.allowsPickup)
+          setAllowsDropoff(access.allowsDropoff)
         }
         prevCityCodeRef.current = cityCode
         prevZoneTypeRef.current = zoneType
       }
     }
-  }, [isEdit, cityCode, cityName, zoneType, cityCenter, getNextAvailableZoneCode])
+  }, [isEdit, cityCode, cityName, zoneType, getNextAvailableZoneCode])
 
-  // Automatically seed initial 8-point zone polygon when entering Step 3 if not yet drawn
+  // The default zone on the map step. Waits for the selected city, so it can never land in the last one.
   useEffect(() => {
-    if (currentStep === 3 && (!coordinates || !coordinates[0]?.length)) {
-      setCoordinates(generateCirclePolygon(cityCenter, 2.0, 8))
-    }
-  }, [currentStep, cityCenter, coordinates])
+    if (currentStep !== 3 || coordinates?.[0]?.length) return
+    const airport = zoneType === 'AIRPORT' ? KNOWN_AIRPORTS[cityCode.toUpperCase()] : undefined
+    const ring = seedRingFor({
+      cityCode,
+      loadedCityCode,
+      center: airport ?? dbCityCenter,
+      radiusKm: airport?.defaultRadiusKm ?? 2,
+    })
+    if (ring) setCoordinates(ring)
+  }, [currentStep, coordinates, cityCode, loadedCityCode, dbCityCenter, zoneType])
 
   const isPending = isEdit ? updateZoneMutation.isPending : createZoneMutation.isPending
 
@@ -245,12 +228,16 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
 
   if (!isOpen) return null
 
+  const isRestricted = zoneType === 'RESTRICTED'
+  const typeLabel = zoneTypeLabel(zoneType)
+
+  // A restricted zone applies to every vehicle, so there is no vehicle step to show.
   const steps = [
     { n: 1, label: 'Zone Information' },
     { n: 2, label: 'Vehicle Categories' },
     { n: 3, label: 'Define Zone on Map' },
     { n: 4, label: isEdit ? 'Review & Update' : 'Review & Create' },
-  ]
+  ].filter((s) => !(isRestricted && s.n === 2))
 
   // Code uniqueness check (excludes self if in edit mode)
   const normalizedCode = code.trim().toUpperCase()
@@ -261,9 +248,14 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
       ),
   )
 
+  const blocksSomething = !allowsPickup || !allowsDropoff
   const canProceedStep1 = Boolean(
-    cityCode.trim() && name.trim() && code.trim() && !isCodeTaken,
+    cityReady && name.trim() && code.trim() && !isCodeTaken && (!isRestricted || blocksSomething),
   )
+  const canProceedStep2 = isRestricted || vehicleMode === 'ALL' || vehicleCategoryIds.length > 0
+
+  // In a whole-city city a service zone only sets its own fares and vehicles.
+  const zoneLeavesCityOpen = cityReady && zoneType === 'SERVICE' && coverageMode === 'WHOLE_CITY'
   const canProceedStep3 = Boolean(
     coordinates?.[0]?.length && coordinates[0].length >= 4 && isMapValid,
   )
@@ -283,7 +275,10 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
     }
 
     // Only pass valid UUID strings to backend
-    const validVehicleTypeUuids = vehicleCategoryIds.filter((id) => UUID_REGEX.test(id))
+    const validVehicleTypeUuids =
+      isRestricted || vehicleMode === 'ALL'
+        ? []
+        : vehicleCategoryIds.filter((id) => UUID_REGEX.test(id))
 
     try {
       if (isEdit && zoneId) {
@@ -300,7 +295,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
           },
         })
         showToastSuccess(
-          'Service Zone Updated',
+          `${typeLabel} Updated`,
           `Zone "${name.trim()}" has been updated successfully.`,
         )
         onSuccess?.(result as unknown as ServiceZoneDetail)
@@ -318,7 +313,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
           ...(validVehicleTypeUuids.length > 0 ? { vehicleTypeIds: validVehicleTypeUuids } : {}),
         })
         showToastSuccess(
-          'Service Zone Created',
+          `${typeLabel} Created`,
           `Zone "${name.trim()}" (${code.trim().toUpperCase()}) has been created successfully for ${cityName}.`,
         )
         resetForm()
@@ -330,7 +325,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
         err instanceof Error
           ? err.message
           : (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data
-              ?.error?.message ?? (isEdit ? 'Failed to update service zone.' : 'Failed to create service zone.')
+              ?.error?.message ?? (isEdit ? 'Failed to update this zone.' : 'Failed to create this zone.')
       setErrorBanner(message)
     }
   }
@@ -354,12 +349,10 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
             <div className="w-1.5 h-6 bg-[#1F2B6D] rounded-full mt-0.5"></div>
             <div>
               <h2 className="text-xl font-bold text-[#1F2B6D]">
-                {isEdit ? `Edit Service Zone: ${existingZone?.name || name}` : 'Create Service Zone'}
+                {isEdit ? `Edit ${typeLabel}: ${existingZone?.name || name}` : `Create ${typeLabel}`}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                {isEdit
-                  ? 'Update service zone boundary, vehicle categories, and operational rules.'
-                  : 'Define a service zone within the city boundary and assign vehicle categories.'}
+                {zoneTypeHelp(zoneType)}
               </p>
             </div>
           </div>
@@ -387,8 +380,10 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                     onClick={() => {
                       if (s.n === 1) setCurrentStep(1)
                       else if (s.n === 2 && canProceedStep1) setCurrentStep(2)
-                      else if (s.n === 3 && canProceedStep1) setCurrentStep(3)
-                      else if (s.n === 4 && canProceedStep1 && canProceedStep3) setCurrentStep(4)
+                      else if (s.n === 3 && canProceedStep1 && canProceedStep2) setCurrentStep(3)
+                      else if (s.n === 4 && canProceedStep1 && canProceedStep2 && canProceedStep3) {
+                        setCurrentStep(4)
+                      }
                     }}
                     className="flex items-center gap-2 shrink-0 cursor-pointer text-left"
                   >
@@ -399,7 +394,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                           : 'border border-slate-300 text-slate-500 bg-white'
                       }`}
                     >
-                      {isCompleted ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : s.n}
+                      {isCompleted ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : i + 1}
                     </div>
                     <span
                       className={`text-xs font-bold leading-tight ${
@@ -432,6 +427,13 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
           </div>
         )}
 
+        {zoneLeavesCityOpen && (currentStep === 1 || currentStep === 4) && (
+          <div className="shrink-0 mx-6 mt-2 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs font-medium text-slate-800">
+            {cityName} takes rides anywhere in its Operating Area, so this zone does not limit where
+            rides start. It sets its own fares and vehicles.
+          </div>
+        )}
+
         {/* ── Body Container ───────────────────────────────────── */}
         <div className="flex-1 min-h-0 px-6 py-3.5 bg-slate-50/60 overflow-y-auto">
           {isEdit && isLoadingZone ? (
@@ -452,35 +454,42 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                   setName={setName}
                   code={code}
                   setCode={setCode}
-                  priority={priority}
-                  setPriority={setPriority}
                   isActive={isActive}
                   setIsActive={setIsActive}
                   allowsPickup={allowsPickup}
                   setAllowsPickup={setAllowsPickup}
                   allowsDropoff={allowsDropoff}
                   setAllowsDropoff={setAllowsDropoff}
-                  cityBoundary={cityBoundary}
-                  cityCenter={cityCenter}
+                  cityBoundary={cityReady ? dbCityBoundary : null}
+                  cityCenter={cityReady ? dbCityCenter : null}
                   cityName={cityName}
+                  cityFailed={cityFailed}
+                  onRetryCity={retryCity}
+                  isEdit={isEdit}
                   existingZones={existingZonesList}
                 />
               )}
 
               {currentStep === 2 && (
                 <Step3VehicleCategories
+                  mode={vehicleMode}
+                  setMode={setVehicleMode}
                   selectedCategoryIds={vehicleCategoryIds}
                   setSelectedCategoryIds={setVehicleCategoryIds}
                   cityName={cityName}
                 />
               )}
 
-              {currentStep === 3 && (
+              {currentStep >= 3 && (!cityReady || !dbCityCenter) && (
+                <CityLoadStatus failed={cityFailed} cityName={cityName} onRetry={retryCity} />
+              )}
+
+              {currentStep === 3 && cityReady && dbCityCenter && (
                 <Step4DefineZoneMap
                   coordinates={coordinates}
                   setCoordinates={setCoordinates}
-                  cityBoundary={cityBoundary}
-                  cityCenter={cityCenter}
+                  cityBoundary={dbCityBoundary}
+                  cityCenter={dbCityCenter}
                   cityName={cityName}
                   zoneName={name}
                   zoneType={zoneType}
@@ -490,21 +499,20 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                 />
               )}
 
-              {currentStep === 4 && (
+              {currentStep === 4 && cityReady && dbCityCenter && (
                 <Step5ReviewCreate
                   cityCode={cityCode}
                   cityName={cityName}
                   zoneType={zoneType}
                   name={name}
                   code={code}
-                  priority={priority}
                   isActive={isActive}
                   allowsPickup={allowsPickup}
                   allowsDropoff={allowsDropoff}
-                  vehicleCategoryIds={vehicleCategoryIds}
+                  vehicleCategoryIds={vehicleMode === 'ALL' ? [] : vehicleCategoryIds}
                   coordinates={coordinates}
-                  cityBoundary={cityBoundary}
-                  cityCenter={cityCenter}
+                  cityBoundary={dbCityBoundary}
+                  cityCenter={dbCityCenter}
                   existingZones={existingZonesWithBoundaries}
                   onEditInfo={() => setCurrentStep(1)}
                   onEditVehicles={() => setCurrentStep(2)}
@@ -530,7 +538,9 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
             {currentStep > 1 && (
               <button
                 type="button"
-                onClick={() => setCurrentStep((p) => (p - 1) as 1 | 2 | 3)}
+                onClick={() =>
+                  setCurrentStep((p) => (p === 3 && isRestricted ? 1 : ((p - 1) as 1 | 2 | 3)))
+                }
                 className="px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <span>← Back</span>
@@ -544,18 +554,19 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
               <button
                 type="button"
                 disabled={!canProceedStep1}
-                onClick={() => setCurrentStep(2)}
+                onClick={() => setCurrentStep(isRestricted ? 3 : 2)}
                 className="px-5 py-2 bg-[#1F2B6D] hover:bg-[#182258] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
               >
-                <span>Next: Vehicle Categories →</span>
+                <span>{isRestricted ? 'Next: Define Zone on Map →' : 'Next: Vehicle Categories →'}</span>
               </button>
             )}
 
             {currentStep === 2 && (
               <button
                 type="button"
+                disabled={!canProceedStep2}
                 onClick={() => setCurrentStep(3)}
-                className="px-5 py-2 bg-[#1F2B6D] hover:bg-[#182258] text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+                className="px-5 py-2 bg-[#1F2B6D] hover:bg-[#182258] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
               >
                 <span>Next: Define Zone on Map →</span>
               </button>
@@ -585,7 +596,7 @@ export const CreateServiceZoneModal: React.FC<CreateServiceZoneModalProps> = ({
                     <span>{isEdit ? 'Saving Changes...' : 'Creating Zone...'}</span>
                   </>
                 ) : (
-                  <span>{isEdit ? 'Save Changes' : 'Create Service Zone →'}</span>
+                  <span>{isEdit ? 'Save Changes' : `Create ${typeLabel} →`}</span>
                 )}
               </button>
             )}

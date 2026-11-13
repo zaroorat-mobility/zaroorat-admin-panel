@@ -8,6 +8,7 @@ import {
   deactivateServiceZone,
   getCities,
   getCity,
+  getCitySetup,
   getCountries,
   getServiceZone,
   getServiceZones,
@@ -87,6 +88,13 @@ export const useCities = (activeOnly = false) =>
 
 export const useCity = (id: string) =>
   useQuery({ queryKey: ['geographic', 'city', id], queryFn: () => getCity(id), enabled: !!id })
+
+export const useCitySetup = (id: string) =>
+  useQuery({
+    queryKey: ['geographic', 'city', id, 'setup'],
+    queryFn: () => getCitySetup(id),
+    enabled: !!id,
+  })
 
 export const useServiceZones = (params?: {
   cityCode?: string

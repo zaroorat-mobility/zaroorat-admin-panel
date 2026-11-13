@@ -341,7 +341,7 @@ export const ServiceZoneDetailPage: React.FC<{ zoneId: string }> = ({ zoneId }) 
                   />
                   <span className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded bg-blue-600"></span>
-                    <span>City Boundary</span>
+                    <span>Operating Area</span>
                   </span>
                 </label>
 

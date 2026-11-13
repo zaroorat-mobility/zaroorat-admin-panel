@@ -25,6 +25,7 @@ import {
   User
 } from 'lucide-react'
 import type { CancellationRule } from '../types'
+import { NotAppliedNotice } from '../components'
 
 export const CancellationRulesListPage: React.FC = () => {
   const navigate = useNavigate()
@@ -208,6 +209,7 @@ export const CancellationRulesListPage: React.FC = () => {
       />
 
       <div className="space-y-6">
+        <NotAppliedNotice />
         <DataTable
           columns={columns}
           data={rules}

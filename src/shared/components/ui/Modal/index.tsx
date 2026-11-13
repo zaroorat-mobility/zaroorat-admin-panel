@@ -8,7 +8,8 @@ export interface ModalProps {
   title?: string
   children: React.ReactNode
   footer?: React.ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
+  className?: string
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -18,6 +19,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   footer,
   size = 'md',
+  className = '',
 }) => {
   // Handle escape key to close
   useEffect(() => {
@@ -40,7 +42,8 @@ export const Modal: React.FC<ModalProps> = ({
     sm: 'max-w-md',
     md: 'max-w-lg',
     lg: 'max-w-2xl',
-    xl: 'max-w-5xl',
+    xl: 'max-w-4xl',
+    '2xl': 'max-w-5xl',
   }
 
   return (
@@ -53,7 +56,7 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* Modal Content container */}
       <div
-        className={`relative w-full rounded-xl bg-white shadow-2xl dark:bg-dark-900 border border-slate-200 dark:border-dark-800 transition-all transform flex flex-col max-h-[90vh] ${sizes[size]}`}
+        className={`relative w-full rounded-2xl bg-white shadow-2xl dark:bg-dark-900 border border-slate-200 dark:border-dark-800 transition-all transform flex flex-col max-h-[90vh] ${sizes[size]} ${className}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-dark-800">

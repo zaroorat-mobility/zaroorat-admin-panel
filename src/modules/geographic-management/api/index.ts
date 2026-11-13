@@ -2,6 +2,7 @@ import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import type {
   CityDetail,
   CityListItem,
+  CitySetup,
   Country,
   ReconcileResult,
   ServiceZoneDetail,
@@ -91,6 +92,16 @@ export const getCity = async (id: string): Promise<CityDetail> => {
 export const createCity = async (payload: Record<string, unknown>): Promise<CityDetail> => {
   const res = await api.post<{ data: CityDetail }>(API_ENDPOINTS.geographic.cities, payload)
   return res.data.data
+}
+
+export const getCitySetup = async (id: string): Promise<CitySetup> => {
+  const res = await api.get<{ data: CitySetup }>(API_ENDPOINTS.geographic.citySetup(id))
+  return res.data.data
+}
+
+/** The surge cap is a pricing setting, so it has its own route and needs pricing:write. */
+export const updateSurgeCap = async (cityCode: string, maxSurgeMultiplier: number): Promise<void> => {
+  await api.patch(API_ENDPOINTS.surgeSettings.update(cityCode), { maxSurgeMultiplier })
 }
 
 export const updateCity = async (id: string, payload: Record<string, unknown>): Promise<CityDetail> => {

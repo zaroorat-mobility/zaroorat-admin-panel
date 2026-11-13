@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { cn } from "@/shared/utils";
 
 export type InfoCardVariant =
@@ -10,12 +10,16 @@ export type InfoCardVariant =
   | "red"
   | "orange"
   | "default"
-  | "amber";
+  | "amber"
+  | "success"
+  | "info"
+  | "warning";
 
 export interface InfoCardProps {
-  label: string;
+  label?: string;
+  title?: string;
   value: string | number;
-  icon?: ReactNode;
+  icon?: ReactNode | React.ElementType;
   trend?: string;
   trendDirection?: "up" | "down" | "neutral";
   subtitle?: ReactNode;
@@ -27,18 +31,22 @@ export interface InfoCardProps {
 
 const BADGE_BG_MAP: Record<string, string> = {
   blue: "bg-[#1F2B6D]",
+  info: "bg-[#1F2B6D]",
   slate: "bg-[#1F2B6D]",
+  green: "bg-emerald-600",
+  success: "bg-emerald-600",
+  amber: "bg-amber-500",
+  orange: "bg-amber-500",
+  warning: "bg-amber-500",
   indigo: "bg-[#1F2B6D]",
   purple: "bg-[#1F2B6D]",
   default: "bg-[#1F2B6D]",
-  green: "bg-emerald-600",
-  amber: "bg-amber-500",
-  orange: "bg-amber-500",
   red: "bg-rose-500",
 };
 
 export function InfoCard({
   label,
+  title,
   value,
   icon,
   trend,
@@ -49,8 +57,24 @@ export function InfoCard({
   loading = false,
   onClick,
 }: InfoCardProps) {
-  const normalizedVariant = variant === "default" ? "slate" : variant === "amber" ? "orange" : variant;
+  const displayLabel = label ?? title ?? "";
+  const normalizedVariant =
+    variant === "default"
+      ? "slate"
+      : variant === "amber" || variant === "warning"
+        ? "orange"
+        : variant === "success"
+          ? "green"
+          : variant === "info"
+            ? "blue"
+            : variant;
   const badgeBg = BADGE_BG_MAP[normalizedVariant] || "bg-[#1F2B6D]";
+
+  const renderedIcon = React.isValidElement(icon)
+    ? icon
+    : typeof icon === "function" || (icon && typeof icon === "object" && "$$typeof" in (icon as any))
+      ? React.createElement(icon as React.ElementType, { className: "w-5 h-5 text-white" })
+      : icon;
 
   return (
     <div
@@ -63,9 +87,9 @@ export function InfoCard({
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          {icon && (
+          {renderedIcon && (
             <div className={cn("w-[42px] h-[42px] rounded-full flex items-center justify-center text-white shadow-sm flex-shrink-0 [&_svg]:w-5 [&_svg]:h-5 [&_svg]:!text-white [&_svg]:!stroke-white", badgeBg)}>
-              {icon}
+              {renderedIcon}
             </div>
           )}
           <div>
@@ -77,7 +101,7 @@ export function InfoCard({
               )}
             </p>
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
-              {label}
+              {displayLabel}
             </p>
           </div>
         </div>

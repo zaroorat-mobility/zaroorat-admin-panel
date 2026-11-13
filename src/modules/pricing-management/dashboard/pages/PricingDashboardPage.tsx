@@ -152,7 +152,7 @@ export const PricingDashboardPage: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-4 text-[10px] text-slate-550 dark:text-slate-400">
                             <span className="uppercase font-bold text-primary flex items-center gap-1">
-                              {rule.vehicleType === 'bike' ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
+                              {rule.vehicleType === 'BIKE' ? <Bike className="h-3.5 w-3.5" /> : <Car className="h-3.5 w-3.5" />}
                               {rule.vehicleType}
                             </span>
                             <span className="font-semibold text-slate-500">{rule.cityCode}</span>
@@ -207,12 +207,11 @@ export const PricingDashboardPage: React.FC = () => {
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-800 dark:text-slate-200">{rule.ruleName}</span>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border">V{rule.version}</span>
                           </div>
                           <div className="flex items-center gap-4 text-[10px] text-slate-550 dark:text-slate-400">
                             <span className="uppercase font-bold text-amber-600 flex items-center gap-1">
                               <Zap className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-                              {rule.vehicleType}
+                              {rule.vehicleLabel ?? 'All vehicles'}
                             </span>
                             {rule.zoneName && (
                               <span className="font-semibold text-slate-500">{rule.zoneName}</span>
@@ -318,7 +317,7 @@ export const PricingDashboardPage: React.FC = () => {
                         <span className="text-[9px] bg-amber-50 border border-amber-100 text-amber-600 px-1.5 py-0.5 rounded font-black">{rule.type}</span>
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-slate-400">
-                        <span>Vehicle: <strong className="uppercase">{rule.vehicleType}</strong></span>
+                        <span>Vehicle: <strong className="uppercase">{'vehicleType' in rule ? rule.vehicleType : (rule.vehicleLabel ?? 'All vehicles')}</strong></span>
                         <span className="flex items-center gap-0.5 font-mono text-[9px] text-rose-500">
                           <AlertTriangle className="h-3 w-3" />
                           Exp: {rule.effectiveTo}

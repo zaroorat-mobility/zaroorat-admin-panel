@@ -14,7 +14,8 @@ export function useCityZonesWithBoundaries(cityCode?: string) {
 
   useEffect(() => {
     if (!list.length) {
-      setZonesWithBoundaries([])
+      // `list` is a new [] on every render while loading. A new [] here would re-render forever.
+      setZonesWithBoundaries((prev) => (prev.length ? [] : prev))
       return
     }
 

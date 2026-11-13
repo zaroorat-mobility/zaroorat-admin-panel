@@ -10,7 +10,6 @@ import {
   Undo2,
   RotateCcw,
   Info,
-  ChevronDown,
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react'
@@ -24,6 +23,12 @@ import {
   type LatLngPoint,
 } from './geoUtils'
 import type { OfficialCityItem } from './officialCitiesCatalog'
+import type { CoverageMode } from '../../types'
+
+const COVERAGE_CHOICES: Array<{ value: CoverageMode; label: string; help: string }> = [
+  { value: 'WHOLE_CITY', label: 'Everywhere in this city', help: 'Anywhere in the Operating Area' },
+  { value: 'ZONES_ONLY', label: 'Only inside zones I draw', help: 'Service and airport zones' },
+]
 
 interface Step2BoundaryProps {
   cityName: string
@@ -39,6 +44,15 @@ interface Step2BoundaryProps {
   boundary: number[][][] | null
   setBoundary: (v: number[][][] | null) => void
   selectedOfficialCity?: OfficialCityItem | null
+  coverageMode: CoverageMode
+  setCoverageMode: (v: CoverageMode) => void
+  /** The stored setting, or null for a new city. */
+  savedCoverageMode: CoverageMode | null
+  /** What the city's active zones cover today, from the server. */
+  zonesCoveredPct: number | null
+  /** Null hides the field (no pricing:write). */
+  surgeCap: string | null
+  setSurgeCap: (v: string) => void
   onValidationChange?: (isValid: boolean) => void
   onBack?: () => void
   onCancel?: () => void
@@ -59,10 +73,16 @@ export const Step2Boundary: React.FC<Step2BoundaryProps> = ({
   boundary,
   setBoundary,
   selectedOfficialCity,
+  coverageMode,
+  setCoverageMode,
+  savedCoverageMode,
+  zonesCoveredPct,
+  surgeCap,
+  setSurgeCap,
   onValidationChange,
 }) => {
   const [drawMode, setDrawMode] = useState<'draw' | 'edit' | 'idle'>('idle')
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const officialBoundary = selectedOfficialCity?.officialBoundary
 
   // Synchronize boundary whenever boundaryType or radiusKm changes
   useEffect(() => {
@@ -71,14 +91,13 @@ export const Step2Boundary: React.FC<Step2BoundaryProps> = ({
       setBoundary(circleCoords)
       setDrawMode('idle')
     } else if (boundaryType === 'official') {
-      if (selectedOfficialCity?.officialBoundary) {
-        setBoundary(selectedOfficialCity.officialBoundary)
+      // Official means a real polygon. Without one there is nothing official to show.
+      if (officialBoundary) {
+        setBoundary(officialBoundary)
+        setDrawMode('idle')
       } else {
-        // Fallback to 8 km canonical metro boundary octagon
-        const metroCoords = generateCirclePolygon(center, 8, 8)
-        setBoundary(metroCoords)
+        setBoundaryType('radius')
       }
-      setDrawMode('idle')
     } else if (boundaryType === 'polygon') {
       // Initialize with clean 8-vertex shape only if no boundary exists yet
       if (!boundary?.[0] || boundary[0].length < 3) {
@@ -87,7 +106,7 @@ export const Step2Boundary: React.FC<Step2BoundaryProps> = ({
       }
       setDrawMode('draw')
     }
-  }, [boundaryType, center, radiusKm, selectedOfficialCity, setBoundary])
+  }, [boundaryType, center, radiusKm, officialBoundary, setBoundary, setBoundaryType])
 
   // Boundary metrics
   const areaKm2 = useMemo(() => {
@@ -267,39 +286,43 @@ export const Step2Boundary: React.FC<Step2BoundaryProps> = ({
             <div className="w-5 h-5 rounded bg-slate-100 text-slate-700 flex items-center justify-center">
               <Hexagon className="w-3 h-3" />
             </div>
-            <h3 className="text-xs font-bold text-slate-900">Boundary Type</h3>
+            <h3 className="text-xs font-bold text-slate-900">Operating Area</h3>
           </div>
+          <p className="text-[10.5px] text-slate-500 leading-snug">
+            Pickups outside this area are refused. Make it wide enough for suburbs and the airport.
+          </p>
 
-          <div className="grid grid-cols-3 gap-2">
-            {/* Option 1: Official Boundary */}
-            <button
-              type="button"
-              onClick={() => setBoundaryType('official')}
-              className={`text-left p-2 rounded-lg border transition-all flex flex-col justify-between cursor-pointer ${
-                boundaryType === 'official'
-                  ? 'border-[#1F2B6D] bg-blue-50/50 ring-1 ring-[#1F2B6D]'
-                  : 'border-slate-200 hover:border-slate-300 bg-white'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <Landmark
-                  className={`w-3.5 h-3.5 ${boundaryType === 'official' ? 'text-[#1F2B6D]' : 'text-slate-500'}`}
-                />
-                <div
-                  className={`w-3 h-3 rounded-full border flex items-center justify-center ${
-                    boundaryType === 'official' ? 'border-[#1F2B6D] bg-[#1F2B6D]' : 'border-slate-300'
-                  }`}
-                >
-                  {boundaryType === 'official' && <div className="w-1 h-1 rounded-full bg-white" />}
+          <div className={`grid gap-2 ${officialBoundary ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {officialBoundary && (
+              <button
+                type="button"
+                onClick={() => setBoundaryType('official')}
+                className={`text-left p-2 rounded-lg border transition-all flex flex-col justify-between cursor-pointer ${
+                  boundaryType === 'official'
+                    ? 'border-[#1F2B6D] bg-blue-50/50 ring-1 ring-[#1F2B6D]'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <Landmark
+                    className={`w-3.5 h-3.5 ${boundaryType === 'official' ? 'text-[#1F2B6D]' : 'text-slate-500'}`}
+                  />
+                  <div
+                    className={`w-3 h-3 rounded-full border flex items-center justify-center ${
+                      boundaryType === 'official' ? 'border-[#1F2B6D] bg-[#1F2B6D]' : 'border-slate-300'
+                    }`}
+                  >
+                    {boundaryType === 'official' && <div className="w-1 h-1 rounded-full bg-white" />}
+                  </div>
                 </div>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-slate-900 leading-tight">Official</p>
-                <p className="text-[9.5px] text-slate-500 mt-0.5 leading-tight">
-                  Government limits
-                </p>
-              </div>
-            </button>
+                <div>
+                  <p className="text-[11px] font-bold text-slate-900 leading-tight">Official</p>
+                  <p className="text-[9.5px] text-slate-500 mt-0.5 leading-tight">
+                    Government limits
+                  </p>
+                </div>
+              </button>
+            )}
 
             {/* Option 2: Radius */}
             <button
@@ -494,22 +517,60 @@ export const Step2Boundary: React.FC<Step2BoundaryProps> = ({
           </div>
         </div>
 
-        {/* Card 5: Optional Advanced Options */}
-        <div className="bg-white border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs">
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full px-3 py-2 text-left flex items-center justify-between text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-          >
-            <span>Advanced Options (Optional)</span>
-            <ChevronDown
-              className={`w-3.5 h-3.5 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
-            />
-          </button>
-          {showAdvanced && (
-            <div className="p-3 border-t border-slate-100 text-[11px] text-slate-500 space-y-1">
-              <p>• Geodesic area calculation with WGS84 standard ellipsoid.</p>
-              <p>• Automatic topology and non-self-intersection verification.</p>
+        {/* Card 5: Where rides can start, and the surge cap */}
+        <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs space-y-2">
+          <h3 className="text-xs font-bold text-slate-900">Where can rides start?</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {COVERAGE_CHOICES.map((choice) => (
+              <button
+                key={choice.value}
+                type="button"
+                aria-pressed={coverageMode === choice.value}
+                onClick={() => setCoverageMode(choice.value)}
+                className={`text-left p-2 rounded-lg border transition-all cursor-pointer ${
+                  coverageMode === choice.value
+                    ? 'border-[#1F2B6D] bg-blue-50/50 ring-1 ring-[#1F2B6D]'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <p className="text-[11px] font-bold text-slate-900 leading-tight">{choice.label}</p>
+                <p className="text-[9.5px] text-slate-500 mt-0.5 leading-tight">{choice.help}</p>
+              </button>
+            ))}
+          </div>
+          {coverageMode !== (savedCoverageMode ?? 'WHOLE_CITY') && (
+            <p className="text-[11px] font-medium text-amber-950 bg-amber-50 border border-amber-300 rounded-lg p-2">
+              {coverageMode === 'WHOLE_CITY'
+                ? 'Rides can start anywhere in the Operating Area, not only inside zones.'
+                : savedCoverageMode === null
+                  ? 'This is a new city, so no rides can start until you add a zone.'
+                  : zonesCoveredPct === null
+                    ? 'Checking how much of this city your zones cover...'
+                    : `Rides can start in ${zonesCoveredPct}% of this city. The rest stops taking rides when you save.`}
+            </p>
+          )}
+
+          {surgeCap !== null && (
+            <div className="pt-1 border-t border-slate-100 space-y-1">
+              <label className="flex items-center justify-between gap-2 text-xs font-bold text-slate-900">
+                <span>Surge cap</span>
+                <span className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    aria-label="Surge cap"
+                    min="1"
+                    max="2"
+                    step="0.1"
+                    value={surgeCap}
+                    onChange={(e) => setSurgeCap(e.target.value)}
+                    className="w-16 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-[#1F2B6D] focus:outline-none"
+                  />
+                  <span className="text-slate-500">x</span>
+                </span>
+              </label>
+              <p className="text-[10.5px] text-slate-500 leading-snug">
+                Surge in this city never goes above this, whatever a rule says. The limit is 2.0x.
+              </p>
             </div>
           )}
         </div>

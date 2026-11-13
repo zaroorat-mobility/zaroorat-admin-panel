@@ -75,6 +75,12 @@ export const API_ENDPOINTS = {
   },
   vehicleTypes: {
     list: '/vehicle-types',
+    adminList: '/admin/vehicle-types',
+    create: '/admin/vehicle-types',
+    update: (id: string) => `/admin/vehicle-types/${id}`,
+    toggle: (id: string) => `/admin/vehicle-types/${id}/toggle`,
+    delete: (id: string) => `/admin/vehicle-types/${id}`,
+    reorder: '/admin/vehicle-types/reorder',
   },
   fareRules: {
     list: '/admin/fare-rules',
@@ -101,6 +107,9 @@ export const API_ENDPOINTS = {
     create: '/admin/surge-windows',
     update: (id: string) => `/admin/surge-windows/${id}`,
     delete: (id: string) => `/admin/surge-windows/${id}`,
+  },
+  surgeSettings: {
+    update: (cityCode: string) => `/admin/surge-settings/${cityCode}`,
   },
   cancellationPolicies: {
     list: '/admin/cancellation-policies',
@@ -177,6 +186,7 @@ export const API_ENDPOINTS = {
     reconcileApply: '/admin/geographic/states/reconcile/apply',
     cities: '/admin/geographic/cities',
     city: (id: string) => `/admin/geographic/cities/${id}`,
+    citySetup: (id: string) => `/admin/geographic/cities/${id}/setup`,
     serviceZones: '/admin/geographic/service-zones',
     serviceZone: (id: string) => `/admin/geographic/service-zones/${id}`,
     activateServiceZone: (id: string) => `/admin/geographic/service-zones/${id}/activate`,
