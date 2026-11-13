@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Modal } from '@/shared/components/ui/Modal'
 import { Button } from '@/shared/components/ui/Button'
-import { VEHICLE_PRESET_ICONS } from '@/assets/images/vehicles'
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import { uploadFile } from '@/shared/services/file-upload.service'
 import { useToast } from '@/shared/context/toast'
 import { APP_CONFIG } from '@/app/config'
 import { cn } from '@/shared/utils'
 import {
+  Car,
+  Bike,
   Snowflake,
   Wind,
   Plus,
@@ -20,6 +21,11 @@ import {
   Trash2,
   Sparkles,
   Users,
+  Navigation,
+  Tag,
+  Layers,
+  Compass,
+  ChevronDown,
 } from 'lucide-react'
 
 export interface VehicleTypeFormData {
@@ -50,7 +56,7 @@ interface VehicleTypeModalProps {
 
 type RideTypeTab = 'ac' | 'non_ac' | 'other'
 type VehicleModelChoice = 'cab-mini' | 'cab-economy' | 'cab-premium' | 'cab-xl' | 'auto' | 'bike'
-type ImageSourceMode = 'preset' | 'upload' | 'url'
+type ImageSourceMode = 'upload' | 'url'
 
 interface VehicleModelConfig {
   key: VehicleModelChoice
@@ -87,7 +93,7 @@ const INITIAL_FORM: VehicleTypeFormData = {
   description: '',
   imageUrl: '',
   imageFileId: '',
-  icon: 'cab-mini',
+  icon: '',
   passengerCapacity: 4,
   luggageCapacity: 2,
   displayOrder: 1,
@@ -109,8 +115,11 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [rideType, setRideType] = useState<RideTypeTab>('ac')
   const [selectedModel, setSelectedModel] = useState<VehicleModelChoice>('cab-mini')
-  const [imageMode, setImageMode] = useState<ImageSourceMode>('preset')
+  const [imageMode, setImageMode] = useState<ImageSourceMode>('upload')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [mapIconMode, setMapIconMode] = useState<ImageSourceMode>('upload')
+  const [uploadingMapIcon, setUploadingMapIcon] = useState(false)
+  const mapFileInputRef = useRef<HTMLInputElement>(null)
 
   const isEditing = Boolean(vehicleType?.id)
 
@@ -153,21 +162,28 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
       setSelectedModel(resolvedModel)
 
       // Set image mode
-      if (vehicleType.imageFileId) {
-        setImageMode('upload')
-      } else if (
+      if (
         vehicleType.imageUrl &&
         !vehicleType.imageUrl.includes('/files/') &&
         vehicleType.imageUrl.startsWith('http')
       ) {
         setImageMode('url')
       } else {
-        setImageMode('preset')
+        setImageMode('upload')
       }
 
       const isOther = resolvedRideType === 'other'
-      const isAuto = resolvedModel === 'auto'
       const isBike = resolvedModel === 'bike'
+      const isAuto = resolvedModel === 'auto'
+
+      const existingBadge =
+        vehicleType.badge !== undefined && vehicleType.badge !== null
+          ? vehicleType.badge
+          : resolvedRideType === 'ac'
+          ? 'AC'
+          : resolvedRideType === 'non_ac'
+          ? 'NON AC'
+          : ''
 
       setFormData({
         ...INITIAL_FORM,
@@ -175,7 +191,7 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
         name: vehicleType.name || (isBike ? 'Bike' : isAuto ? 'Auto' : 'Cab Mini'),
         category: isOther ? (isBike ? 'bike' : 'auto') : 'car',
         hasAc: resolvedRideType === 'ac',
-        badge: resolvedRideType === 'ac' ? 'AC' : resolvedRideType === 'non_ac' ? 'NON AC' : '',
+        badge: existingBadge,
         imageUrl: vehicleType.imageUrl || '',
         imageFileId: vehicleType.imageFileId || '',
         icon: vehicleType.icon || resolvedModel,
@@ -189,11 +205,11 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
     } else {
       setRideType('ac')
       setSelectedModel('cab-mini')
-      setImageMode('preset')
+      setImageMode('upload')
       setFormData({
         ...INITIAL_FORM,
         name: 'Cab Mini',
-        icon: 'cab-mini',
+        icon: '',
         badge: 'AC',
         hasAc: true,
         category: 'car',
@@ -246,21 +262,31 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
     const isBike = model === 'bike'
     const isAuto = model === 'auto'
 
-    const badgeText = isAc ? 'AC' : isNonAc ? 'NON AC' : ''
+    const defaultBadgeText = isAc ? 'AC' : isNonAc ? 'NON AC' : ''
     const defaultName = modelConfig.defaultName
     const defaultSeats = modelConfig.seats
     const defaultLuggage = isBike ? 0 : isAuto ? 1 : model === 'cab-xl' ? 4 : 2
 
-    setFormData((prev) => ({
-      ...prev,
-      name: defaultName,
-      category: isOther ? (isBike ? 'bike' : 'auto') : 'car',
-      hasAc: isAc,
-      badge: badgeText,
-      icon: modelConfig.icon,
-      passengerCapacity: defaultSeats,
-      luggageCapacity: defaultLuggage,
-    }))
+    setFormData((prev) => {
+      // If previous badge was one of standard AC/NON AC or empty, auto-update it with category default
+      // Otherwise preserve any custom badge admin typed (e.g. POPULAR, FASTEST, EV)
+      const shouldUpdateBadge =
+        !prev.badge || prev.badge === 'AC' || prev.badge === 'NON AC'
+
+      return {
+        ...prev,
+        name: defaultName,
+        category: isOther ? (isBike ? 'bike' : 'auto') : 'car',
+        hasAc: isAc,
+        badge: shouldUpdateBadge ? defaultBadgeText : prev.badge,
+        icon:
+          prev.icon && (prev.icon.startsWith('/') || prev.icon.startsWith('http'))
+            ? prev.icon
+            : modelConfig.icon,
+        passengerCapacity: defaultSeats,
+        luggageCapacity: defaultLuggage,
+      }
+    })
   }
 
   // ───── 3. FILE UPLOAD HANDLER ─────
@@ -274,9 +300,8 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
     try {
       const result = await uploadFile(file, 'VEHICLE_IMAGE')
       handleChange('imageFileId', result.fileId)
-      if (result.readUrl) {
-        handleChange('imageUrl', result.readUrl)
-      }
+      // Direct S3 URL so mobile apps download directly without depending on dev server origin
+      handleChange('imageUrl', result.readUrl || `/api/v1/vehicle-types/images/${result.fileId}`)
       toast.success('Image Uploaded', 'Vehicle image uploaded and ready.')
     } catch (err: any) {
       const msg = err?.message || 'Failed to upload image.'
@@ -290,6 +315,34 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
   const handleClearImage = () => {
     handleChange('imageFileId', '')
     handleChange('imageUrl', '')
+  }
+
+  // ───── 3b. MAP TOP-VIEW ICON UPLOAD HANDLER ─────
+  const handleMapIconFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setUploadingMapIcon(true)
+    setError(null)
+    try {
+      const result = await uploadFile(file, 'VEHICLE_IMAGE')
+      if (result.fileId) {
+        // Always store permanent backend proxy path (avoids S3 presigned URL expiration)
+        handleChange('icon', `/api/v1/vehicle-types/images/${result.fileId}`)
+      }
+      toast.success('Map Icon Uploaded', 'Top-view marker icon ready for live maps.')
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to upload map icon.'
+      setError(msg)
+      toast.error('Upload Failed', msg)
+    } finally {
+      setUploadingMapIcon(false)
+    }
+  }
+
+  const handleClearMapIcon = () => {
+    handleChange('icon', '')
   }
 
   // ───── 4. SUBMIT HANDLER ─────
@@ -336,8 +389,8 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
         }
       }
 
-      const cleanBadge =
-        rideType === 'ac' ? 'AC' : rideType === 'non_ac' ? 'NON AC' : null
+      // Explicit badge from form input (trimmed, or null if empty)
+      const cleanBadge = formData.badge?.trim() ? formData.badge.trim() : null
 
       const isBike = rideType === 'other' ? selectedModel === 'bike' : formData.category === 'bike'
       const isAuto = rideType === 'other' ? selectedModel === 'auto' : formData.category === 'auto'
@@ -392,11 +445,35 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
       const apiHost = APP_CONFIG.api.baseUrl.replace(/\/api\/v1\/?$/, '')
       return `${apiHost}${formData.imageUrl.startsWith('/') ? '' : '/'}${formData.imageUrl}`
     }
-    if (formData.icon && VEHICLE_PRESET_ICONS[formData.icon]) {
-      return VEHICLE_PRESET_ICONS[formData.icon]
+    return null
+  }, [formData.imageUrl])
+
+  // Check if formData.icon is a custom uploaded image or URL (not just a preset keyword like 'auto')
+  const isCustomMapIcon = useMemo(() => {
+    if (!formData.icon) return false
+    const val = formData.icon.trim()
+    return (
+      val.startsWith('http://') ||
+      val.startsWith('https://') ||
+      val.startsWith('/') ||
+      val.startsWith('data:') ||
+      /^[0-9a-fA-F-]{36}$/.test(val)
+    )
+  }, [formData.icon])
+
+  // Resolve preview for Map Top-View Icon
+  const previewMapIconSrc = useMemo(() => {
+    if (!isCustomMapIcon) return null
+    const val = formData.icon.trim()
+    if (val.startsWith('http') || val.startsWith('data:')) {
+      return val
     }
-    return VEHICLE_PRESET_ICONS['cab-mini']
-  }, [formData.imageUrl, formData.icon])
+    const clean = /^[0-9a-fA-F-]{36}$/.test(val)
+      ? `/api/v1/vehicle-types/images/${val}`
+      : val.startsWith('/') ? val : `/${val}`
+    const apiHost = APP_CONFIG.api.baseUrl.replace(/\/api\/v1\/?$/, '')
+    return `${apiHost}${clean}`
+  }, [formData.icon, isCustomMapIcon])
 
   // Get active vehicle models list based on current ride tab
   const currentVehicleModels = useMemo(() => {
@@ -409,56 +486,85 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditing ? `Edit Service: ${formData.name || formData.code}` : 'Add New Fleet Service'}
-      size="md"
+      title={isEditing ? `Edit Fleet Service: ${formData.name || formData.code}` : 'Add New Fleet Service'}
+      size="xl"
       footer={
-        <div className="flex items-center justify-end gap-3 w-full">
-          <Button variant="outline" size="md" onClick={onClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleSubmit}
-            loading={submitting}
-            icon={isEditing ? undefined : <Plus className="w-4 h-4" />}
-          >
-            {isEditing ? 'Save Changes' : 'Create Service'}
-          </Button>
+        <div className="flex items-center justify-between w-full">
+          <div className="text-xs text-slate-500 dark:text-slate-400">
+            {formData.badge?.trim() ? (
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <Tag className="w-3.5 h-3.5 text-[#1F2B6D] dark:text-blue-400" />
+                Badge active:{' '}
+                <strong className="text-slate-800 dark:text-slate-200">
+                  {formData.badge.trim()}
+                </strong>
+              </span>
+            ) : (
+              <span>No badge (standard plain card)</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Button variant="outline" size="md" onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleSubmit}
+              loading={submitting}
+              icon={isEditing ? undefined : <Plus className="w-4 h-4" />}
+            >
+              {isEditing ? 'Save Changes' : 'Create Service'}
+            </Button>
+          </div>
         </div>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5 py-2">
         {error && (
           <div className="p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+            <span className="font-medium">{error}</span>
           </div>
         )}
 
         {/* ───── EXACT FIGMA 2x4 LIVE PREVIEW CARD (PURE NAVY TEXT AS DESIGNED) ───── */}
-        <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200/80 dark:border-slate-800">
-          <div>
+        <div className="flex items-center justify-between p-5 bg-gradient-to-r from-slate-50 via-blue-50/30 to-slate-50 dark:from-slate-900/80 dark:via-blue-950/20 dark:to-slate-900/80 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+          <div className="space-y-1">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
               <span>Customer App Card Preview</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100/80 text-blue-700 dark:bg-blue-950 dark:text-blue-300 font-semibold">
+                Live 74×61 Figma Replica
+              </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               {rideType === 'ac'
                 ? 'AC Ride (Air Conditioned)'
                 : rideType === 'non_ac'
                 ? 'Non-AC Ride (Economical)'
-                : `Other: ${selectedModel === 'bike' ? 'Bike' : 'Auto Rickshaw'}`}
+                : `Other: ${selectedModel === 'bike' ? 'Motorcycle / Bike' : 'Auto Rickshaw'}`}
               {' • '}
               <span className="font-semibold text-slate-700 dark:text-slate-300">
                 {formData.passengerCapacity} {formData.passengerCapacity === 1 ? 'seat' : 'seats'}
               </span>
+              {formData.badge?.trim() ? (
+                <>
+                  {' • '}
+                  <span className="font-bold text-[#1F2B6D] dark:text-blue-300">
+                    Badge: {formData.badge.trim()}
+                  </span>
+                </>
+              ) : null}
+            </p>
+            <p className="text-[10.5px] text-slate-400 dark:text-slate-500">
+              Updates in real-time as you edit the service name, badge, and images below.
             </p>
           </div>
 
-          {/* Exact Figma Spec Card: 78x68, rounded-xl, #F4F6FB bg, #DDE3EA border */}
-          <div className="flex flex-col items-center w-[82px] shrink-0">
-            <div className="relative w-[78px] h-[68px] rounded-xl border border-[#DDE3EA] dark:border-slate-700 bg-[#F4F6FB] dark:bg-slate-800 overflow-hidden flex items-center justify-center shadow-xs">
+          {/* Exact Figma Spec Card: 74x61 Mask group, rounded-xl, #F4F6FB bg, #D4DAE9 border */}
+          <div className="flex flex-col items-center w-[78px] shrink-0">
+            <div className="relative w-[74px] h-[61px] rounded-xl border border-[#D4DAE9] dark:border-slate-700 bg-[#F4F6FB] dark:bg-slate-800 overflow-hidden flex items-center justify-center shadow-xs">
               {/* Plain Navy Text Badge (#233464, exactly as in Figma design) */}
               {formData.badge?.trim() ? (
                 <span className="absolute top-1.5 right-2 font-semibold text-[8.5px] text-[#233464] dark:text-[#93C5FD] tracking-tight select-none z-10 leading-none">
@@ -471,45 +577,54 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
                   src={previewIconSrc}
                   alt={formData.name || 'Vehicle'}
                   className="w-full h-full object-contain p-1"
-                  onError={(e) => {
-                    const target = e.currentTarget
-                    target.src =
-                      VEHICLE_PRESET_ICONS[formData.icon] || VEHICLE_PRESET_ICONS['cab-mini']
-                  }}
                 />
               ) : (
-                <span className="text-[10px] text-slate-400">No Image</span>
+                <div className="flex flex-col items-center justify-center text-slate-400">
+                  {formData.category === 'bike' ? (
+                    <Bike className="w-6 h-6 stroke-[1.5]" />
+                  ) : (
+                    <Car className="w-6 h-6 stroke-[1.5]" />
+                  )}
+                  <span className="text-[8.5px] mt-0.5">No Image</span>
+                </div>
               )}
             </div>
 
-            <span className="mt-1 text-[10.5px] font-semibold text-[#1E2756] dark:text-slate-100 text-center truncate w-full">
+            <span className="mt-1.5 text-[11px] font-medium leading-none tracking-normal text-[#1E2756] dark:text-slate-100 text-center truncate w-full">
               {formData.name || 'Service Name'}
             </span>
           </div>
         </div>
 
-        {/* ───── 1. RIDE CATEGORY TABS (AC RIDE / NON-AC RIDE / OTHER) ───── */}
-        <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-            Ride Category *
-          </label>
-          <div className="grid grid-cols-3 gap-2">
+        {/* ───── 1. RIDE CATEGORY TABS & VEHICLE MODEL PRESET DROPDOWN ───── */}
+        <div className="p-5 bg-slate-50/70 dark:bg-slate-900/40 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-4 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#1F2B6D] dark:text-blue-400" />
+              1. Ride Category & Vehicle Type *
+            </label>
+            <span className="text-[10.5px] text-slate-400 font-medium">
+              Select category to prefill recommended specs
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
             {/* AC Ride */}
             <button
               type="button"
               onClick={() => handleSelectRideType('ac')}
               className={cn(
-                'p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1',
+                'p-3.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1.5',
                 rideType === 'ac'
-                  ? 'border-[#1F2B6D] bg-[#1F2B6D]/5 text-[#1F2B6D] dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-300 font-bold shadow-xs'
+                  ? 'border-[#1F2B6D] bg-[#1F2B6D]/5 text-[#1F2B6D] dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-300 font-bold shadow-xs ring-1 ring-[#1F2B6D]/20'
                   : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
               )}
             >
-              <div className="flex items-center gap-1 text-xs">
-                <Snowflake className="w-3.5 h-3.5 text-blue-500" />
+              <div className="flex items-center gap-1.5 text-xs font-bold">
+                <Snowflake className="w-4 h-4 text-blue-500" />
                 <span>AC Ride</span>
               </div>
-              <span className="text-[10px] text-slate-400">Air Conditioned Cab</span>
+              <span className="text-[10.5px] text-slate-400">Air Conditioned Cab</span>
             </button>
 
             {/* Non-AC Ride */}
@@ -517,17 +632,17 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
               type="button"
               onClick={() => handleSelectRideType('non_ac')}
               className={cn(
-                'p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1',
+                'p-3.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1.5',
                 rideType === 'non_ac'
-                  ? 'border-[#1F2B6D] bg-[#1F2B6D]/5 text-[#1F2B6D] dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-300 font-bold shadow-xs'
+                  ? 'border-[#1F2B6D] bg-[#1F2B6D]/5 text-[#1F2B6D] dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-300 font-bold shadow-xs ring-1 ring-[#1F2B6D]/20'
                   : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
               )}
             >
-              <div className="flex items-center gap-1 text-xs">
-                <Wind className="w-3.5 h-3.5 text-slate-500" />
+              <div className="flex items-center gap-1.5 text-xs font-bold">
+                <Wind className="w-4 h-4 text-slate-500" />
                 <span>Non-AC Ride</span>
               </div>
-              <span className="text-[10px] text-slate-400">Economical Cab</span>
+              <span className="text-[10.5px] text-slate-400">Economical Cab</span>
             </button>
 
             {/* Other (Auto / Bike) */}
@@ -535,243 +650,327 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
               type="button"
               onClick={() => handleSelectRideType('other')}
               className={cn(
-                'p-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1',
+                'p-3.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-1.5',
                 rideType === 'other'
-                  ? 'border-[#1F2B6D] bg-[#1F2B6D]/5 text-[#1F2B6D] dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-300 font-bold shadow-xs'
+                  ? 'border-[#1F2B6D] bg-[#1F2B6D]/5 text-[#1F2B6D] dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-300 font-bold shadow-xs ring-1 ring-[#1F2B6D]/20'
                   : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
               )}
             >
-              <div className="flex items-center gap-1 text-xs font-semibold">
+              <div className="flex items-center gap-1.5 text-xs font-bold">
+                <Bike className="w-4 h-4 text-emerald-600" />
                 <span>Other Ride</span>
               </div>
-              <span className="text-[10px] text-slate-400">Auto & Bike</span>
+              <span className="text-[10.5px] text-slate-400">Auto & Bike</span>
             </button>
           </div>
 
-          {/* ───── VEHICLE MODEL SUB-SELECTOR (FOR ALL CATEGORIES) ───── */}
-          <div className="mt-2.5 p-2 bg-slate-100/70 dark:bg-slate-800/60 rounded-xl">
-            <div className="flex items-center justify-between mb-1.5 px-1">
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                Select Vehicle Model:
-              </span>
-              <span className="text-[10px] text-slate-400">
-                Auto-configures name, seats & icon
+          {/* ───── MODEL TEMPLATE DROPDOWN (CLEAN 1-ROW REPLACEMENT FOR WRAPPED BUTTONS) ───── */}
+          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 space-y-2 shadow-2xs">
+            <div className="flex items-center justify-between px-0.5">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Car className="w-3.5 h-3.5 text-[#1F2B6D] dark:text-blue-400" />
+                Select Model Preset Template:
+              </label>
+              <span className="text-[10.5px] text-slate-400 font-medium">
+                Auto-configures name, seats, and badge
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {currentVehicleModels.map((item) => {
-                const isSelected = selectedModel === item.key
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => handleSelectVehicleModel(item.key)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5',
-                      isSelected
-                        ? 'bg-white dark:bg-slate-900 text-[#1F2B6D] dark:text-blue-300 shadow-xs border border-slate-200/80 dark:border-slate-700'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/40'
-                    )}
-                  >
-                    <span>{item.label}</span>
-                    <span className="text-[10px] text-slate-400 font-normal">
-                      ({item.seats} {item.seats === 1 ? 'Seat' : 'Seats'})
-                    </span>
-                  </button>
-                )
-              })}
+
+            <div className="relative">
+              <select
+                value={selectedModel}
+                onChange={(e) => handleSelectVehicleModel(e.target.value as VehicleModelChoice)}
+                className="w-full h-11 pl-3.5 pr-10 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-slate-50/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl appearance-none cursor-pointer focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] transition"
+              >
+                {currentVehicleModels.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label} — {item.seats} {item.seats === 1 ? 'seat' : 'seats'} ({rideType === 'ac' ? 'Air Conditioned' : rideType === 'non_ac' ? 'Economical' : item.category === 'bike' ? 'Two-Wheeler' : 'Auto Rickshaw'})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2" />
             </div>
           </div>
         </div>
 
-        {/* ───── 2. SERVICE DETAILS (DISPLAY NAME & SEAT CAPACITY) ───── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Display Name */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Display Name *
+        {/* ───── 2. SERVICE DETAILS & BADGE CONFIGURATION (SPACIOUS EXECUTIVE 2x2) ───── */}
+        <div className="p-5 bg-slate-50/70 dark:bg-slate-900/40 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-4 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-[#1F2B6D] dark:text-blue-400" />
+              2. Service Details & Card Badge *
             </label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="e.g. Cab Mini, Auto, Bike"
-              className="w-full px-3.5 py-2 text-sm font-medium bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
-            />
-            <span className="text-[10px] text-slate-400 mt-0.5 block">
-              Shown to riders in the booking list
+            <span className="text-[10.5px] text-slate-400 font-medium">
+              Visible on home screen cards & booking options
             </span>
           </div>
 
-          {/* Seat Capacity */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Seat Capacity *
-            </label>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() =>
-                  handleChange(
-                    'passengerCapacity',
-                    Math.max(1, (formData.passengerCapacity || 1) - 1)
-                  )
-                }
-                disabled={formData.passengerCapacity <= 1}
-                className="w-9 h-9 rounded-xl border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-30 disabled:pointer-events-none"
-                title="Decrease seats"
-              >
-                <Minus className="w-3.5 h-3.5" />
-              </button>
-
-              <div className="relative flex-1">
-                <Users className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  required
-                  value={formData.passengerCapacity}
-                  onChange={(e) =>
-                    handleChange(
-                      'passengerCapacity',
-                      Math.max(1, Math.min(20, parseInt(e.target.value) || 1))
-                    )
-                  }
-                  className="w-full pl-8 pr-2 py-1.5 text-sm font-bold text-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleChange(
-                    'passengerCapacity',
-                    Math.min(20, (formData.passengerCapacity || 1) + 1)
-                  )
-                }
-                disabled={formData.passengerCapacity >= 20}
-                className="w-9 h-9 rounded-xl border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-30 disabled:pointer-events-none"
-                title="Increase seats"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* 1. Display Name */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Display Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => handleChange('name', e.target.value)}
+                placeholder="e.g. Auto, Cab Mini, Bike"
+                className="w-full h-11 px-3.5 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] transition"
+              />
+              <span className="text-[10.5px] text-slate-400 mt-1 block">
+                Shown to riders under the card and in the booking selector
+              </span>
             </div>
 
-            {/* Quick seat selector chips */}
-            <div className="flex items-center gap-1 mt-1.5">
-              {[1, 3, 4, 6].map((seats) => (
-                <button
-                  key={seats}
-                  type="button"
-                  onClick={() => handleChange('passengerCapacity', seats)}
-                  className={cn(
-                    'px-2 py-0.5 rounded-md text-[10.5px] font-semibold transition',
-                    formData.passengerCapacity === seats
-                      ? 'bg-[#1F2B6D] text-white dark:bg-blue-600'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  )}
+            {/* 2. Service Code */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Service Code
+                </label>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-medium">
+                  Auto-generated if blank
+                </span>
+              </div>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) =>
+                  handleChange('code', e.target.value.toUpperCase().replace(/\s+/g, '_'))
+                }
+                placeholder="e.g. CAB_MINI_AC"
+                className="w-full h-11 px-3.5 text-xs font-mono uppercase tracking-wider text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] transition"
+              />
+              <span className="text-[10.5px] text-slate-400 mt-1 block">
+                Unique system identifier used for pricing, dispatch & analytics
+              </span>
+            </div>
+
+            {/* 3. Card Badge Dropdown (Full Width, zero clipping) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Card Badge (Top-Right)
+                </label>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {formData.badge?.trim() ? `Active: "${formData.badge.trim()}"` : 'Optional'}
+                </span>
+              </div>
+
+              <div className="relative">
+                <select
+                  value={
+                    ['', 'NON AC', 'AC', 'POPULAR', 'FASTEST', 'EV', 'ECO'].includes(
+                      (formData.badge || '').trim().toUpperCase()
+                    )
+                      ? (formData.badge || '').trim().toUpperCase()
+                      : 'CUSTOM'
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === 'CUSTOM') {
+                      if (
+                        !formData.badge ||
+                        ['', 'NON AC', 'AC', 'POPULAR', 'FASTEST', 'EV', 'ECO'].includes(
+                          formData.badge.trim().toUpperCase()
+                        )
+                      ) {
+                        handleChange('badge', 'SPECIAL')
+                      }
+                    } else {
+                      handleChange('badge', val)
+                    }
+                  }}
+                  className="w-full h-11 pl-3.5 pr-10 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl appearance-none cursor-pointer focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] transition"
                 >
-                  {seats} {seats === 1 ? 'seat' : 'seats'}
-                </button>
-              ))}
+                  <option value="">None (Plain Card — No Badge)</option>
+                  <option value="NON AC">NON AC (Economical Fare)</option>
+                  <option value="AC">AC (Air Conditioned)</option>
+                  <option value="POPULAR">POPULAR (Trending Choice)</option>
+                  <option value="FASTEST">FASTEST (Quick Dispatch)</option>
+                  <option value="EV">EV (Electric Vehicle)</option>
+                  <option value="ECO">ECO (Budget Friendly)</option>
+                  <option value="CUSTOM">Custom Badge...</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+
+              {/* Dedicated Custom Badge Field (Revealed when Custom selected) */}
+              {(!['', 'NON AC', 'AC', 'POPULAR', 'FASTEST', 'EV', 'ECO'].includes(
+                (formData.badge || '').trim().toUpperCase()
+              ) || formData.badge === 'CUSTOM') && (
+                <div className="relative mt-2">
+                  <Tag className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={formData.badge === 'CUSTOM' ? '' : formData.badge}
+                    onChange={(e) => handleChange('badge', e.target.value.toUpperCase())}
+                    placeholder="Type custom badge (e.g. PREMIUM, AIRPORT, VIP)"
+                    maxLength={20}
+                    className="w-full h-10 pl-9 pr-14 text-xs font-bold tracking-wide uppercase bg-white dark:bg-slate-900 border border-blue-400 dark:border-blue-600 rounded-xl focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+                  />
+                  {formData.badge && (
+                    <button
+                      type="button"
+                      onClick={() => handleChange('badge', '')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <span className="text-[10.5px] text-slate-400 mt-1 block">
+                Select preset badge or choose Custom to type your own text
+              </span>
+            </div>
+
+            {/* 4. Seat Capacity Dropdown (Full Width, zero clipping) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Seat Capacity *
+                </label>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {formData.passengerCapacity} {formData.passengerCapacity === 1 ? 'passenger' : 'passengers'}
+                </span>
+              </div>
+
+              <div className="relative">
+                <select
+                  value={
+                    [1, 2, 3, 4, 5, 6, 7].includes(formData.passengerCapacity)
+                      ? formData.passengerCapacity
+                      : 'custom'
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === 'custom') {
+                      if ([1, 2, 3, 4, 5, 6, 7].includes(formData.passengerCapacity)) {
+                        handleChange('passengerCapacity', 8)
+                      }
+                    } else {
+                      handleChange('passengerCapacity', Number(val))
+                    }
+                  }}
+                  className="w-full h-11 pl-3.5 pr-10 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl appearance-none cursor-pointer focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] transition"
+                >
+                  <option value={1}>1 Passenger Seat (Bike / Two-Wheeler)</option>
+                  <option value={2}>2 Passenger Seats (Mini Coupe)</option>
+                  <option value={3}>3 Passenger Seats (Auto Rickshaw)</option>
+                  <option value={4}>4 Passenger Seats (Standard Cab / Sedan)</option>
+                  <option value={5}>5 Passenger Seats (Compact SUV)</option>
+                  <option value={6}>6 Passenger Seats (Cab XL / 6-Seater SUV)</option>
+                  <option value={7}>7 Passenger Seats (Large MUV / Innova / Ertiga)</option>
+                  <option value="custom">Custom Seat Capacity...</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+
+              {/* Dedicated Custom Stepper (Revealed when Custom / >7 seats) */}
+              {(![1, 2, 3, 4, 5, 6, 7].includes(formData.passengerCapacity) ||
+                formData.passengerCapacity > 7) && (
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleChange(
+                        'passengerCapacity',
+                        Math.max(1, (formData.passengerCapacity || 1) - 1)
+                      )
+                    }
+                    disabled={formData.passengerCapacity <= 1}
+                    className="w-10 h-10 rounded-xl border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-30 disabled:pointer-events-none shrink-0"
+                    title="Decrease seats"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+
+                  <div className="relative flex-1">
+                    <Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      required
+                      value={formData.passengerCapacity}
+                      onChange={(e) =>
+                        handleChange(
+                          'passengerCapacity',
+                          Math.max(1, Math.min(50, parseInt(e.target.value) || 1))
+                        )
+                      }
+                      className="w-full h-10 pl-9 pr-3 text-sm font-bold text-center bg-white dark:bg-slate-900 border border-blue-400 dark:border-blue-600 rounded-xl focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleChange(
+                        'passengerCapacity',
+                        Math.min(50, (formData.passengerCapacity || 1) + 1)
+                      )
+                    }
+                    disabled={formData.passengerCapacity >= 50}
+                    className="w-10 h-10 rounded-xl border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-30 disabled:pointer-events-none shrink-0"
+                    title="Increase seats"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <span className="text-[10.5px] text-slate-400 mt-1 block">
+                Select standard vehicle seating or customize passenger count
+              </span>
             </div>
           </div>
         </div>
 
-        {/* ───── 3. VEHICLE IMAGE: PRESETS | UPLOAD FILE | IMAGE URL ───── */}
-        <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+        {/* ───── 3. VEHICLE CARD IMAGE (FIGMA 74x61 CONTAINER) ───── */}
+        <div className="p-5 bg-slate-50/70 dark:bg-slate-900/40 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3.5 shadow-2xs">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              Vehicle Image
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <Car className="w-3.5 h-3.5 text-[#1F2B6D] dark:text-blue-400" />
+              3. Customer App Card Image
             </label>
 
             {/* Mode Switcher Tabs */}
-            <div className="flex bg-slate-200/70 dark:bg-slate-800 p-0.5 rounded-lg text-[11px] font-semibold">
-              <button
-                type="button"
-                onClick={() => setImageMode('preset')}
-                className={cn(
-                  'px-2.5 py-1 rounded-md transition',
-                  imageMode === 'preset'
-                    ? 'bg-white dark:bg-slate-900 text-[#1F2B6D] dark:text-blue-400 shadow-2xs font-bold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                )}
-              >
-                Preset Icons
-              </button>
+            <div className="flex bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg text-[11px] font-semibold">
               <button
                 type="button"
                 onClick={() => setImageMode('upload')}
                 className={cn(
-                  'px-2.5 py-1 rounded-md transition flex items-center gap-1',
+                  'px-3 py-1 rounded-md transition flex items-center gap-1.5',
                   imageMode === 'upload'
                     ? 'bg-white dark:bg-slate-900 text-[#1F2B6D] dark:text-blue-400 shadow-2xs font-bold'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 )}
               >
-                <Upload className="w-3 h-3" />
+                <Upload className="w-3.5 h-3.5" />
                 Upload File
               </button>
               <button
                 type="button"
                 onClick={() => setImageMode('url')}
                 className={cn(
-                  'px-2.5 py-1 rounded-md transition flex items-center gap-1',
+                  'px-3 py-1 rounded-md transition flex items-center gap-1.5',
                   imageMode === 'url'
                     ? 'bg-white dark:bg-slate-900 text-[#1F2B6D] dark:text-blue-400 shadow-2xs font-bold'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 )}
               >
-                <Link2 className="w-3 h-3" />
+                <Link2 className="w-3.5 h-3.5" />
                 Direct URL
               </button>
             </div>
           </div>
 
-          {/* TAB 1: PRESET ICONS */}
-          {imageMode === 'preset' && (
-            <div className="grid grid-cols-6 gap-2 pt-1">
-              {[
-                { key: 'auto', label: 'Auto' },
-                { key: 'bike', label: 'Bike' },
-                { key: 'cab-mini', label: 'Mini' },
-                { key: 'cab-economy', label: 'Economy' },
-                { key: 'cab-premium', label: 'Premium' },
-                { key: 'cab-xl', label: 'XL' },
-              ].map(({ key, label }) => {
-                const isSelected =
-                  formData.icon === key && !formData.imageFileId && !formData.imageUrl
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => {
-                      handleChange('icon', key)
-                      handleChange('imageUrl', '')
-                      handleChange('imageFileId', '')
-                    }}
-                    className={cn(
-                      'flex flex-col items-center p-1.5 rounded-xl border text-center transition',
-                      isSelected
-                        ? 'border-[#1F2B6D] bg-white dark:bg-slate-800 text-[#1F2B6D] dark:text-white font-bold shadow-xs'
-                        : 'border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                    )}
-                  >
-                    <img
-                      src={VEHICLE_PRESET_ICONS[key]}
-                      alt={label}
-                      className="w-9 h-8 object-contain mb-1"
-                    />
-                    <span className="text-[10px]">{label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* TAB 2: UPLOAD FILE */}
+          {/* TAB 1: UPLOAD FILE */}
           {imageMode === 'upload' && (
             <div className="pt-1">
               <input
@@ -783,38 +982,38 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
               />
 
               {formData.imageFileId || formData.imageUrl ? (
-                <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden flex items-center justify-center">
+                <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-10 rounded-lg border border-[#D4DAE9] dark:border-slate-700 bg-[#F4F6FB] dark:bg-slate-800 overflow-hidden flex items-center justify-center">
                       <img
                         src={previewIconSrc}
                         alt="Uploaded preview"
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain p-0.5"
                       />
                     </div>
                     <div>
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
                         Custom Image Attached
                       </span>
                       <span className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
-                        <Check className="w-3 h-3" /> Ready for mobile apps
+                        <Check className="w-3 h-3" /> Ready for customer app display
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
-                      className="px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition"
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition"
                     >
                       {uploading ? 'Uploading...' : 'Replace'}
                     </button>
                     <button
                       type="button"
                       onClick={handleClearImage}
-                      className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition"
+                      className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition"
                       title="Remove image"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -824,21 +1023,21 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
               ) : (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center justify-center p-5 bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-[#1F2B6D] dark:hover:border-blue-400 rounded-xl cursor-pointer transition text-center"
+                  className="flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-[#1F2B6D] dark:hover:border-blue-400 rounded-xl cursor-pointer transition text-center"
                 >
                   {uploading ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <Loader2 className="w-4 h-4 animate-spin text-[#1F2B6D]" />
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[#1F2B6D]">
+                      <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Uploading to secure storage...</span>
                     </div>
                   ) : (
                     <>
-                      <Upload className="w-5 h-5 text-slate-400 mb-1" />
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      <Upload className="w-5 h-5 text-slate-400 mb-1.5" />
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
                         Click to upload vehicle image
                       </span>
-                      <span className="text-[10px] text-slate-400 mt-0.5">
-                        PNG, JPG, or WebP (transparent background recommended)
+                      <span className="text-[10px] text-slate-400 mt-1">
+                        PNG, JPG, or WebP (transparent background recommended for clean card integration)
                       </span>
                     </>
                   )}
@@ -847,7 +1046,7 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: DIRECT IMAGE URL */}
+          {/* TAB 2: DIRECT IMAGE URL */}
           {imageMode === 'url' && (
             <div className="pt-1 space-y-1.5">
               <input
@@ -861,7 +1060,7 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
                   }
                 }}
                 placeholder="https://images.your-cdn.com/vehicles/cab-mini.png"
-                className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+                className="w-full px-3.5 py-2.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
               />
               <span className="text-[10px] text-slate-400 block">
                 Paste any cloud image URL. Card preview updates immediately above.
@@ -870,14 +1069,165 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
           )}
         </div>
 
-        {/* ───── 4. ACTIVE IN APPS SWITCH ───── */}
-        <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-800">
+        {/* ───── 4. MAP TOP-VIEW MARKER ICON (FOR LIVE TRACKING & NEARBY MAPS) ───── */}
+        <div className="p-5 bg-slate-50/70 dark:bg-slate-900/40 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3.5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Compass className="w-3.5 h-3.5 text-[#1F2B6D] dark:text-blue-400" />
+                  4. Live Map Top-View Marker Icon
+                </label>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 font-semibold">
+                  Optional
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                2D top-down view facing North (0°) with transparent background for live driver map tracking
+              </p>
+            </div>
+
+            {/* Mode Switcher Tabs */}
+            <div className="flex bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg text-[11px] font-semibold">
+              <button
+                type="button"
+                onClick={() => setMapIconMode('upload')}
+                className={cn(
+                  'px-3 py-1 rounded-md transition flex items-center gap-1.5',
+                  mapIconMode === 'upload'
+                    ? 'bg-white dark:bg-slate-900 text-[#1F2B6D] dark:text-blue-400 shadow-2xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                )}
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Upload
+              </button>
+              <button
+                type="button"
+                onClick={() => setMapIconMode('url')}
+                className={cn(
+                  'px-3 py-1 rounded-md transition flex items-center gap-1.5',
+                  mapIconMode === 'url'
+                    ? 'bg-white dark:bg-slate-900 text-[#1F2B6D] dark:text-blue-400 shadow-2xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                )}
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                URL
+              </button>
+            </div>
+          </div>
+
+          {mapIconMode === 'upload' ? (
+            <div className="pt-1">
+              <input
+                ref={mapFileInputRef}
+                type="file"
+                accept="image/png,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleMapIconFileChange}
+              />
+
+              {isCustomMapIcon ? (
+                <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-12 h-12 rounded-full border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-950/40 flex items-center justify-center p-1.5 shadow-2xs">
+                      <img
+                        src={previewMapIconSrc || ''}
+                        alt="Map icon"
+                        className="w-full h-full object-contain"
+                      />
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1F2B6D] text-white text-[8px] font-bold flex items-center justify-center shadow-xs" title="Facing North (0°)">
+                        ▲
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                        Custom Map Marker Active
+                      </span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                        <Check className="w-3 h-3" /> Rotates with live driver heading on Google Maps
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => mapFileInputRef.current?.click()}
+                      disabled={uploadingMapIcon}
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition"
+                    >
+                      {uploadingMapIcon ? 'Uploading...' : 'Replace'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearMapIcon}
+                      className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition"
+                      title="Clear custom map icon (uses built-in vector fallback)"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => mapFileInputRef.current?.click()}
+                  className={cn(
+                    'flex flex-col items-center justify-center p-5 border-2 border-dashed rounded-xl cursor-pointer transition text-center bg-white dark:bg-slate-900',
+                    uploadingMapIcon
+                      ? 'border-blue-300 bg-blue-50/50 dark:bg-blue-950/20'
+                      : 'border-slate-300 dark:border-slate-700 hover:border-[#1F2B6D] dark:hover:border-blue-400'
+                  )}
+                >
+                  {uploadingMapIcon ? (
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[#1F2B6D] dark:text-blue-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Uploading Map Icon...
+                    </div>
+                  ) : (
+                    <>
+                      <div className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 mb-1.5">
+                        <Navigation className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Click to upload 2D Top-Down Map Marker
+                      </span>
+                      <span className="text-[10px] text-slate-400 mt-1">
+                        PNG, WebP or SVG with transparent background (128×128 recommended)
+                      </span>
+                      <span className="text-[9.5px] text-blue-600 dark:text-blue-400 mt-1.5 font-medium">
+                        Leave empty to use built-in native {formData.category === 'bike' ? 'Bike' : formData.category === 'auto' ? 'Auto' : 'Cab'} vector glyph
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="pt-1 space-y-1.5">
+              <input
+                type="url"
+                value={formData.icon || ''}
+                onChange={(e) => handleChange('icon', e.target.value)}
+                placeholder="https://your-domain.com/icons/auto-top-view.png"
+                className="w-full px-3.5 py-2.5 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+              />
+              <span className="text-[10px] text-slate-400 block">
+                Direct public URL to a top-down vehicle image with transparent background.
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* ───── 5. ACTIVE IN APPS SWITCH ───── */}
+        <div className="flex items-center justify-between p-5 bg-slate-50/70 dark:bg-slate-900/40 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
           <div>
             <h5 className="text-xs font-bold text-slate-800 dark:text-slate-100">
               Active in Apps
             </h5>
             <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
-              Visible to riders and drivers for booking
+              When turned on, riders can see this service on the home screen and request bookings.
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
@@ -887,7 +1237,7 @@ export const VehicleTypeModal: React.FC<VehicleTypeModalProps> = ({
               onChange={(e) => handleChange('isActive', e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 shadow-2xs"></div>
           </label>
         </div>
       </form>

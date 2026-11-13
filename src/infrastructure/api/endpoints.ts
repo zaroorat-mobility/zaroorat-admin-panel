@@ -79,6 +79,7 @@ export const API_ENDPOINTS = {
     create: '/admin/vehicle-types',
     update: (id: string) => `/admin/vehicle-types/${id}`,
     toggle: (id: string) => `/admin/vehicle-types/${id}/toggle`,
+    delete: (id: string) => `/admin/vehicle-types/${id}`,
     reorder: '/admin/vehicle-types/reorder',
   },
   fareRules: {

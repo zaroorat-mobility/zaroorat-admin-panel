@@ -3,7 +3,6 @@ import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { InfoCard, InfoCardGrid } from '@/shared/components/InfoCard'
 import { Button, IconButton } from '@/shared/components/ui/Button'
-import { VEHICLE_PRESET_ICONS } from '@/assets/images/vehicles'
 import { api, API_ENDPOINTS } from '@/infrastructure/api'
 import { APP_CONFIG } from '@/app/config'
 import { VehicleTypeModal, type VehicleTypeFormData } from './VehicleTypeModal'
@@ -11,21 +10,21 @@ import { useToast } from '@/shared/context/toast'
 import { cn } from '@/shared/utils'
 import {
   Car,
+  Bike,
   Plus,
   RefreshCw,
   Edit2,
+  Trash2,
   Power,
   ChevronUp,
   ChevronDown,
   LayoutGrid,
   Table as TableIcon,
   Users,
-  Briefcase,
   AlertCircle,
   Loader2,
   Snowflake,
   Wind,
-  Coins,
   CheckCircle2,
 } from 'lucide-react'
 
@@ -48,6 +47,44 @@ export interface VehicleTypeItem {
   perKmRate?: number | null
 }
 
+const VehicleImageThumbnail: React.FC<{
+  src: string | null
+  alt: string
+  category: string
+  className?: string
+  fallbackClassName?: string
+}> = ({
+  src,
+  alt,
+  category,
+  className = 'w-full h-full object-contain p-0.5',
+  fallbackClassName = 'w-4 h-4 text-slate-400',
+}) => {
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    setError(false)
+  }, [src])
+
+  if (!src || error) {
+    return category === 'bike' ? (
+      <Bike className={fallbackClassName} />
+    ) : (
+      <Car className={fallbackClassName} />
+    )
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      onError={() => setError(true)}
+      loading="lazy"
+    />
+  )
+}
+
 export const VehicleTypesListPage: React.FC = () => {
   const toast = useToast()
   const [services, setServices] = useState<VehicleTypeItem[]>([])
@@ -55,6 +92,8 @@ export const VehicleTypesListPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [selectedService, setSelectedService] = useState<VehicleTypeFormData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<VehicleTypeItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table')
   const [reordering, setReordering] = useState(false)
   const [filterTab, setFilterTab] = useState<'all' | 'ac' | 'non_ac' | 'other'>('all')
@@ -192,6 +231,24 @@ export const VehicleTypesListPage: React.FC = () => {
     }
   }
 
+  const handleDelete = async () => {
+    if (!deleteConfirmItem) return
+    try {
+      setDeleting(true)
+      await api.delete(API_ENDPOINTS.vehicleTypes.delete(deleteConfirmItem.id))
+      setServices((prev) => prev.filter((s) => s.id !== deleteConfirmItem.id))
+      toast.success(
+        'Service Deleted',
+        `"${deleteConfirmItem.name}" has been permanently removed.`,
+      )
+      setDeleteConfirmItem(null)
+    } catch (err: any) {
+      toast.error('Delete Failed', err?.response?.data?.message || err?.message || 'Failed to delete service.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const handleMoveOrder = async (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1
     if (targetIndex < 0 || targetIndex >= services.length) return
@@ -251,9 +308,7 @@ export const VehicleTypesListPage: React.FC = () => {
       description: item.description || '',
       imageUrl: item.imageUrl || '',
       imageFileId: item.imageFileId || '',
-      icon:
-        item.icon ||
-        (inferredCategory === 'bike' ? 'bike' : inferredCategory === 'auto' ? 'auto' : 'cab-mini'),
+      icon: item.icon || '',
       passengerCapacity:
         item.passengerCapacity ??
         (inferredCategory === 'bike' ? 1 : inferredCategory === 'auto' ? 3 : 4),
@@ -279,15 +334,14 @@ export const VehicleTypesListPage: React.FC = () => {
       const apiHost = APP_CONFIG.api.baseUrl.replace(/\/api\/v1\/?$/, '')
       return `${apiHost}${item.imageUrl.startsWith('/') ? '' : '/'}${item.imageUrl}`
     }
-    if (item.icon && VEHICLE_PRESET_ICONS[item.icon]) return VEHICLE_PRESET_ICONS[item.icon]
-    return VEHICLE_PRESET_ICONS['cab-mini']
+    return null
   }
 
   return (
     <PageWrapper>
       <PageHeader
         title="Fleet Services & Vehicle Types"
-        subtitle="Manage the customer app 2x4 service cards, real image assets, AC/NON AC tags, capacities, and display priority."
+        description="Manage the customer app 2x4 service cards, real image assets, AC/NON AC tags, capacities, and display priority."
         actions={
           <div className="flex items-center gap-2.5">
             {/* Consistent Refresh Button from shared Button component */}
@@ -346,7 +400,7 @@ export const VehicleTypesListPage: React.FC = () => {
       />
 
       {/* ───── METRIC STATS (Consistent Brand Palette & Distinct Meaningful Icons) ───── */}
-      <InfoCardGrid columns={4} className="mb-6">
+      <InfoCardGrid cols={4} className="mb-6">
         <InfoCard
           label="Total Fleet"
           value={stats.total}
@@ -504,26 +558,22 @@ export const VehicleTypesListPage: React.FC = () => {
 
                 {/* Mobile Preview Visual Card */}
                 <div className="flex flex-col items-center justify-center py-4 bg-slate-50/70 dark:bg-slate-950/40 rounded-xl mb-4">
-                  <div className="relative w-[84px] h-[72px] rounded-xl border border-[#DDE3EA] dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
+                  <div className="relative w-[74px] h-[61px] rounded-xl border border-[#D4DAE9] dark:border-slate-700 bg-[#F4F6FB] dark:bg-slate-900 overflow-hidden shadow-xs">
                     {badge && (
                       <span className="absolute top-1.5 right-2 font-semibold text-[8.5px] text-[#233464] dark:text-[#93C5FD] tracking-tight z-10 leading-none">
                         {badge}
                       </span>
                     )}
 
-                    {imgSrc ? (
-                      <img
-                        src={imgSrc}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
-                        No icon
-                      </div>
-                    )}
+                    <VehicleImageThumbnail
+                      src={imgSrc}
+                      alt={item.name}
+                      category={item.category}
+                      className="w-full h-full object-contain p-1"
+                      fallbackClassName="w-7 h-7 text-slate-400"
+                    />
                   </div>
-                  <h4 className="mt-2 text-xs font-bold text-slate-900 dark:text-slate-100 text-center">
+                  <h4 className="mt-1.5 text-[11px] font-medium leading-none tracking-normal text-[#1E2756] dark:text-slate-100 text-center truncate w-full">
                     {item.name}
                   </h4>
                 </div>
@@ -546,6 +596,17 @@ export const VehicleTypesListPage: React.FC = () => {
                     </span>
                   </div>
                   
+                  <div className="flex items-center justify-between">
+                    <span>Map Marker:</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
+                      {item.icon && (item.icon.startsWith('http') || item.icon.startsWith('/')) ? (
+                        <span className="text-blue-600 dark:text-blue-400 font-medium">Custom Top-View</span>
+                      ) : (
+                        <span className="text-slate-400 font-normal">Native Vector</span>
+                      )}
+                    </span>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <span>Status:</span>
                     <span
@@ -589,6 +650,14 @@ export const VehicleTypesListPage: React.FC = () => {
                         : 'text-slate-400 border-slate-200 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800',
                     )}
                     icon={<Power className="w-3.5 h-3.5" />}
+                  />
+                  <IconButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleteConfirmItem(item)}
+                    title="Delete Service"
+                    className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-900/60 dark:hover:bg-red-950/30"
+                    icon={<Trash2 className="w-3.5 h-3.5" />}
                   />
                 </div>
               </div>
@@ -645,19 +714,24 @@ export const VehicleTypesListPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden flex-shrink-0">
-                          {imgSrc ? (
-                            <img src={imgSrc} alt={item.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400">
-                              N/A
-                            </div>
-                          )}
+                        <div className="w-10 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                          <VehicleImageThumbnail
+                            src={imgSrc}
+                            alt={item.name}
+                            category={item.category}
+                          />
                         </div>
                         <div>
-                          <span className="font-bold text-slate-900 dark:text-slate-100 block">
-                            {item.name}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                              {item.name}
+                            </span>
+                            {item.icon && (item.icon.startsWith('http') || item.icon.startsWith('/')) ? (
+                              <span className="inline-flex items-center gap-0.5 text-[9.5px] px-1.5 py-0.2 rounded bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300 font-semibold" title="Custom Top-View GPS Marker Active">
+                                📍 Map Icon
+                              </span>
+                            ) : null}
+                          </div>
                           {item.description && (
                             <span className="text-[11px] text-slate-400 truncate max-w-xs block">
                               {item.description}
@@ -724,6 +798,14 @@ export const VehicleTypesListPage: React.FC = () => {
                           )}
                           icon={<Power className="w-3.5 h-3.5" />}
                         />
+                        <IconButton
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDeleteConfirmItem(item)}
+                          title="Delete Service"
+                          className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-50 dark:border-red-900/60 dark:hover:bg-red-950/30"
+                          icon={<Trash2 className="w-3.5 h-3.5" />}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -743,6 +825,42 @@ export const VehicleTypesListPage: React.FC = () => {
         existingCodes={services.map((s) => s.code)}
         onSuccess={fetchServices}
       />
+
+      {/* ───── CONFIRM DELETE MODAL ───── */}
+      {deleteConfirmItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <div className="p-2 bg-red-50 dark:bg-red-950/50 rounded-xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Fleet Service</h3>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
+              Are you sure you want to delete <span className="font-semibold text-slate-900 dark:text-white">&ldquo;{deleteConfirmItem.name}&rdquo;</span> ({deleteConfirmItem.code})? This will remove the service and its rate cards from the system.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteConfirmItem(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleDelete}
+                loading={deleting}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deleting ? 'Deleting...' : 'Delete Service'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageWrapper>
   )
 }
