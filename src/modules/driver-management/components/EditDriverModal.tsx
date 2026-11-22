@@ -126,32 +126,25 @@ export const EditDriverModal: React.FC<EditDriverModalProps> = ({
 
       setDriverStatus(d.driverStatus || (d.applicationStatus === 'approved' ? 'active' : 'pending'))
       setBillingMode(d.paymentModel?.toLowerCase() || 'commission')
-      setBankName(
-        d.bankAccounts?.[0]?.bankName ||
-          d.bankAccount?.bankName ||
-          d.bankName ||
-          '',
-      )
+      const rawBankName =
+        d.bankAccounts?.[0]?.bankName || d.bankAccount?.bankName || d.bankName || ''
+      setBankName(rawBankName.toLowerCase() === 'bank' ? '' : rawBankName)
       setAccountHolderName(
         d.bankAccounts?.[0]?.bankAccountName ||
           d.bankAccount?.accountHolderName ||
           d.bankAccountName ||
-          d.driverName ||
           '',
       )
-      setAccountNumber(
+      const rawAccountNum =
         d.bankAccounts?.[0]?.accountNumber ||
-          d.bankAccounts?.[0]?.accountNumberMasked ||
-          d.bankAccount?.accountNumber ||
-          d.bankAccountNumber ||
-          '',
-      )
-      setIfscCode(
-        d.bankAccounts?.[0]?.bankIfsc ||
-          d.bankAccount?.ifscCode ||
-          d.bankIfsc ||
-          '',
-      )
+        d.bankAccounts?.[0]?.accountNumberMasked ||
+        d.bankAccount?.accountNumber ||
+        d.bankAccountNumber ||
+        ''
+      setAccountNumber(/^\*+0000$/.test(rawAccountNum) ? '' : rawAccountNum)
+      const rawIfsc =
+        d.bankAccounts?.[0]?.bankIfsc || d.bankAccount?.ifscCode || d.bankIfsc || ''
+      setIfscCode(rawIfsc.toUpperCase() === 'IFSC0000000' ? '' : rawIfsc)
       setUpiId(d.bankAccounts?.[0]?.upiId || d.bankAccount?.upiId || d.upiId || '')
     }
   }, [driver])
@@ -199,13 +192,25 @@ export const EditDriverModal: React.FC<EditDriverModalProps> = ({
         vehicleType,
         driverStatus,
         paymentModel: billingMode.toUpperCase(),
-        bankAccount: {
-          bankName,
-          accountHolderName,
-          accountNumber,
-          ifscCode,
-          upiId,
-        },
+        ...(bankName.trim() ||
+        accountHolderName.trim() ||
+        ifscCode.trim() ||
+        upiId.trim() ||
+        (accountNumber.trim() && !/[*•]/.test(accountNumber))
+          ? {
+              bankAccount: {
+                ...(bankName.trim() ? { bankName: bankName.trim() } : {}),
+                ...(accountHolderName.trim()
+                  ? { accountHolderName: accountHolderName.trim() }
+                  : {}),
+                ...(accountNumber.trim() && !/[*•]/.test(accountNumber)
+                  ? { accountNumber: accountNumber.trim() }
+                  : {}),
+                ...(ifscCode.trim() ? { ifscCode: ifscCode.trim().toUpperCase() } : {}),
+                ...(upiId.trim() ? { upiId: upiId.trim() } : {}),
+              },
+            }
+          : {}),
       })
     }
   }

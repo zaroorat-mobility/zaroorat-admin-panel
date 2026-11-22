@@ -1,4 +1,5 @@
 import React from 'react'
+import { CommissionRulesPage } from '../commission/CommissionRulesPage'
 import { Routes, Route } from 'react-router-dom'
 import { PricingDashboardPage } from '../dashboard'
 import {
@@ -22,6 +23,7 @@ import {
 import { PricingHistoryPage } from '../pricing-history'
 import { GstTaxationPage } from '../gst-taxation/pages/GstTaxationPage'
 import { InvoiceGenerationPage } from '../invoices/pages/InvoiceGenerationPage'
+import { SettlementFailuresPage } from '../settlement-failures/SettlementFailuresPage'
 
 export const PricingManagementRoutes: React.FC = () => {
   return (
@@ -31,6 +33,7 @@ export const PricingManagementRoutes: React.FC = () => {
 
       {/* Fare Rules */}
       <Route path="fare-rules" element={<FareRulesListPage />} />
+      <Route path="commission" element={<CommissionRulesPage />} />
       <Route path="fare-rules/new" element={<CreateFareRulePage />} />
       <Route path="fare-rules/:id" element={<FareRuleDetailsPage />} />
       <Route path="fare-rules/:id/edit" element={<EditFareRulePage />} />
@@ -55,6 +58,9 @@ export const PricingManagementRoutes: React.FC = () => {
 
       {/* Invoices Console */}
       <Route path="invoices" element={<InvoiceGenerationPage />} />
+
+      {/* Finance Settlement Failures & Daily Reconciliation */}
+      <Route path="settlement-failures" element={<SettlementFailuresPage />} />
     </Routes>
   )
 }

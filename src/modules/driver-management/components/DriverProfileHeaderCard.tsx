@@ -56,10 +56,10 @@ export const DriverProfileHeaderCard: React.FC<DriverProfileHeaderCardProps> = (
   variant,
   driverId,
   joinedOn,
-  rating = '4.8',
+  rating = '—',
   totalRides,
   statusLabel,
-  isOnDuty = true,
+  isOnDuty = false,
 }) => {
   const isProfileMode = variant === 'profile' || !!driverId
 

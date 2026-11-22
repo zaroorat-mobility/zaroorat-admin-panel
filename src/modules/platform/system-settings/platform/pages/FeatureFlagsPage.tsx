@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { AlertCircle, Info, Link2, X } from 'lucide-react'
 import { Card, CardContent } from '@/shared/components/ui/Card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/Table'
 import { SearchInput } from '@/shared/components/SearchInput'
@@ -10,6 +11,54 @@ import { SettingsError, SettingsFormActions, SettingsLoading } from '@/modules/p
 type FlagDraft = Pick<FeatureFlag, 'key' | 'status' | 'rolloutPercentage' | 'isActive'>
 type FilterStatus = 'ALL' | 'ENABLED' | 'DISABLED'
 
+/**
+ * Prerequisite map matching backend FeatureFlagDependencyValidator.
+ * Turning a dependent flag ON auto-enables its prerequisites; turning a
+ * prerequisite OFF auto-disables active dependents so saving never fails with 409.
+ */
+const FLAG_PREREQUISITES: Record<string, readonly string[]> = {
+  'pricing.passenger_gst_enabled': ['pricing.snapshot_read'],
+  'pricing.gst_recovery_enabled': [
+    'pricing.passenger_gst_enabled',
+    'pricing.wallet_reservation_enabled',
+    'pricing.snapshot_read',
+  ],
+  'pricing.commission_wallet_deduction': [
+    'pricing.snapshot_read',
+    'pricing.commission_config_source',
+    'pricing.wallet_reservation_enabled',
+  ],
+}
+
+function getAllPrerequisites(key: string): string[] {
+  const visited = new Set<string>()
+  const stack = [...(FLAG_PREREQUISITES[key] ?? [])]
+  while (stack.length > 0) {
+    const cur = stack.pop()!
+    if (visited.has(cur)) continue
+    visited.add(cur)
+    for (const parent of FLAG_PREREQUISITES[cur] ?? []) {
+      if (!visited.has(parent)) stack.push(parent)
+    }
+  }
+  return Array.from(visited)
+}
+
+function getAllDependents(key: string): string[] {
+  const visited = new Set<string>()
+  const queue = [key]
+  while (queue.length > 0) {
+    const cur = queue.shift()!
+    for (const [flagKey, prereqs] of Object.entries(FLAG_PREREQUISITES)) {
+      if (prereqs.includes(cur) && !visited.has(flagKey)) {
+        visited.add(flagKey)
+        queue.push(flagKey)
+      }
+    }
+  }
+  return Array.from(visited)
+}
+
 export const FeatureFlagsPage: React.FC = () => {
   const { data, isLoading, isError } = useFeatureFlags()
   const { mutate: save, isPending } = useUpdateFeatureFlags()
@@ -17,6 +66,8 @@ export const FeatureFlagsPage: React.FC = () => {
   const [drafts, setDrafts] = useState<FlagDraft[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('ALL')
+  const [dependencyNotice, setDependencyNotice] = useState<string | null>(null)
+  const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!data) return
@@ -28,21 +79,59 @@ export const FeatureFlagsPage: React.FC = () => {
         isActive: flag.isActive,
       })),
     )
+    setDependencyNotice(null)
+    setSaveErrorMessage(null)
   }, [data])
 
   const toggleStatus = (key: string) => {
-    setDrafts((prev) =>
-      prev.map((flag) => {
-        if (flag.key !== key) return flag
-        const isCurrentlyActive = flag.status === 'ON' || flag.status === 'PARTIAL'
-        const nextStatus: FeatureFlagStatus = isCurrentlyActive ? 'OFF' : 'ON'
+    setSaveErrorMessage(null)
+    const target = drafts.find((f) => f.key === key)
+    if (!target) return
+    const isCurrentlyActive = target.status === 'ON' || target.status === 'PARTIAL'
+    const nextStatus: FeatureFlagStatus = isCurrentlyActive ? 'OFF' : 'ON'
+
+    const autoToggled: string[] = []
+    const prereqsToEnable = nextStatus === 'ON' ? new Set(getAllPrerequisites(key)) : new Set<string>()
+    const dependentsToDisable = nextStatus === 'OFF' ? new Set(getAllDependents(key)) : new Set<string>()
+
+    const updated = drafts.map((flag) => {
+      if (flag.key === key) {
         return {
           ...flag,
           status: nextStatus,
-          rolloutPercentage: nextStatus === 'ON' ? (flag.rolloutPercentage > 0 ? flag.rolloutPercentage : 100) : 0,
+          rolloutPercentage:
+            nextStatus === 'ON' ? (flag.rolloutPercentage > 0 ? flag.rolloutPercentage : 100) : 0,
         }
-      }),
-    )
+      }
+      if (prereqsToEnable.has(flag.key) && flag.status === 'OFF') {
+        autoToggled.push(flag.key)
+        return {
+          ...flag,
+          status: 'ON' as FeatureFlagStatus,
+          rolloutPercentage: flag.rolloutPercentage > 0 ? flag.rolloutPercentage : 100,
+        }
+      }
+      if (dependentsToDisable.has(flag.key) && (flag.status === 'ON' || flag.status === 'PARTIAL')) {
+        autoToggled.push(flag.key)
+        return {
+          ...flag,
+          status: 'OFF' as FeatureFlagStatus,
+          rolloutPercentage: 0,
+        }
+      }
+      return flag
+    })
+
+    setDrafts(updated)
+    if (autoToggled.length > 0) {
+      setDependencyNotice(
+        nextStatus === 'ON'
+          ? `Enabling ${key} also auto-enabled required flag(s): ${autoToggled.join(', ')}. Click Save to apply.`
+          : `Disabling ${key} also turned OFF dependent flag(s): ${autoToggled.join(', ')}. Click Save to apply.`,
+      )
+    } else {
+      setDependencyNotice(null)
+    }
   }
 
   const setRollout = (key: string, rolloutPercentage: number) => {
@@ -77,6 +166,8 @@ export const FeatureFlagsPage: React.FC = () => {
         isActive: flag.isActive,
       })),
     )
+    setDependencyNotice(null)
+    setSaveErrorMessage(null)
   }
 
   const flagMeta = useMemo(() => new Map((data ?? []).map((flag) => [flag.key, flag])), [data])
@@ -121,12 +212,20 @@ export const FeatureFlagsPage: React.FC = () => {
   }, [drafts])
 
   const handleSave = () => {
+    setSaveErrorMessage(null)
     save(
       { flags: drafts },
       {
-        onSuccess: () => success('Settings saved', 'Feature flags were updated successfully.'),
-        onError: (err) =>
-          error('Save failed', err instanceof Error ? err.message : 'Could not save settings'),
+        onSuccess: () => {
+          setDependencyNotice(null)
+          setSaveErrorMessage(null)
+          success('Settings saved', 'Feature flags were updated successfully.')
+        },
+        onError: (err) => {
+          const msg = err instanceof Error ? err.message : 'Could not save settings'
+          setSaveErrorMessage(msg)
+          error('Save failed', msg)
+        },
       },
     )
   }
@@ -183,6 +282,40 @@ export const FeatureFlagsPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Inline Dependency Info & Save Error Banners */}
+        {saveErrorMessage ? (
+          <div className="mx-4 mt-4 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+            <div className="flex-1 text-xs leading-relaxed">
+              <p className="font-semibold">Could not save feature flags</p>
+              <p className="mt-0.5">{saveErrorMessage}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSaveErrorMessage(null)}
+              className="rounded p-0.5 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/50"
+              aria-label="Dismiss error"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
+
+        {dependencyNotice ? (
+          <div className="mx-4 mt-4 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#1F2B6D] dark:text-blue-400" />
+            <p className="flex-1 text-xs font-medium leading-relaxed">{dependencyNotice}</p>
+            <button
+              type="button"
+              onClick={() => setDependencyNotice(null)}
+              className="rounded p-0.5 text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+              aria-label="Dismiss notice"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
+
         {/* Flags Table */}
         <Table>
           <TableHeader>
@@ -218,6 +351,30 @@ export const FeatureFlagsPage: React.FC = () => {
                       <p className="text-sm text-muted-foreground leading-relaxed break-words max-w-lg">
                         {meta?.description ?? '—'}
                       </p>
+                      {(FLAG_PREREQUISITES[draft.key]?.length ?? 0) > 0 ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                            <Link2 className="h-3 w-3" />
+                            Requires:
+                          </span>
+                          {FLAG_PREREQUISITES[draft.key]!.map((reqKey) => {
+                            const reqDraft = drafts.find((d) => d.key === reqKey)
+                            const reqOn = reqDraft?.status === 'ON' || reqDraft?.status === 'PARTIAL'
+                            return (
+                              <span
+                                key={reqKey}
+                                className={`inline-flex items-center rounded-md px-1.5 py-0.5 font-mono text-[10.5px] font-medium border ${
+                                  reqOn
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                                }`}
+                              >
+                                {reqKey}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      ) : null}
                     </TableCell>
 
                     <TableCell className="align-top py-4">

@@ -1,22 +1,36 @@
 import { Info } from 'lucide-react'
+import { usePricingSummary } from '../../hooks'
 
 /**
- * No ride reads these rules yet (ride cancellation uses the env RIDE_DEFAULT_CANCELLATION_FEE,
- * not even the System Settings field of the same name), so the screens must not let an admin
- * believe a saved rule is in force.
- * Remove this when rides start using cancellation policies.
+ * Live rollout banner: reads `cancellation.policy_enforcement` directly from
+ * `GET /admin/pricing/summary`. Policies are versioned in PostgreSQL and
+ * evaluated by the backend policy engine once the flag is enabled; assessed
+ * fees are recorded as `ASSESSED` without auto-debit until Finance approval (D-07).
  */
-export const NotAppliedNotice = () => (
-  <div
-    role="note"
-    className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100 dark:border-amber-800"
-  >
-    <Info className="h-4 w-4 mt-0.5 shrink-0" />
-    <p>
-      <strong>Not applied to rides yet.</strong> Rides do not read these rules. Today a rider who
-      cancels after the driver has arrived is given one flat fee set on the server by the
-      engineering team (₹50 unless changed), whatever is set here. That fee is recorded on the
-      ride but not collected.
-    </p>
-  </div>
-)
+export const NotAppliedNotice = () => {
+  const { data: summary } = usePricingSummary()
+  const enforced = summary?.flags.cancellationPolicyEnforcement ?? false
+
+  return (
+    <div
+      role="note"
+      className={`flex items-start gap-2.5 p-3 rounded-lg border text-xs ${
+        enforced
+          ? 'bg-emerald-50 border-emerald-300 text-emerald-950 dark:bg-emerald-950/30 dark:text-emerald-100 dark:border-emerald-800'
+          : 'bg-amber-50 border-amber-300 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100 dark:border-amber-800'
+      }`}
+    >
+      <Info className="h-4 w-4 mt-0.5 shrink-0" />
+      <p>
+        <strong>
+          {enforced
+            ? 'Policy engine active (`cancellation.policy_enforcement` ON).'
+            : 'Feature-flagged rollout (`cancellation.policy_enforcement` OFF — default).'}
+        </strong>{' '}
+        {enforced
+          ? 'Active versioned policies in PostgreSQL are being evaluated on live cancellations. Assessed fees are recorded on the cancellation snapshot without auto-debit until Finance settlement approval (D-07).'
+          : 'Policies saved here are versioned in PostgreSQL and enforced on rides once the feature flag is turned ON. Fees are recorded as ASSESSED on the cancellation snapshot and are not auto-collected until Finance approves cancellation settlement economics (D-07).'}
+      </p>
+    </div>
+  )
+}

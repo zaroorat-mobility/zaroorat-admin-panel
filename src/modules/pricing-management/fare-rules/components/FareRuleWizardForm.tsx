@@ -1,83 +1,136 @@
-import React, { useEffect, useState } from 'react'
-import { Card, CardContent } from '@/shared/components/ui/Card'
-import { Button } from '@/shared/components/ui/Button'
-import { FormTabs } from '@/shared/components/ui/FormTabs'
-import { ChevronLeft, ChevronRight, Save, Info, Sparkles, CheckCircle2 } from 'lucide-react'
-import type { FareRule, RideServiceTypeUi, ServiceZoneOption, CityOption } from '../types'
+import React, { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  Layers,
+  Car,
+  MapPin,
+  Map,
+  ChevronDown,
+  Info,
+  Calendar,
+  SlidersHorizontal,
+  AlertTriangle,
+} from 'lucide-react'
+import type { FareRule, ServiceZoneOption, CityOption } from '../types'
 import { useVehicleTypes, vehicleTypeLabel } from '@/modules/geographic-management/hooks/useVehicleTypes'
+import { useFareRules } from '../../hooks'
 import { FareRulePreviewCard } from './FareRulePreviewCard'
+import { FareRuleConflictModal } from './FareRuleConflictModal'
 import { getCities, getServiceZones } from '../../api'
+import DatePicker from '@/shared/components/ui/DatePicker'
+import { Button } from '@/shared/components/ui/Button'
+
+function numToInput(value: number | null | undefined): string {
+  return value != null && Number.isFinite(value) ? String(value) : ''
+}
+
+function parseInputNum(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
 
 interface FareRuleWizardFormProps {
   initialValues?: FareRule | null
+  mode?: 'create' | 'edit'
   presetCityCode?: string
   presetServiceZoneId?: string
   onSubmit: (data: Omit<FareRule, 'id' | 'createdAt' | 'updatedAt' | 'version' | 'serviceZoneName'>) => void
   loading?: boolean
+  error?: unknown
 }
-
-type StepType = 'basic' | 'base_pricing' | 'waiting' | 'night' | 'fees' | 'simulation' | 'review'
 
 export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
   initialValues,
+  mode,
   presetCityCode,
   presetServiceZoneId,
   onSubmit,
-  loading
+  loading = false,
+  error,
 }) => {
-  const [activeStep, setActiveStep] = useState<StepType>('basic')
+  const navigate = useNavigate()
+  const isEditMode = mode ? mode === 'edit' : Boolean(initialValues?.id)
 
-  // Form states
-  const [ruleName, setRuleName] = useState(initialValues?.ruleName || '')
+  // 1. Basic Details (Blank on Create; pre-filled only on Edit / Duplicate / Preset)
   const { data: vehicleCatalog = [] } = useVehicleTypes()
-  const [vehicleType, setVehicleType] = useState(initialValues?.vehicleType ?? '')
-  // Active types only: the server refuses a new fare on a retired one. A rule already on a
-  // retired type keeps it as a choice, so editing its fare does not move it.
-  const vehicleChoices = vehicleCatalog.filter((v) => v.isActive || v.code === initialValues?.vehicleType)
-  const vehicleName = (code: string) => {
-    const match = vehicleCatalog.find((v) => v.code === code)
-    return match ? `${vehicleTypeLabel(match)}${match.isActive ? '' : ' (retired)'}` : code
-  }
-  const [cityCode, setCityCode] = useState(
-    initialValues?.cityCode || presetCityCode || 'GLOBAL',
-  )
-  const [serviceType, setServiceType] = useState<RideServiceTypeUi | ''>(
-    initialValues?.serviceType ?? '',
+
+  const [vehicleType, setVehicleType] = useState<string>(initialValues?.vehicleType ?? '')
+  const [cityCode, setCityCode] = useState<string>(
+    initialValues?.cityCode ?? presetCityCode ?? '',
   )
   const [serviceZoneId, setServiceZoneId] = useState<string>(
     initialValues?.serviceZoneId ?? presetServiceZoneId ?? '',
   )
   const [cities, setCities] = useState<CityOption[]>([])
   const [serviceZones, setServiceZones] = useState<ServiceZoneOption[]>([])
-  const [status, setStatus] = useState<'active' | 'inactive'>(initialValues?.status || 'active')
-  const [effectiveFrom, setEffectiveFrom] = useState(initialValues?.effectiveFrom || new Date().toISOString().split('T')[0])
-  const [effectiveTo, setEffectiveTo] = useState(initialValues?.effectiveTo || '')
+  const [conflictModalOpen, setConflictModalOpen] = useState<boolean>(false)
 
-  const [baseFare, setBaseFare] = useState(initialValues?.baseFare || 50)
-  const [minimumFare, setMinimumFare] = useState(initialValues?.minimumFare || 60)
-  const [perKmRate, setPerKmRate] = useState(initialValues?.perKmRate || 12)
-  const [perMinuteRate, setPerMinuteRate] = useState(initialValues?.perMinuteRate || 1.2)
+  // Query live active fare rules (limit <= 100 per backend listFareRulesQuerySchema)
+  const { data: existingRulesResp } = useFareRules(
+    cityCode ? { status: 'active', cityCode, limit: 100 } : { status: 'active', limit: 100 },
+  )
 
-  const [freeWaitingMinutes, setFreeWaitingMinutes] = useState(initialValues?.freeWaitingMinutes || 3)
-  const [waitingChargePerMinute, setWaitingChargePerMinute] = useState(initialValues?.waitingChargePerMinute || 2.0)
+  // 2. Fare Configuration (String-backed so Create starts genuinely empty with placeholders)
+  const [baseFareStr, setBaseFareStr] = useState<string>(numToInput(initialValues?.baseFare))
+  const [minimumFareStr, setMinimumFareStr] = useState<string>(numToInput(initialValues?.minimumFare))
+  const [perKmRateStr, setPerKmRateStr] = useState<string>(numToInput(initialValues?.perKmRate))
+  const [perMinuteRateStr, setPerMinuteRateStr] = useState<string>(
+    numToInput(initialValues?.perMinuteRate),
+  )
 
-  const [nightEnabled, setNightEnabled] = useState(initialValues?.nightEnabled || false)
-  const [nightStartTime, setNightStartTime] = useState(initialValues?.nightStartTime || '22:00')
-  const [nightEndTime, setNightEndTime] = useState(initialValues?.nightEndTime || '05:00')
-  const [nightChargePercentage, setNightChargePercentage] = useState(initialValues?.nightChargePercentage || 20)
+  // 3. Optional Charges (Off and blank by default on Create)
+  const [waitingChargeEnabled, setWaitingChargeEnabled] = useState<boolean>(
+    initialValues ? (initialValues.waitingChargePerMinute ?? 0) > 0 : false,
+  )
+  const [freeWaitingStr, setFreeWaitingStr] = useState<string>(
+    initialValues ? numToInput(initialValues.freeWaitingMinutes) : '',
+  )
+  const [waitingChargeStr, setWaitingChargeStr] = useState<string>(
+    initialValues ? numToInput(initialValues.waitingChargePerMinute) : '',
+  )
 
-  const [bookingFee, setBookingFee] = useState(initialValues?.bookingFee ?? 0)
-  const [platformFeePct, setPlatformFeePct] = useState(initialValues?.platformFeePct ?? 0)
-  const [taxRatePct, setTaxRatePct] = useState(initialValues?.taxRatePct ?? 5)
-  const [commissionRatePct, setCommissionRatePct] = useState(initialValues?.commissionRatePct ?? 15)
+  const [bookingFeeEnabled, setBookingFeeEnabled] = useState<boolean>(
+    initialValues ? (initialValues.bookingFee ?? 0) > 0 : false,
+  )
+  const [bookingFeeStr, setBookingFeeStr] = useState<string>(
+    initialValues && (initialValues.bookingFee ?? 0) > 0
+      ? numToInput(initialValues.bookingFee)
+      : '',
+  )
 
-  // Errors for validations
+  // 4. Validity & Status
+  const [effectiveFrom, setEffectiveFrom] = useState<string>(
+    initialValues?.effectiveFrom
+      ? initialValues.effectiveFrom.slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
+  )
+  const [effectiveTo, setEffectiveTo] = useState<string>(
+    initialValues?.effectiveTo ? initialValues.effectiveTo.slice(0, 10) : '',
+  )
+  const [isActive, setIsActive] = useState<boolean>(
+    initialValues ? initialValues.status === 'active' : true,
+  )
+
+  // Field validation errors
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  // Active vehicle choices: exclude retired unless initial rule is already on it
+  const vehicleChoices = useMemo(() => {
+    return vehicleCatalog.filter(
+      (v) => v.isActive || v.code === initialValues?.vehicleType || v.id === initialValues?.vehicleType,
+    )
+  }, [vehicleCatalog, initialValues])
+
+  // Load cities catalog
   useEffect(() => {
-    void getCities().then(setCities).catch(() => setCities([]))
+    void getCities()
+      .then(setCities)
+      .catch(() => setCities([]))
   }, [])
 
+  // Load service zones when city changes
   useEffect(() => {
     if (!cityCode || cityCode === 'GLOBAL') {
       setServiceZones([])
@@ -94,617 +147,752 @@ export const FareRuleWizardForm: React.FC<FareRuleWizardFormProps> = ({
       .catch(() => setServiceZones([]))
   }, [cityCode, presetServiceZoneId])
 
-  // Validator
-  const validateStep = (step: StepType): boolean => {
+  const baseFareNum = parseInputNum(baseFareStr)
+  const minimumFareNum = parseInputNum(minimumFareStr)
+  const perKmRateNum = parseInputNum(perKmRateStr)
+  const perMinuteRateNum = parseInputNum(perMinuteRateStr)
+  const freeWaitingNum = parseInputNum(freeWaitingStr)
+  const waitingChargeNum = parseInputNum(waitingChargeStr)
+  const bookingFeeNum = parseInputNum(bookingFeeStr)
+
+  const isPreviewReady =
+    baseFareNum !== null &&
+    minimumFareNum !== null &&
+    perKmRateNum !== null &&
+    perMinuteRateNum !== null
+
+  // Detect existing active fare rule for the exact same (Vehicle + City + Service Zone) on Create
+  const conflictingActiveRule = useMemo(() => {
+    if (isEditMode || !vehicleType || !cityCode) return null
+    const allRules = existingRulesResp?.data ?? []
+    const targetZone = serviceZoneId || null
+    const newFromMs = effectiveFrom ? new Date(effectiveFrom).getTime() : Date.now()
+    const newToMs = effectiveTo ? new Date(effectiveTo).getTime() : Number.POSITIVE_INFINITY
+
+    return (
+      allRules.find((r) => {
+        if (r.status !== 'active') return false
+        if (r.vehicleType.toUpperCase() !== vehicleType.toUpperCase()) return false
+        if ((r.cityCode || 'GLOBAL').toUpperCase() !== cityCode.toUpperCase()) return false
+        if ((r.serviceZoneId ?? null) !== targetZone) return false
+        const rService = (r.serviceType ?? 'instant').toLowerCase()
+        if (rService !== 'instant') return false
+        const rFromMs = new Date(r.effectiveFrom).getTime()
+        const rToMs = r.effectiveTo ? new Date(r.effectiveTo).getTime() : Number.POSITIVE_INFINITY
+        return rToMs > newFromMs && rFromMs < newToMs
+      }) ?? null
+    )
+  }, [isEditMode, vehicleType, cityCode, serviceZoneId, effectiveFrom, effectiveTo, existingRulesResp?.data])
+
+  // Synthesize display rule name preview matching server toDto logic
+  const selectedZone = serviceZones.find((z) => z.id === serviceZoneId)
+  const syntheticRuleName = useMemo(() => {
+    const parts = [vehicleType || 'VEHICLE', cityCode || 'GLOBAL']
+    parts.push('Instant')
+    if (selectedZone) parts.push(selectedZone.name)
+    return parts.join(' · ')
+  }, [vehicleType, cityCode, selectedZone])
+
+  const validate = (): boolean => {
     const errs: Record<string, string> = {}
-    
-    if (step === 'basic') {
-      if (!ruleName.trim()) errs.ruleName = 'Rule name is required.'
-      if (!vehicleType) errs.vehicleType = 'Choose the vehicle type this fare is for.'
-      if (!effectiveFrom) errs.effectiveFrom = 'Effective From date is required.'
+
+    if (!vehicleType) errs.vehicleType = 'Select a vehicle type.'
+    if (!cityCode) errs.cityCode = 'Select a city or All Cities (Global).'
+
+    if (baseFareNum === null) errs.baseFare = 'Base fare is required.'
+    else if (baseFareNum < 0) errs.baseFare = 'Base fare cannot be negative.'
+
+    if (minimumFareNum === null) errs.minimumFare = 'Minimum fare is required.'
+    else if (minimumFareNum < 0) errs.minimumFare = 'Minimum fare cannot be negative.'
+    else if (baseFareNum !== null && minimumFareNum < baseFareNum) {
+      errs.minimumFare = 'Minimum fare must be greater than or equal to Base fare.'
     }
 
-    if (step === 'base_pricing') {
-      if (baseFare < 0) errs.baseFare = 'Base fare cannot be negative.'
-      if (minimumFare < 0) errs.minimumFare = 'Minimum fare cannot be negative.'
-      if (perKmRate < 0) errs.perKmRate = 'Per KM rate cannot be negative.'
-      if (perMinuteRate < 0) errs.perMinuteRate = 'Per Minute rate cannot be negative.'
-      if (minimumFare < baseFare) errs.minimumFare = 'Minimum fare should be greater than or equal to Base fare.'
+    if (perKmRateNum === null) errs.perKmRate = 'Per Km rate is required.'
+    else if (perKmRateNum < 0) errs.perKmRate = 'Per Km rate cannot be negative.'
+
+    if (perMinuteRateNum === null) errs.perMinuteRate = 'Per minute rate is required.'
+    else if (perMinuteRateNum < 0) errs.perMinuteRate = 'Per minute rate cannot be negative.'
+
+    if (waitingChargeEnabled) {
+      if (freeWaitingNum === null) errs.freeWaitingMinutes = 'Free waiting minutes required.'
+      else if (freeWaitingNum < 0) errs.freeWaitingMinutes = 'Cannot be negative.'
+      if (waitingChargeNum === null) errs.waitingChargePerMinute = 'Waiting charge required.'
+      else if (waitingChargeNum < 0) errs.waitingChargePerMinute = 'Cannot be negative.'
     }
 
-    if (step === 'waiting') {
-      if (freeWaitingMinutes < 0) errs.freeWaitingMinutes = 'Free waiting minutes cannot be negative.'
-      if (waitingChargePerMinute < 0) errs.waitingChargePerMinute = 'Waiting charge per minute cannot be negative.'
+    if (bookingFeeEnabled) {
+      if (bookingFeeNum === null) errs.bookingFee = 'Enter a booking fee amount.'
+      else if (bookingFeeNum < 0) errs.bookingFee = 'Booking fee cannot be negative.'
     }
 
-    if (step === 'night' && nightEnabled) {
-      if (!nightStartTime) errs.nightStartTime = 'Start Time is required.'
-      if (!nightEndTime) errs.nightEndTime = 'End Time is required.'
-      if (nightChargePercentage <= 0 || nightChargePercentage > 100) {
-        errs.nightChargePercentage = 'Surcharge percentage must be between 1% and 100%.'
-      }
+    if (!effectiveFrom) {
+      errs.effectiveFrom = 'Effective From start date is required.'
     }
-
-    if (step === 'fees') {
-      if (bookingFee < 0) errs.bookingFee = 'Booking fee cannot be negative.'
-      if (platformFeePct < 0 || platformFeePct > 100) errs.platformFeePct = 'Platform fee must be 0–100%.'
-      if (taxRatePct < 0 || taxRatePct > 100) errs.taxRatePct = 'Tax rate must be 0–100%.'
-      if (commissionRatePct < 0 || commissionRatePct > 100) errs.commissionRatePct = 'Commission must be 0–100%.'
+    if (effectiveTo && effectiveTo < effectiveFrom) {
+      errs.effectiveTo = 'Effective To date cannot be earlier than Effective From date.'
     }
 
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
 
-  const stepsList: { id: StepType; label: string }[] = [
-    { id: 'basic', label: '1. Basic Details' },
-    { id: 'base_pricing', label: '2. Base Pricing' },
-    { id: 'waiting', label: '3. Waiting Charges' },
-    { id: 'night', label: '4. Night Pricing' },
-    { id: 'fees', label: '5. Fees & Marketplace' },
-    { id: 'simulation', label: '6. Fare Simulator' },
-    { id: 'review', label: '7. Review & Publish' }
-  ]
-
-  const handleStepChange = (targetStepId: StepType) => {
-    // Validate current step before moving
-    const currentStepIdx = stepsList.findIndex(s => s.id === activeStep)
-    const targetStepIdx = stepsList.findIndex(s => s.id === targetStepId)
-
-    // Moving forward requires step validations
-    if (targetStepIdx > currentStepIdx) {
-      // Validate all steps between current and target
-      for (let i = currentStepIdx; i < targetStepIdx; i++) {
-        if (!validateStep(stepsList[i].id)) return
-      }
-    }
-    setActiveStep(targetStepId)
-  }
-
-  const handleNext = () => {
-    if (!validateStep(activeStep)) return
-    const currentStepIdx = stepsList.findIndex(s => s.id === activeStep)
-    if (currentStepIdx < stepsList.length - 1) {
-      setActiveStep(stepsList[currentStepIdx + 1].id)
-    }
-  }
-
-  const handlePrev = () => {
-    const currentStepIdx = stepsList.findIndex(s => s.id === activeStep)
-    if (currentStepIdx > 0) {
-      setActiveStep(stepsList[currentStepIdx - 1].id)
-    }
-  }
-
-  const handlePublish = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Validate all steps before submitting
-    for (const step of stepsList) {
-      if (!validateStep(step.id)) {
-        setActiveStep(step.id)
-        return
-      }
+    if (!isEditMode && isActive && conflictingActiveRule) {
+      setConflictModalOpen(true)
+      return
     }
+    if (!validate()) return
+
     onSubmit({
-      ruleName,
+      ruleName: syntheticRuleName,
       vehicleType,
       cityCode,
-      serviceType: serviceType || null,
+      serviceType: 'instant',
       serviceZoneId: serviceZoneId || null,
-      status,
-      effectiveFrom,
-      effectiveTo: effectiveTo || undefined,
-      baseFare,
-      minimumFare,
-      perKmRate,
-      perMinuteRate,
-      freeWaitingMinutes,
-      waitingChargePerMinute,
-      bookingFee,
-      platformFeePct,
-      taxRatePct,
-      commissionRatePct,
-      nightEnabled,
-      nightStartTime,
-      nightEndTime,
-      nightChargePercentage
+      baseFare: baseFareNum!,
+      minimumFare: minimumFareNum!,
+      perKmRate: perKmRateNum!,
+      perMinuteRate: perMinuteRateNum!,
+      freeWaitingMinutes: waitingChargeEnabled ? (freeWaitingNum ?? 0) : 0,
+      waitingChargePerMinute: waitingChargeEnabled ? (waitingChargeNum ?? 0) : 0,
+      bookingFee: bookingFeeEnabled ? (bookingFeeNum ?? 0) : 0,
+      platformFeePct: 0,
+      platformFeeFlat: 0, // no hidden flat fee; passenger fixed charges use optional Booking Fee
+      taxRatePct: null, // resolved live from Tax & Commission
+      commissionRatePct: null, // managed centrally in Tax & Commission
+      status: isActive ? 'active' : 'inactive',
+      effectiveFrom: new Date(effectiveFrom).toISOString(),
+      effectiveTo: effectiveTo ? new Date(effectiveTo).toISOString() : undefined,
     })
   }
 
+  const serverErrorInfo = useMemo(() => {
+    if (!error) return { code: null as string | null, message: null as string | null }
+    const maybe = error as {
+      response?: { status?: number; data?: { error?: { code?: string; message?: string }; message?: string } }
+      message?: string
+    }
+    const code = maybe?.response?.data?.error?.code ?? null
+    const status = maybe?.response?.status ?? null
+    const message =
+      maybe?.response?.data?.error?.message ||
+      maybe?.response?.data?.message ||
+      (error instanceof Error ? error.message : null)
+    const isConflict = status === 409 || code === 'FARE_RULE_CONFLICT'
+    return { code: isConflict ? 'FARE_RULE_CONFLICT' : code, message }
+  }, [error])
+
+  useEffect(() => {
+    if (serverErrorInfo.code === 'FARE_RULE_CONFLICT') {
+      setConflictModalOpen(true)
+    }
+  }, [serverErrorInfo.code, error])
+
+  const serverErrorMessage =
+    serverErrorInfo.code === 'FARE_RULE_CONFLICT' ? null : serverErrorInfo.message
+
   return (
-    <div className="space-y-6 text-left">
-      {/* Wizard Form Tabs Navigation */}
-      <FormTabs
-        activeTab={activeStep}
-        onChange={handleStepChange}
-        tabs={stepsList}
-      />
+    <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3.5 text-left">
+      {/* Server Error Alert Banner */}
+      {serverErrorMessage && (
+        <div className="p-3 mb-2 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs sm:text-sm text-rose-800 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-300">
+          <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold block">Submission Error:</span>
+            <p className="mt-0.5 leading-relaxed">{serverErrorMessage}</p>
+          </div>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Left Side: Steps Content */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="premium-card text-left">
-            <CardContent className="p-6">
-              
-              {/* STEP 1: Basic Config */}
-              {activeStep === 'basic' && (
-                <div className="space-y-4 text-xs">
-                  <div className="border-b pb-3 mb-2">
-                    <h3 className="font-bold text-slate-800 text-sm">Rule Basic Settings</h3>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Define name, vehicle category, and active duration boundaries.</p>
+      {/* Main 2-Column Responsive Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 lg:gap-4 items-start">
+        {/* Left Column (5 Stacked Cards) */}
+        <div className="lg:col-span-8 space-y-2.5 sm:space-y-3">
+          {/* CARD 1: Basic Details */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-2.5">
+            {/* Header matching Geographic & Driver Management */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                <Layers className="w-4 h-4 text-[#1F2B6D] dark:text-blue-400" strokeWidth={2} />
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-[#1F2B6D] dark:text-white leading-tight">Basic Details</h3>
+                <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5 leading-tight">
+                  Choose vehicle, city and service zone for this fare rule.
+                </p>
+              </div>
+            </div>
+
+            {/* Inputs: 3 Columns */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-0.5">
+              {/* Vehicle Type */}
+              <div className="space-y-1">
+                <label className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                  Vehicle Type <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                    <Car className="h-4 w-4" />
                   </div>
-                  
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Rule Name</label>
-                    <input
-                      type="text"
-                      value={ruleName}
-                      onChange={(e) => setRuleName(e.target.value)}
-                      placeholder="e.g. Cab Standard Tariff V2"
-                      className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+                  <select
+                    value={vehicleType}
+                    onChange={(e) => setVehicleType(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] appearance-none h-10 shadow-2xs cursor-pointer"
+                  >
+                    <option value="" disabled>Select vehicle...</option>
+                    {vehicleChoices.map((v) => (
+                      <option key={v.id} value={v.code}>
+                        {vehicleTypeLabel(v)}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                    <ChevronDown className="h-4 w-4" />
+                  </div>
+                </div>
+                {errors.vehicleType && (
+                  <p className="text-[10.5px] text-rose-500 font-medium">{errors.vehicleType}</p>
+                )}
+              </div>
+
+              {/* City */}
+              <div className="space-y-1">
+                <label className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                  City <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                    <MapPin className="h-4 w-4" />
+                  </div>
+                  <select
+                    value={cityCode}
+                    onChange={(e) => setCityCode(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] appearance-none h-10 shadow-2xs cursor-pointer"
+                  >
+                    <option value="" disabled>Select city...</option>
+                    <option value="GLOBAL">All Cities (Global)</option>
+                    {cities.map((c) => (
+                      <option key={c.id} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                    <ChevronDown className="h-4 w-4" />
+                  </div>
+                </div>
+                {errors.cityCode && (
+                  <p className="text-[10.5px] text-rose-500 font-medium">{errors.cityCode}</p>
+                )}
+              </div>
+
+              {/* Service Zone */}
+              <div className="space-y-1">
+                <label className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                  Service Zone <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                    <Map className="h-4 w-4" />
+                  </div>
+                  <select
+                    value={serviceZoneId}
+                    onChange={(e) => setServiceZoneId(e.target.value)}
+                    disabled={!cityCode || cityCode === 'GLOBAL' || serviceZones.length === 0}
+                    className="w-full pl-9 pr-8 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] appearance-none h-10 shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">
+                      {!cityCode
+                        ? 'Select a city first'
+                        : cityCode === 'GLOBAL'
+                          ? 'Global (All Zones)'
+                          : 'All Zones (Citywide)'}
+                    </option>
+                    {serviceZones.map((z) => (
+                      <option key={z.id} value={z.id}>
+                        {z.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                    <ChevronDown className="h-4 w-4" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Duplicate Active Rule Guard Banner */}
+            {conflictingActiveRule && isActive && (
+              <div className="mt-2 p-3.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-900 dark:text-amber-200 space-y-0.5 min-w-0">
+                    <p className="font-bold">
+                      Active fare rule already exists for this vehicle &amp; location (v{conflictingActiveRule.version})
+                    </p>
+                    <p className="text-[11.5px] text-amber-800/90 dark:text-amber-300/90 leading-snug">
+                      Current live tariff: <strong>₹{conflictingActiveRule.baseFare}</strong> base ·{' '}
+                      <strong>₹{conflictingActiveRule.minimumFare}</strong> min ·{' '}
+                      <strong>₹{conflictingActiveRule.perKmRate}/km</strong> ·{' '}
+                      <strong>₹{conflictingActiveRule.perMinuteRate}/min</strong>. Edit the existing rule to create{' '}
+                      <strong>v{conflictingActiveRule.version + 1}</strong> cleanly, or pick a different zone/vehicle.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/pricing-management/fare-rules/${conflictingActiveRule.id}/edit`)}
+                  className="shrink-0 bg-[#1F2B6D] hover:bg-[#182258] text-white px-3.5 py-2 rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer whitespace-nowrap"
+                >
+                  Edit Existing Rule →
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* CARD 2: Fare Configuration */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-2.5">
+            {/* Header */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 font-bold text-[#1F2B6D] dark:text-blue-400 text-sm font-mono">
+                ₹
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-[#1F2B6D] dark:text-white leading-tight">Fare Configuration</h3>
+                <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5 leading-tight">
+                  Set the core fare components to calculate the ride amount.
+                </p>
+              </div>
+            </div>
+
+            {/* Inputs: 4 Columns */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-0.5">
+              {/* Base Fare */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <label className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Base Fare <span className="text-rose-500">*</span>
+                  </label>
+                  <span title="Initial fee charged at the start of every trip." className="cursor-help text-slate-400 hover:text-slate-600">
+                    <Info className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs sm:text-sm font-bold text-slate-500 font-mono pointer-events-none select-none">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={baseFareStr}
+                    placeholder="e.g., 40"
+                    onChange={(e) => setBaseFareStr(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className="w-full pl-8 pr-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-xs sm:text-sm font-bold font-mono text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] h-10 shadow-2xs transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+                {errors.baseFare && (
+                  <p className="text-[10.5px] text-rose-500 font-medium">{errors.baseFare}</p>
+                )}
+              </div>
+
+              {/* Minimum Fare */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <label className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Minimum Fare <span className="text-rose-500">*</span>
+                  </label>
+                  <span title="The minimum subtotal below which the fare cannot fall." className="cursor-help text-slate-400 hover:text-slate-600">
+                    <Info className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs sm:text-sm font-bold text-slate-500 font-mono pointer-events-none select-none">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={minimumFareStr}
+                    placeholder="e.g., 60"
+                    onChange={(e) => setMinimumFareStr(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className="w-full pl-8 pr-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-xs sm:text-sm font-bold font-mono text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] h-10 shadow-2xs transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+                {errors.minimumFare && (
+                  <p className="text-[10.5px] text-rose-500 font-medium">{errors.minimumFare}</p>
+                )}
+              </div>
+
+              {/* Per Km Rate */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <label className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Per Km Rate <span className="text-rose-500">*</span>
+                  </label>
+                  <span title="Tariff billed per kilometer traveled." className="cursor-help text-slate-400 hover:text-slate-600">
+                    <Info className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 font-mono pointer-events-none select-none">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={perKmRateStr}
+                    placeholder="e.g., 12"
+                    onChange={(e) => setPerKmRateStr(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className="w-full pl-8 pr-11 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-xs sm:text-sm font-bold font-mono text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] h-10 shadow-2xs transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none select-none">
+                    /km
+                  </span>
+                </div>
+                {errors.perKmRate && (
+                  <p className="text-[10.5px] text-rose-500 font-medium">{errors.perKmRate}</p>
+                )}
+              </div>
+
+              {/* Per Minute Rate */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <label className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Per Minute Rate <span className="text-rose-500">*</span>
+                  </label>
+                  <span title="Tariff billed per minute of ride duration." className="cursor-help text-slate-400 hover:text-slate-600">
+                    <Info className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 font-mono pointer-events-none select-none">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={perMinuteRateStr}
+                    placeholder="e.g., 1.5"
+                    onChange={(e) => setPerMinuteRateStr(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className="w-full pl-8 pr-11 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-xs sm:text-sm font-bold font-mono text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] h-10 shadow-2xs transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none select-none">
+                    /min
+                  </span>
+                </div>
+                {errors.perMinuteRate && (
+                  <p className="text-[10.5px] text-rose-500 font-medium">{errors.perMinuteRate}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* CARD 3: Optional Charges */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-2.5">
+            {/* Header */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                <SlidersHorizontal className="w-4 h-4 text-[#1F2B6D] dark:text-blue-400" strokeWidth={2} />
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-[#1F2B6D] dark:text-white leading-tight">Optional Charges</h3>
+                <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5 leading-tight">
+                  Enable or disable additional charges for this fare rule.
+                </p>
+              </div>
+            </div>
+
+            {/* 2 Sub-boxes Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-0.5">
+              {/* Box 1: Waiting Charge */}
+              <div className="border border-slate-200/90 dark:border-slate-800 rounded-xl p-3 sm:p-3.5 bg-slate-50/50 dark:bg-slate-950/40 space-y-2.5">
+                <div className="flex items-center gap-2.5">
+                  {/* Custom Switch Button matching Geographic */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={waitingChargeEnabled}
+                    onClick={() => setWaitingChargeEnabled(!waitingChargeEnabled)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+                      waitingChargeEnabled ? 'bg-[#1F2B6D]' : 'bg-slate-300 dark:bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-0.5 ml-0.5 ${
+                        waitingChargeEnabled ? 'translate-x-4' : 'translate-x-0'
+                      }`}
                     />
-                    {errors.ruleName && <p className="text-[10px] text-rose-500 font-bold">{errors.ruleName}</p>}
-                  </div>
+                  </button>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Vehicle Type</label>
-                      <select
-                        value={vehicleType}
-                        onChange={(e) => setVehicleType(e.target.value)}
-                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      >
-                        <option value="">Choose a vehicle</option>
-                        {vehicleChoices.map((v) => (
-                          <option key={v.id} value={v.code}>{vehicleName(v.code)}</option>
-                        ))}
-                      </select>
-                      {errors.vehicleType && <p className="text-[10px] text-rose-500 font-bold">{errors.vehicleType}</p>}
+                  <div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs sm:text-[13px] font-bold text-slate-900 dark:text-slate-100 leading-tight">Waiting Charge</span>
+                      <span title="Fee applied when passenger makes captain wait beyond the free period." className="cursor-help text-slate-400 hover:text-slate-600">
+                        <Info className="h-3.5 w-3.5" />
+                      </span>
                     </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">City</label>
-                      <select
-                        value={cityCode}
-                        onChange={(e) => setCityCode(e.target.value)}
-                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      >
-                        {cities.map((c) => (
-                          <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
-                        ))}
-                        {cities.length === 0 && (
-                          <>
-                            <option value="GLOBAL">All cities (GLOBAL)</option>
-                            <option value="SGR">Srinagar (SGR)</option>
-                            <option value="BLR">Bengaluru (BLR)</option>
-                          </>
-                        )}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Service Type</label>
-                      <select
-                        value={serviceType}
-                        onChange={(e) => setServiceType(e.target.value as RideServiceTypeUi | '')}
-                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      >
-                        <option value="">All service types</option>
-                        <option value="instant">Instant</option>
-                        <option value="scheduled">Scheduled</option>
-                        <option value="rental">Rental</option>
-                        <option value="outstation">Outstation</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Zone (optional)</label>
-                      <select
-                        value={serviceZoneId}
-                        onChange={(e) => setServiceZoneId(e.target.value)}
-                        disabled={cityCode === 'GLOBAL' || serviceZones.length === 0}
-                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px] disabled:opacity-50"
-                      >
-                        <option value="">Citywide default</option>
-                        {serviceZones.map((z) => (
-                          <option key={z.id} value={z.id}>{z.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Rule Status</label>
-                      <select
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
-                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive / Draft</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Effective From</label>
-                      <input
-                        type="date"
-                        value={effectiveFrom}
-                        onChange={(e) => setEffectiveFrom(e.target.value)}
-                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                      {errors.effectiveFrom && <p className="text-[10px] text-rose-500 font-bold">{errors.effectiveFrom}</p>}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Effective To (Optional)</label>
-                      <input
-                        type="date"
-                        value={effectiveTo}
-                        onChange={(e) => setEffectiveTo(e.target.value)}
-                        className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                    </div>
+                    <p className="text-[10.5px] text-slate-400 dark:text-slate-400 leading-tight">
+                      Charge when driver waits after free time.
+                    </p>
                   </div>
                 </div>
-              )}
 
-              {/* STEP 2: Base Pricing */}
-              {activeStep === 'base_pricing' && (
-                <div className="space-y-4 text-xs">
-                  <div className="border-b pb-3 mb-2">
-                    <h3 className="font-bold text-slate-800 text-sm">Base Tariffs Configuration</h3>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Determine the basic pricing structure including base fare, minimum bounds, and mileage rates.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Base Fare (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={baseFare}
-                        onChange={(e) => setBaseFare(parseFloat(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                      {errors.baseFare && <p className="text-[10px] text-rose-500 font-bold">{errors.baseFare}</p>}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Minimum Fare (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={minimumFare}
-                        onChange={(e) => setMinimumFare(parseFloat(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                      {errors.minimumFare && <p className="text-[10px] text-rose-500 font-bold">{errors.minimumFare}</p>}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Per KM Rate (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={perKmRate}
-                        onChange={(e) => setPerKmRate(parseFloat(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                      {errors.perKmRate && <p className="text-[10px] text-rose-500 font-bold">{errors.perKmRate}</p>}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Per Minute Rate (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={perMinuteRate}
-                        onChange={(e) => setPerMinuteRate(parseFloat(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                      {errors.perMinuteRate && <p className="text-[10px] text-rose-500 font-bold">{errors.perMinuteRate}</p>}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 3: Waiting Charges */}
-              {activeStep === 'waiting' && (
-                <div className="space-y-4 text-xs">
-                  <div className="border-b pb-3 mb-2">
-                    <h3 className="font-bold text-slate-800 text-sm">Waiting Charges Settings</h3>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Determine waiting penalty charges calculation parameters.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Free Waiting Minutes</label>
+                {/* Sub-inputs */}
+                <div className="grid grid-cols-2 gap-2.5 pt-0.5">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                      Free Waiting
+                    </label>
+                    <div className="relative">
                       <input
                         type="number"
                         min="0"
                         step="1"
-                        value={freeWaitingMinutes}
-                        onChange={(e) => setFreeWaitingMinutes(parseInt(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+                        disabled={!waitingChargeEnabled}
+                        value={freeWaitingStr}
+                        placeholder="e.g., 3"
+                        onChange={(e) => setFreeWaitingStr(e.target.value)}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        className="w-full h-9 pl-3 pr-10 py-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-xs sm:text-sm font-bold font-mono text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
-                      {errors.freeWaitingMinutes && <p className="text-[10px] text-rose-500 font-bold">{errors.freeWaitingMinutes}</p>}
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none select-none">
+                        min
+                      </span>
                     </div>
+                    {errors.freeWaitingMinutes && (
+                      <p className="text-[10.5px] text-rose-500 font-medium">{errors.freeWaitingMinutes}</p>
+                    )}
+                  </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Waiting Charge Per Minute (₹)</label>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                      Charge
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 font-mono pointer-events-none select-none">
+                        ₹
+                      </span>
                       <input
                         type="number"
                         min="0"
                         step="0.5"
-                        value={waitingChargePerMinute}
-                        onChange={(e) => setWaitingChargePerMinute(parseFloat(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
+                        disabled={!waitingChargeEnabled}
+                        value={waitingChargeStr}
+                        placeholder="e.g., 2"
+                        onChange={(e) => setWaitingChargeStr(e.target.value)}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        className="w-full h-9 pl-7 pr-11 py-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-xs sm:text-sm font-bold font-mono text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
-                      {errors.waitingChargePerMinute && <p className="text-[10px] text-rose-500 font-bold">{errors.waitingChargePerMinute}</p>}
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 pointer-events-none select-none">
+                        /min
+                      </span>
                     </div>
+                    {errors.waitingChargePerMinute && (
+                      <p className="text-[10.5px] text-rose-500 font-medium">{errors.waitingChargePerMinute}</p>
+                    )}
                   </div>
                 </div>
-              )}
-
-              {/* STEP 4: Night Pricing */}
-              {activeStep === 'night' && (
-                <div className="space-y-4 text-xs">
-                  <div className="border-b pb-3 mb-2">
-                    <h3 className="font-bold text-slate-800 text-sm">Night Surcharges Rules</h3>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Enable and customize scheduler night-time ride multipliers.</p>
-                  </div>
-
-                  <div className="flex items-center gap-2 mb-2 text-left">
-                    <input
-                      type="checkbox"
-                      id="nightEnabled"
-                      checked={nightEnabled}
-                      onChange={(e) => setNightEnabled(e.target.checked)}
-                      className="rounded border-border text-primary focus:ring-primary h-4 w-4 bg-slate-50 dark:bg-slate-950 cursor-pointer"
-                    />
-                    <label htmlFor="nightEnabled" className="text-xs font-bold text-slate-750 select-none cursor-pointer">
-                      Enable Night Surcharge Schedulers
-                    </label>
-                  </div>
-
-                  {nightEnabled && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 animate-in fade-in slide-in-from-top-1 duration-100">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Start Time</label>
-                        <input
-                          type="time"
-                          value={nightStartTime}
-                          onChange={(e) => setNightStartTime(e.target.value)}
-                          className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                        />
-                        {errors.nightStartTime && <p className="text-[10px] text-rose-500 font-bold">{errors.nightStartTime}</p>}
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">End Time</label>
-                        <input
-                          type="time"
-                          value={nightEndTime}
-                          onChange={(e) => setNightEndTime(e.target.value)}
-                          className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                        />
-                        {errors.nightEndTime && <p className="text-[10px] text-rose-500 font-bold">{errors.nightEndTime}</p>}
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Surcharge (%)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="1"
-                          value={nightChargePercentage}
-                          onChange={(e) => setNightChargePercentage(parseInt(e.target.value) || 0)}
-                          className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                        />
-                        {errors.nightChargePercentage && <p className="text-[10px] text-rose-500 font-bold">{errors.nightChargePercentage}</p>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* STEP 5: Fees & Marketplace */}
-              {activeStep === 'fees' && (
-                <div className="space-y-4 text-xs">
-                  <div className="border-b pb-3 mb-2">
-                    <h3 className="font-bold text-slate-800 text-sm">Fees & Marketplace</h3>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Configure booking, platform, tax, and driver commission rates for this rule.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Booking Fee (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={bookingFee}
-                        onChange={(e) => setBookingFee(parseFloat(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                      {errors.bookingFee && <p className="text-[10px] text-rose-500 font-bold">{errors.bookingFee}</p>}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Platform Fee (%)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={platformFeePct}
-                        onChange={(e) => setPlatformFeePct(parseFloat(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                      {errors.platformFeePct && <p className="text-[10px] text-rose-500 font-bold">{errors.platformFeePct}</p>}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Tax Rate (%)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={taxRatePct}
-                        onChange={(e) => setTaxRatePct(parseFloat(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                      {errors.taxRatePct && <p className="text-[10px] text-rose-500 font-bold">{errors.taxRatePct}</p>}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Driver Commission (%)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={commissionRatePct}
-                        onChange={(e) => setCommissionRatePct(parseFloat(e.target.value) || 0)}
-                        className="w-full p-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-950 text-xs focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                      />
-                      {errors.commissionRatePct && <p className="text-[10px] text-rose-500 font-bold">{errors.commissionRatePct}</p>}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 6: Simulation */}
-              {activeStep === 'simulation' && (
-                <div className="space-y-4 text-xs">
-                  <div className="border-b pb-3 mb-2 flex items-center justify-between">
-                    <div>
-                      <h3 className="font-bold text-slate-800 text-sm">Interactive Fare Simulator</h3>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">Test configuration estimates in real-time on the right card panel before finalizing.</p>
-                    </div>
-                    <Sparkles className="h-5 w-5 text-primary animate-bounce" />
-                  </div>
-                  <div className="flex gap-3 p-3 bg-primary/5 rounded-xl border border-primary/20 text-xs leading-normal">
-                    <Info className="h-5 w-5 text-primary flex-shrink-0" />
-                    <div>
-                      <p className="font-bold text-primary">Simulator Instructions</p>
-                      <p className="text-slate-600 mt-0.5">Adjust the distance and duration values on the simulator preview widget. The estimate on the right will update immediately matching your current wizard details.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 6: Review & Publish */}
-              {activeStep === 'review' && (
-                <div className="space-y-4 text-xs">
-                  <div className="border-b pb-3 mb-2">
-                    <h3 className="font-bold text-slate-800 text-sm">Review & Publish Rule</h3>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Review pricing variables, dates, and submit to live calculation engines.</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 border border-border p-4 bg-slate-50/50 dark:bg-slate-900/50 rounded-xl">
-                    <div className="space-y-2">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase">Rule Metadata</p>
-                      <p><strong>Name:</strong> {ruleName}</p>
-                      <p><strong>Vehicle Category:</strong> <span className="font-bold text-primary">{vehicleName(vehicleType)}</span></p>
-                      <p><strong>City:</strong> {cityCode}</p>
-                      <p><strong>Service Type:</strong> {serviceType || 'All types'}</p>
-                      <p><strong>Zone:</strong> {serviceZoneId ? (serviceZones.find(z => z.id === serviceZoneId)?.name ?? serviceZoneId) : 'Citywide default'}</p>
-                      <p><strong>Status:</strong> {status === 'active' ? <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">ACTIVE</span> : <span className="text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded border">DRAFT</span>}</p>
-                      <p><strong>Effective Dates:</strong> {effectiveFrom} {effectiveTo ? `to ${effectiveTo}` : '(No End Expiry)'}</p>
-                    </div>
-                    <div className="space-y-2 border-l pl-4">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase">Tariff Specifications</p>
-                      <p><strong>Base Fare:</strong> ₹{baseFare.toFixed(2)}</p>
-                      <p><strong>Min Fare:</strong> ₹{minimumFare.toFixed(2)}</p>
-                      <p><strong>Rates:</strong> ₹{perKmRate}/KM, ₹{perMinuteRate}/Min</p>
-                      <p><strong>Waiting:</strong> ₹{waitingChargePerMinute}/min after {freeWaitingMinutes}m</p>
-                      <p><strong>Night Surcharge:</strong> {nightEnabled ? `Enabled (+${nightChargePercentage}%, ${nightStartTime}-${nightEndTime})` : 'Disabled'}</p>
-                      <p><strong>Fees:</strong> Booking ₹{bookingFee.toFixed(2)}, Platform {platformFeePct}%, Tax {taxRatePct}%, Commission {commissionRatePct}%</p>
-                    </div>
-                  </div>
-
-                  {status === 'active' && (
-                    <div className="flex gap-2 p-3 bg-amber-50/50 border border-amber-200 rounded-xl text-amber-800 text-left">
-                      <CheckCircle2 className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold">Auto-Deactivation Event</p>
-                        <p className="text-[10px] text-amber-700/90 leading-relaxed mt-0.5">
-                          Activating this configuration will automatically deactivate any other active rule for the same <strong>{vehicleName(vehicleType)}</strong>, city, service type, and zone combination. Historical data remains intact as Version {initialValues ? initialValues.version : 1}.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Navigation Actions Footer */}
-              <div className="flex justify-between items-center mt-8 pt-4 border-t border-border">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePrev}
-                  disabled={activeStep === 'basic'}
-                  className="h-9 px-4 text-xs font-semibold rounded-lg gap-1"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span>Previous Step</span>
-                </Button>
-
-                {activeStep === 'review' ? (
-                  <Button
-                    type="button"
-                    onClick={handlePublish}
-                    disabled={loading}
-                    className="h-9 px-4 text-xs font-bold rounded-lg bg-primary hover:bg-primary/95 text-white gap-1.5"
-                  >
-                    <Save className="h-4 w-4" />
-                    <span>{initialValues ? `Publish New Version (V${(initialValues.version || 1) + 1})` : 'Publish Fare Rule'}</span>
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    onClick={handleNext}
-                    className="h-9 px-4 text-xs font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white gap-1"
-                  >
-                    <span>Next Step</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
 
-            </CardContent>
-          </Card>
+              {/* Box 2: Booking Fee */}
+              <div className="border border-slate-200/90 dark:border-slate-800 rounded-xl p-3 sm:p-3.5 bg-slate-50/50 dark:bg-slate-950/40 space-y-2.5">
+                <div className="flex items-center gap-2.5">
+                  {/* Custom Switch Button matching Geographic */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={bookingFeeEnabled}
+                    onClick={() => setBookingFeeEnabled(!bookingFeeEnabled)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+                      bookingFeeEnabled ? 'bg-[#1F2B6D]' : 'bg-slate-300 dark:bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-0.5 ml-0.5 ${
+                        bookingFeeEnabled ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+
+                  <div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs sm:text-[13px] font-bold text-slate-900 dark:text-slate-100 leading-tight">Booking Fee</span>
+                      <span title="Fixed booking fee applied per ride." className="cursor-help text-slate-400 hover:text-slate-600">
+                        <Info className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-400 dark:text-slate-400 mt-0.5 leading-tight">
+                      Additional fixed charge per ride.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sub-input */}
+                <div className="pt-0.5 space-y-1">
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 font-mono pointer-events-none select-none">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      disabled={!bookingFeeEnabled}
+                      value={bookingFeeStr}
+                      placeholder="e.g., 10"
+                      onChange={(e) => setBookingFeeStr(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="w-full h-9 pl-7 pr-3 py-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-xs sm:text-sm font-bold font-mono text-slate-900 dark:text-white placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D] disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+                  {errors.bookingFee && (
+                    <p className="text-[10.5px] text-rose-500 font-medium">{errors.bookingFee}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CARD 4: Validity & Status */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-2.5">
+            {/* Header */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                <Calendar className="w-4 h-4 text-[#1F2B6D] dark:text-blue-400" strokeWidth={2} />
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-[#1F2B6D] dark:text-white leading-tight">Validity & Status</h3>
+                <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5 leading-tight">
+                  Set the effective period and status for this fare rule.
+                </p>
+              </div>
+            </div>
+
+            {/* Inputs: 3 items (items-start for clean top alignment) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-0.5 items-start">
+              {/* Effective From with Shared DatePicker */}
+              <div className="space-y-1">
+                <label className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                  Effective From <span className="text-rose-500">*</span>
+                </label>
+                <DatePicker
+                  value={effectiveFrom}
+                  onChange={(val) => setEffectiveFrom(val)}
+                  placeholder="01 Jan 2026"
+                  iconPosition="left"
+                  error={errors.effectiveFrom}
+                />
+              </div>
+
+              {/* Effective To with Shared DatePicker */}
+              <div className="space-y-1">
+                <label className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                  Effective To
+                </label>
+                <DatePicker
+                  value={effectiveTo}
+                  onChange={(val) => setEffectiveTo(val)}
+                  placeholder="Select date (optional)"
+                  iconPosition="left"
+                  error={errors.effectiveTo}
+                />
+              </div>
+
+              {/* Status Toggle matching Geographic */}
+              <div className="space-y-1">
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300 block">Status</span>
+                <div className="flex items-center gap-2.5 h-10">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isActive}
+                    onClick={() => setIsActive(!isActive)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+                      isActive ? 'bg-[#1F2B6D]' : 'bg-slate-300 dark:bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out mt-0.5 ml-0.5 ${
+                        isActive ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
+                    {isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Right Side: Interactive Preview simulator widget */}
-        <div className="space-y-6">
+        {/* Right Column (Sidebar with Fare Preview & Quick Info) */}
+        <div className="lg:col-span-4 space-y-2.5 sm:space-y-3">
           <FareRulePreviewCard
-            baseFare={baseFare}
-            minimumFare={minimumFare}
-            perKmRate={perKmRate}
-            perMinuteRate={perMinuteRate}
-            freeWaitingMinutes={freeWaitingMinutes}
-            waitingChargePerMinute={waitingChargePerMinute}
-            bookingFee={bookingFee}
-            platformFeePct={platformFeePct}
-            taxRatePct={taxRatePct}
-            commissionRatePct={commissionRatePct}
-            nightEnabled={nightEnabled}
-            nightChargePercentage={nightChargePercentage}
+            baseFare={baseFareNum ?? 0}
+            minimumFare={minimumFareNum ?? 0}
+            perKmRate={perKmRateNum ?? 0}
+            perMinuteRate={perMinuteRateNum ?? 0}
+            freeWaitingMinutes={freeWaitingNum ?? 0}
+            waitingChargePerMinute={waitingChargeNum ?? 0}
+            bookingFee={bookingFeeNum ?? 0}
+            waitingChargeEnabled={waitingChargeEnabled}
+            bookingFeeEnabled={bookingFeeEnabled}
+            platformFeeFlat={0}
+            cityCode={cityCode || null}
+            serviceZoneId={serviceZoneId || null}
+            vehicleType={vehicleType || null}
+            isReady={isPreviewReady}
           />
         </div>
       </div>
-    </div>
+
+      {/* Bottom Action Footer Bar with Custom Theme Buttons */}
+      <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200/80 dark:border-slate-800 mt-2.5 sm:mt-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={() => navigate('/pricing-management/fare-rules')}
+          className="text-xs sm:text-sm font-bold px-5 h-10 rounded-xl cursor-pointer"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          variant="primary"
+          size="md"
+          loading={loading}
+          disabled={loading}
+          className="text-xs sm:text-sm font-bold px-7 h-10 rounded-xl shadow-sm cursor-pointer bg-[#1F2B6D] hover:bg-[#182255] text-white"
+        >
+          {loading ? 'Saving...' : isEditMode ? 'Update Fare Rule' : 'Create Fare Rule'}
+        </Button>
+      </div>
+
+      {/* Custom Production Conflict Popup */}
+      <FareRuleConflictModal
+        isOpen={conflictModalOpen}
+        existingRule={conflictingActiveRule}
+        fallbackMessage={serverErrorInfo.message}
+        onClose={() => setConflictModalOpen(false)}
+        onEditExisting={(ruleId) => {
+          setConflictModalOpen(false)
+          navigate(`/pricing-management/fare-rules/${ruleId}/edit`)
+        }}
+      />
+    </form>
   )
 }
+
+export default FareRuleWizardForm

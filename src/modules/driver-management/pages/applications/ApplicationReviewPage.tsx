@@ -1,12 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   useApplication,
-  useVerifyApplicationDocument,
   useApproveApplication,
   useRejectApplication,
   useRequestResubmission,
-  useVerifyDriverBankAccount,
   useUpdateDriver,
 } from '../../hooks'
 import {
@@ -17,6 +15,8 @@ import {
   DriverProfileHeaderCard,
   BankInfoCard,
   EditDriverModal,
+  DocumentPreviewModal,
+  BankDetailsReviewStep,
 } from '../../components'
 import { useToast } from '@/shared/context/toast'
 import {
@@ -38,54 +38,68 @@ import {
   Home,
   ChevronRight,
   X,
-  Download,
   ThumbsDown,
   RefreshCw,
   AlertTriangle,
   IdCard,
-  Image as ImageIcon,
   XCircle,
-  ExternalLink,
   CreditCard,
   Building2,
-  Copy,
-  Lock,
-  Smartphone,
 } from 'lucide-react'
 import { FileImage } from '@/shared/components/FileImage'
 import { getFileReadUrl } from '@/shared/services/file-upload.service'
-import { isFileId, isPdfUrl, resolveFileRef } from '@/shared/utils/file-ref'
-import { useFileReadUrl } from '@/shared/hooks/useFileReadUrl'
+import { isFileId, resolveFileRef } from '@/shared/utils/file-ref'
 import type { DriverKycDocument } from '../../types'
-import photoFrontShowcase from '@/assets/images/vehicle-showcase/photo-front.png'
-
-
-/// Cards with details on both faces; the backend keys document types in upper case.
-const TWO_SIDED_DOC_TYPES = new Set(['driving_license', 'aadhaar', 'rc', 'vehicle_photos', 'vehicle_photo'])
+import {
+  APPLICATION_REVIEW_STEPS,
+  APPLICATION_STATUS_LABELS,
+  capitalizeLabel,
+  computeAgeFromDob,
+  computeReviewStepStates,
+  fmtReviewDate,
+  fmtReviewDateTime,
+  formatBankStatusLabel,
+  isVehicleDocType,
+  mapKycDocumentToReviewDoc,
+  type ReviewDocumentItem,
+} from '../../utils/application-review.utils'
 
 export const ApplicationReviewPage: React.FC = () => {
   const navigate = useNavigate()
   const { id } = useParams()
   const { success: showSuccess, error: showError } = useToast()
-  
-  const [activeStep, setActiveStep] = useState<number>(4) // Default to 4 (Final Review) matching design mockup
+
+  // Always start on Step 1 (Overview) so reviewers follow the real verification sequence 1 → 6.
+  const [activeStep, setActiveStep] = useState<number>(0)
   const [activeSidebarItem, setActiveSidebarItem] = useState<string>('personal')
   const [activeDocCategory, setActiveDocCategory] = useState<string>('all')
-  const [selectedDocument, setSelectedDocument] = useState<any | null>(null)
+  const [selectedDocument, setSelectedDocument] = useState<ReviewDocumentItem | null>(null)
+  const [decisionTab, setDecisionTab] = useState<'approve' | 'reupload' | 'reject'>('approve')
   const [decisionModal, setDecisionModal] = useState<'none' | 'approve' | 'reupload' | 'reject'>('none')
   const [decisionReason, setDecisionReason] = useState<string>('')
 
-  const { data, isLoading, refetch } = useApplication(id || '')
+  const handleStepChange = (targetStep: number) => {
+    setActiveStep(targetStep)
+  }
+
+  const { data, isLoading, isError, error: loadError, refetch } = useApplication(id || '')
   const { mutate: approveApp, isPending: isApproving } = useApproveApplication()
   const { mutate: rejectApp, isPending: isRejecting } = useRejectApplication()
   const { mutate: resubmitApp, isPending: isResubmitting } = useRequestResubmission()
-  const { mutate: verifyBank, isPending: isVerifyingBank } = useVerifyDriverBankAccount()
-  const [reviewedSteps, setReviewedSteps] = useState<Set<number>>(() => new Set())
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editInitialTab, setEditInitialTab] = useState<'personal' | 'vehicle' | 'status'>('personal')
   const [isUpdatingDriver, setIsUpdatingDriver] = useState(false)
   const { mutateAsync: updateDriverMutation, isPending: isUpdatingMutation } = useUpdateDriver()
+
+  useEffect(() => {
+    if (decisionModal === 'none') return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDecisionModal('none')
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [decisionModal])
 
   const handleOpenEdit = (tab: 'personal' | 'vehicle' | 'status' = 'personal') => {
     setEditInitialTab(tab)
@@ -111,106 +125,78 @@ export const ApplicationReviewPage: React.FC = () => {
     }
   }
 
-  if (isLoading || !data) return <div className="p-8 flex justify-center">Loading application...</div>
-
-  const getDocName = (type: string) => {
-    if (!type) return 'Document'
-    const key = type.toLowerCase().trim()
-    const map: Record<string, string> = {
-      'license': 'Driving License',
-      'driving_license': 'Driving License',
-      'driving-license': 'Driving License',
-      'driver_license': 'Driving License',
-      'driver-license': 'Driving License',
-      'license_front': 'Driving License Front',
-      'license_back': 'Driving License Back',
-      'driving_license_front': 'Driving License Front',
-      'driving_license_back': 'Driving License Back',
-      'aadhaar': 'Aadhaar Card',
-      'aadhar': 'Aadhaar Card',
-      'aadhaar_card': 'Aadhaar Card',
-      'aadhaar_front': 'Aadhaar Card Front',
-      'aadhaar_back': 'Aadhaar Card Back',
-      'pan': 'PAN Card',
-      'pan_card': 'PAN Card',
-      'passport': 'Passport',
-      'voter': 'Voter ID',
-      'voter_id': 'Voter ID',
-      'rc': 'RC Certificate',
-      'rc_certificate': 'RC Certificate',
-      'rc_front': 'RC Certificate Front',
-      'rc_back': 'RC Certificate Back',
-      'registration': 'RC Certificate',
-      'vehicle_rc': 'RC Certificate',
-      'insurance': 'Vehicle Insurance',
-      'vehicle_insurance': 'Vehicle Insurance',
-      'insurance_policy': 'Vehicle Insurance',
-      'permit': 'Commercial Permit',
-      'commercial_permit': 'Commercial Permit',
-      'photo': 'Profile Photo',
-      'profile_photo': 'Profile Photo',
-      'selfie': 'Selfie Photo',
-      'pollution': 'PUC Certificate',
-      'puc': 'PUC Certificate',
-      'puc_certificate': 'PUC Certificate',
-      'fitness': 'Fitness Certificate',
-      'fitness_certificate': 'Fitness Certificate',
-      'vehicle_photos': 'Vehicle Photos',
-      'vehicle_photo': 'Vehicle Photos',
-    }
-    if (map[key]) return map[key]
-    return key
-      .replace(/[_-]+/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase())
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'approved': return 'Verified'
-      case 'pending': return 'Pending Review'
-      case 'reupload_requested': return 'Re-upload Required'
-      case 'rejected': return 'Rejected'
-      default: return 'Not Uploaded'
-    }
-  }
-
-  const isVehicleDocType = (docType: string = '') => {
-    const dt = docType.toLowerCase().replace(/[-_]/g, '')
+  if (isLoading) {
     return (
-      dt.includes('rc') ||
-      dt.includes('insurance') ||
-      dt.includes('pollution') ||
-      dt.includes('puc') ||
-      dt.includes('permit') ||
-      dt.includes('fitness') ||
-      dt.includes('vehicle')
+      <div className="p-10 flex flex-col items-center justify-center gap-3 text-slate-500">
+        <div className="w-8 h-8 rounded-full border-2 border-[#1F2B6D]/20 border-t-[#1F2B6D] animate-spin" />
+        <p className="text-sm font-medium">Loading application...</p>
+      </div>
     )
   }
 
-  const fmtDateTime = (iso?: string) => {
-    const d = iso ? new Date(iso) : null
-    return d && !isNaN(d.getTime())
-      ? d.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      : '—'
-  }
+  if (isError || !data) {
+    const errStatus = (loadError as { status?: number } | null)?.status
+    const errMessage =
+      loadError instanceof Error ? loadError.message : 'Unable to load driver application details.'
+    const isAlreadyVerified =
+      errStatus === 409 || /already verified/i.test(errMessage)
 
-  const fmtDate = (iso?: string) => {
-    const d = iso ? new Date(iso) : null
-    return d && !isNaN(d.getTime())
-      ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-      : '—'
+    return (
+      <div className="p-6 sm:p-10 max-w-xl mx-auto">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-sm text-center space-y-4">
+          <div
+            className={`w-14 h-14 rounded-full mx-auto flex items-center justify-center ${
+              isAlreadyVerified
+                ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
+                : 'bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400'
+            }`}
+          >
+            {isAlreadyVerified ? (
+              <CheckCircle2 className="w-7 h-7" />
+            ) : (
+              <AlertTriangle className="w-7 h-7" />
+            )}
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-[#1F2B6D] dark:text-white">
+              {isAlreadyVerified ? 'Driver Already Verified' : 'Could Not Load Application'}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+              {isAlreadyVerified
+                ? 'This driver application has already been approved and moved to the active Drivers roster.'
+                : errMessage}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => navigate('/driver-management/applications')}
+              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+            >
+              Back to Applications
+            </button>
+            {isAlreadyVerified && id ? (
+              <button
+                type="button"
+                onClick={() => navigate(`/driver-management/drivers/${id}`)}
+                className="px-4 py-2 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                Open Verified Driver Profile
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                className="px-4 py-2 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
-
-  const ageFrom = (iso?: string) => {
-    const d = iso ? new Date(iso) : null
-    if (!d || isNaN(d.getTime())) return '—'
-    const now = new Date()
-    const beforeBirthday =
-      now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())
-    return String(now.getFullYear() - d.getFullYear() - (beforeBirthday ? 1 : 0))
-  }
-
-  const capitalize = (v?: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : '—')
 
   const openDocument = async (ref: string, disposition: 'inline' | 'attachment' = 'attachment') => {
     if (!ref) return
@@ -221,141 +207,54 @@ export const ApplicationReviewPage: React.FC = () => {
     }
   }
 
-  // Only what the driver actually uploaded; nothing is filled in for missing documents.
-  const toReviewDoc = (d: DriverKycDocument) => {
-    const isDocPdf = Boolean(
-      d.isPdf ||
-      d.contentType === 'application/pdf' ||
-      (d.fileUrl && isPdfUrl(d.fileUrl))
-    );
-    return {
-      id: d.id,
-      name: getDocName(d.docType),
-      number: d.docNumber || '—',
-      issuedBy: '—',
-      issueDate: fmtDate(d.issuedDate),
-      expiryDate: fmtDate(d.expiryDate),
-      uploaded: fmtDateTime(d.createdAt),
-      status: getStatusLabel(d.verifyStatus),
-      image: resolveFileRef(d.fileUrl, d.fileId),
-      backImage: d.backFileId ?? '',
-      twoSided: !isDocPdf && TWO_SIDED_DOC_TYPES.has(d.docType.toLowerCase()),
-      isPdf: isDocPdf,
-      contentType: d.contentType,
-      rawDoc: d,
-    };
-  };
-
   const rawDocs = data.documents || []
   const isVehicleDoc = (d: DriverKycDocument) =>
     d.category ? d.category === 'vehicle' : isVehicleDocType(d.docType)
-  const identityDocuments = rawDocs.filter((d) => !isVehicleDoc(d)).map(toReviewDoc)
-  const vehicleDocuments = rawDocs.filter(isVehicleDoc).map(toReviewDoc)
+  const identityDocuments = rawDocs.filter((d) => !isVehicleDoc(d)).map(mapKycDocumentToReviewDoc)
+  const vehicleDocuments = rawDocs.filter(isVehicleDoc).map(mapKycDocumentToReviewDoc)
   const allDocs = [...identityDocuments, ...vehicleDocuments]
 
-  const countVerified = (docs: typeof allDocs) => docs.filter((d) => d.status === 'Verified').length
+  const countVerified = (docs: ReviewDocumentItem[]) => docs.filter((d) => d.status === 'Verified').length
   const verifiedIdentity = countVerified(identityDocuments)
   const verifiedVehicle = countVerified(vehicleDocuments)
   const verifiedTotal = verifiedIdentity + verifiedVehicle
   const totalDocs = allDocs.length
   const pendingIssues = totalDocs - verifiedTotal
+  const expiredDocsCount = allDocs.filter((d) => d.isExpired).length
   const allVerified = totalDocs > 0 && pendingIssues === 0
-  const allReviewed = totalDocs > 0 && rawDocs.every((d) => d.verifyStatus !== 'pending')
 
-  // Dynamic data presence checks
-  const hasOverview = Boolean(
-    data.driverName &&
-      data.driverName !== '—' &&
-      data.driverName.trim() !== '' &&
-      ((data.mobileNumber && data.mobileNumber !== '—' && data.mobileNumber.trim() !== '') ||
-        (data.email && data.email !== '—' && data.email.trim() !== '') ||
-        (data.city && data.city !== '—' && data.city.trim() !== ''))
+  const { hasBankDetails, isBankVerified: isBankCompleted, stepDone } = computeReviewStepStates(
+    data,
+    allVerified,
+    activeStep,
   )
 
-  const hasClaimForm = Boolean(
-    (data.addressLine1 && data.addressLine1 !== '—' && data.addressLine1.trim() !== '') ||
-      (data.emergencyContactNumber && data.emergencyContactNumber !== '—' && data.emergencyContactNumber.trim() !== '') ||
-      (data.emergencyContactName && data.emergencyContactName !== '—' && data.emergencyContactName.trim() !== '') ||
-      (Array.isArray((data as any).emergencyContacts) && (data as any).emergencyContacts.length > 0) ||
-      (data.vehicle?.registrationPlate && data.vehicle.registrationPlate !== '—' && data.vehicle.registrationPlate.trim() !== '') ||
-      (data.vehicleType && (data.vehicleType as unknown) !== '—')
-  )
-
-  const hasBankDetails = Boolean(
-    (Array.isArray((data as any).bankAccounts) &&
-      (data as any).bankAccounts.length > 0 &&
-      (data as any).bankAccounts.some(
-        (a: any) =>
-          Boolean(a.bankName && a.bankName !== '—') ||
-          Boolean(a.accountHolderName && a.accountHolderName !== '—') ||
-          Boolean(a.ifscCode && a.ifscCode !== '—') ||
-          Boolean(a.accountNumberLast4 || a.accountNumberMasked),
-      )) ||
-    (data.bankAccountNumber && data.bankAccountNumber !== '—' && data.bankAccountNumber.trim() !== '') ||
-    (data.bankName && data.bankName !== '—' && data.bankName.trim() !== '')
-  )
-
-  const isApproved = data.applicationStatus === 'approved'
-
-  // Dynamic step completion: green ticks appear when step is verified, completed, or reviewed by operator
-  // 1. Overview: completed when applicant data is present, reviewed, or application approved
-  const isOverviewCompleted = Boolean(
-    isApproved || hasOverview || reviewedSteps.has(0)
-  )
-
-  // 2. Claim Form: completed when claim form data is present, reviewed, or application approved
-  const isClaimFormCompleted = Boolean(
-    isApproved || hasClaimForm || reviewedSteps.has(1)
-  )
-
-  // 3. Documents: completed when all documents are reviewed/verified or reviewer has reviewed documents step
-  const isDocumentsCompleted = Boolean(
-    isApproved || (totalDocs > 0 && allReviewed) || reviewedSteps.has(2)
-  )
-
-  // 4. Bank Details: completed when bank account is verified or reviewer has reviewed bank details step
-  const isBankCompleted = Boolean(
-    isApproved ||
-      (hasBankDetails &&
-        (Boolean((data as any).bankAccounts?.[0]?.payoutEnabled) ||
-          (data as any).bankAccounts?.[0]?.status === 'ACTIVE' ||
-          (data as any).bankAccounts?.[0]?.status === 'VERIFIED' ||
-          (data as any).bankAccounts?.[0]?.verificationStatus === 'VERIFIED')) ||
-      reviewedSteps.has(3)
-  )
-
-  // 5. Final Review: completed when all documents are verified or reviewer has reviewed final review step
-  const isFinalReviewCompleted = Boolean(
-    isApproved || allVerified || reviewedSteps.has(4)
-  )
-
-  // 6. Decision: completed when application decision is approved/rejected or reviewed
-  const isDecisionCompleted = Boolean(
-    data.applicationStatus === 'approved' ||
-      data.applicationStatus === 'rejected' ||
-      reviewedSteps.has(5)
-  )
-
-  // Stepper completion is strictly dynamic — tick appears only when completed.
-  const stepDone = [
-    isOverviewCompleted,
-    isClaimFormCompleted,
-    isDocumentsCompleted,
-    isBankCompleted,
-    isFinalReviewCompleted,
-    isDecisionCompleted,
-  ]
-  const approveBlockedReason = allVerified
-    ? null
-    : totalDocs === 0
+  const approveBlockedReason = !allVerified
+    ? totalDocs === 0
       ? 'No documents uploaded yet.'
       : `${pendingIssues} of ${totalDocs} documents not verified yet.`
+    : expiredDocsCount > 0
+      ? `${expiredDocsCount} document${expiredDocsCount === 1 ? '' : 's'} expired — request re-upload first.`
+      : null
+
   const statusBadgeClass =
     data.applicationStatus === 'approved'
-      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+      ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300'
       : data.applicationStatus === 'rejected'
-        ? 'bg-rose-50 border-rose-200 text-rose-700'
-        : 'bg-[#FEF08A]/50 border-amber-200 text-amber-700'
+        ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300'
+        : data.applicationStatus === 'resubmission_required'
+          ? 'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-950/40 dark:border-orange-800 dark:text-orange-300'
+          : 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300'
+
+  const statusCardAccent =
+    data.applicationStatus === 'approved'
+      ? { iconBg: 'bg-emerald-600', valueColor: 'text-emerald-600 dark:text-emerald-400' }
+      : data.applicationStatus === 'rejected'
+        ? { iconBg: 'bg-rose-600', valueColor: 'text-rose-600 dark:text-rose-400' }
+        : data.applicationStatus === 'resubmission_required'
+          ? { iconBg: 'bg-orange-500', valueColor: 'text-orange-600 dark:text-orange-400' }
+          : { iconBg: 'bg-amber-500', valueColor: 'text-amber-600 dark:text-amber-400' }
+
   const pendingLabel = (verified: number, total: number) =>
     total === 0 ? 'None uploaded' : `${total - verified} Pending`
 
@@ -364,43 +263,42 @@ export const ApplicationReviewPage: React.FC = () => {
   const lastEvent = sortedTimeline[sortedTimeline.length - 1]
   const timelineItems = sortedTimeline.map((e, i) => ({
     title: e.action,
-    date: fmtDateTime(e.timestamp),
+    date: fmtReviewDateTime(e.timestamp),
     desc: e.notes && e.notes !== e.action ? `${e.notes} — ${e.actor}` : `By ${e.actor}`,
     isCurrent: i === sortedTimeline.length - 1,
   }))
 
-  const STATUS_LABELS: Record<string, string> = {
-    draft: 'Draft',
-    submitted: 'Submitted',
-    pending_review: 'Pending Review',
-    under_review: 'Under Review',
-    approved: 'Approved',
-    rejected: 'Rejected',
-    resubmission_required: 'Resubmission Required',
-  }
-
+  const primaryBank = (data as any).bankAccounts?.[0] || null
   const appData = {
     id: data.applicationId || data.id,
     name: data.driverName || '—',
     phone: data.mobileNumber || '—',
     alternatePhone: (data as any).alternatePhone || '—',
     bloodGroup: (data as any).bloodGroup || '—',
-    drivingExperience: (data as any).drivingExperienceYears != null ? `${(data as any).drivingExperienceYears} years` : '—',
+    drivingExperience:
+      (data as any).drivingExperienceYears != null
+        ? `${(data as any).drivingExperienceYears} years`
+        : '—',
     email: data.email || '—',
-    dob: fmtDate(data.dateOfBirth),
-    age: ageFrom(data.dateOfBirth),
-    gender: capitalize(data.gender),
+    dob: fmtReviewDate(data.dateOfBirth),
+    age: computeAgeFromDob(data.dateOfBirth),
+    gender: capitalizeLabel(data.gender),
     language: data.preferredLanguage || '—',
     location: [data.city, data.state].filter(Boolean).join(', ') || '—',
-    address: [data.addressLine1, data.addressLine2, data.city, data.state, data.postcode].filter(Boolean).join(', ') || '—',
-    emergencyContactName: data.emergencyContactName || (data as any).emergencyContacts?.[0]?.contactName || '—',
-    emergencyContactPhone: data.emergencyContactNumber || (data as any).emergencyContacts?.[0]?.phoneNumber || '—',
+    address:
+      [data.addressLine1, data.addressLine2, data.city, data.state, data.postcode]
+        .filter(Boolean)
+        .join(', ') || '—',
+    emergencyContactName:
+      data.emergencyContactName || (data as any).emergencyContacts?.[0]?.contactName || '—',
+    emergencyContactPhone:
+      data.emergencyContactNumber || (data as any).emergencyContacts?.[0]?.phoneNumber || '—',
     emergencyContactRelationship:
       (data as any).emergencyContactRelationship ||
       (data as any).emergencyContacts?.[0]?.relationship ||
       '—',
 
-    vehicleType: capitalize(data.vehicle?.vehicleType ?? data.vehicleType),
+    vehicleType: capitalizeLabel(data.vehicle?.vehicleType ?? data.vehicleType),
     vehicleMake: data.vehicle?.brand || '—',
     vehicleModel: data.vehicle?.model || '—',
     vehicleReg: data.vehicle?.registrationPlate || '—',
@@ -415,23 +313,26 @@ export const ApplicationReviewPage: React.FC = () => {
         const doc = (data.documents ?? []).find((d) => /vehicle_photo/i.test(d.docType))
         return doc ? resolveFileRef(doc.fileUrl, doc.fileId) : undefined
       })() ||
-      photoFrontShowcase,
+      undefined,
 
-    submittedDate: fmtDateTime(data.submittedAt),
-    statusLabel: STATUS_LABELS[data.applicationStatus] ?? data.applicationStatus,
+    submittedDate: fmtReviewDateTime(data.submittedAt),
+    statusLabel: APPLICATION_STATUS_LABELS[data.applicationStatus] ?? data.applicationStatus,
     lastActionBy: lastEvent?.actor ?? '—',
-    lastActionDate: fmtDateTime(lastEvent?.timestamp),
+    lastActionDate: fmtReviewDateTime(lastEvent?.timestamp),
     progress: totalDocs ? Math.round((verifiedTotal / totalDocs) * 100) : 0,
 
-    bankAccount: (data as any).bankAccounts?.[0] || null,
-    bankName: (data as any).bankAccounts?.[0]?.bankName || data.bankName || '—',
-    bankAccountName: (data as any).bankAccounts?.[0]?.bankAccountName || data.bankAccountName || '—',
-    bankAccountNumber: (data as any).bankAccounts?.[0]?.accountNumberMasked || data.bankAccountNumber || '—',
-    bankIfsc: (data as any).bankAccounts?.[0]?.bankIfsc || data.bankIfsc || '—',
-    bankUpi: (data as any).bankAccounts?.[0]?.upiId || data.upiId || '—',
-    bankStatus: (data as any).bankAccounts?.[0]?.status || (data as any).bankAccounts?.[0]?.verificationStatus || null,
-    bankPayoutEnabled: Boolean((data as any).bankAccounts?.[0]?.payoutEnabled),
+    bankAccount: primaryBank,
+    bankName: primaryBank?.bankName || data.bankName || '—',
+    bankAccountName:
+      primaryBank?.bankAccountName || primaryBank?.accountHolderName || data.bankAccountName || '—',
+    bankAccountNumber: primaryBank?.accountNumberMasked || data.bankAccountNumber || '—',
+    bankIfsc: primaryBank?.bankIfsc || primaryBank?.ifscCode || data.bankIfsc || '—',
+    bankUpi: primaryBank?.upiId || data.upiId || '—',
+    bankStatus: primaryBank?.status || primaryBank?.verificationStatus || null,
+    bankPayoutEnabled: Boolean(primaryBank?.payoutEnabled),
   }
+
+  const hasAddress = appData.address !== '—'
 
   const documentCategories = [
     { id: 'all', label: 'All Documents', count: identityDocuments.length + vehicleDocuments.length },
@@ -439,477 +340,7 @@ export const ApplicationReviewPage: React.FC = () => {
     { id: 'vehicle', label: 'Vehicle Documents', count: vehicleDocuments.length },
   ]
 
-
-
-  const DocumentPreviewModal = ({ doc, onClose }: { doc: any, onClose: () => void }) => {
-    const [action, setAction] = useState<'none' | 'verify' | 'reject' | 'reupload'>('none');
-    const [message, setMessage] = useState('');
-    const { mutate: verifyDocument, isPending } = useVerifyApplicationDocument();
-
-    const { url: frontUrl, isPdf: isPdfHook, loading: frontLoading } = useFileReadUrl(doc?.image);
-    const isFrontPdf = Boolean(doc?.isPdf || isPdfHook || isPdfUrl(doc?.image));
-    const isSinglePdf = isFrontPdf && !doc?.backImage;
-
-    const handleConfirm = () => {
-      let status: 'approved' | 'rejected' | 'reupload_requested' = 'approved';
-      if (action === 'reject') status = 'rejected';
-      else if (action === 'reupload') status = 'reupload_requested';
-
-      verifyDocument({
-        applicationId: id as string,
-        documentId: doc.rawDoc.id,
-        status,
-        comment: message
-      }, {
-        onSuccess: () => {
-          onClose();
-        },
-        onError: (err) => showError('Update failed', err.message),
-      });
-    };
-
-    if (!doc) return null;
-
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 md:p-8">
-        <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-full border border-slate-200 dark:border-slate-800">
-          {/* Header */}
-          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <FileText className="w-4 h-4 text-[#1F2B6D] dark:text-blue-400" />
-                <h3 className="font-bold text-[#1F2B6D] dark:text-white text-lg leading-none">{doc.name}</h3>
-                {isSinglePdf && (
-                  <span className="ml-2 px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40">
-                    PDF Document
-                  </span>
-                )}
-              </div>
-              <p className="text-[13px] text-slate-500 font-medium">Document Number: {doc.number} • Uploaded on {doc.uploaded}</p>
-            </div>
-            <button onClick={onClose} className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          
-          {/* Main Content - Document View */}
-          <div className="flex-1 overflow-y-auto p-6 bg-slate-100/50 dark:bg-slate-950/50 custom-scrollbar flex justify-center items-start min-h-[400px]">
-            {isSinglePdf ? (
-              <div className="w-full max-w-3xl flex flex-col gap-2">
-                <div className="flex items-center justify-between px-3 py-2 bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 rounded-xl text-[12px] font-semibold text-rose-800 dark:text-rose-300">
-                  <span className="flex items-center gap-1.5 font-bold">
-                    <FileText className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                    Complete Digital Document (PDF contains all pages)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => openDocument(doc.image, 'inline')}
-                    className="text-[#1F2B6D] dark:text-blue-400 hover:underline flex items-center gap-1 text-[12px] font-bold cursor-pointer"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Open in New Tab
-                  </button>
-                </div>
-                <div className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl h-[55vh] min-h-[440px] overflow-hidden shadow-sm flex flex-col">
-                  {frontLoading && !frontUrl && !isPdfUrl(doc.image) ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-white dark:bg-slate-800">
-                      <div className="w-8 h-8 border-3 border-rose-500/30 border-t-rose-600 rounded-full animate-spin" />
-                      <p className="text-[12px] font-semibold text-slate-500 dark:text-slate-400">Loading PDF document...</p>
-                    </div>
-                  ) : (
-                    <iframe
-                      src={`${frontUrl || doc.image}#toolbar=1`}
-                      className="w-full h-full border-0 bg-white"
-                      title={`${doc.name} PDF Preview`}
-                    />
-                  )}
-                </div>
-              </div>
-            ) : frontLoading && !doc?.backImage && doc?.twoSided ? (
-              <div className="w-full max-w-3xl min-h-[440px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex flex-col items-center justify-center gap-3 shadow-sm">
-                <div className="w-9 h-9 border-3 border-blue-600/30 border-t-[#1F2B6D] dark:border-t-blue-400 rounded-full animate-spin" />
-                <p className="text-[13px] font-semibold text-slate-500 dark:text-slate-400">Loading document preview...</p>
-              </div>
-            ) : doc.twoSided ? (
-              <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-4">
-                {([['Front', doc.image], ['Back', doc.backImage]] as const).map(([side, src]) => (
-                  <div key={side} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl min-h-[320px] flex flex-col overflow-hidden shadow-sm">
-                    <div className="px-3 py-2 text-[12px] font-bold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                      <span>{side}</span>
-                      {src && (
-                        <button
-                          type="button"
-                          onClick={() => openDocument(src, 'inline')}
-                          className="text-[11px] text-[#1F2B6D] dark:text-blue-400 hover:underline flex items-center gap-1 font-medium cursor-pointer"
-                        >
-                          <ExternalLink className="w-3 h-3" /> View Full
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex-1 flex items-center justify-center p-2">
-                      <FileImage
-                        src={src}
-                        alt={`${doc.name} (${side.toLowerCase()})`}
-                        className="max-w-full h-auto object-contain max-h-[55vh]"
-                        fallback={
-                          <p className="text-slate-400 dark:text-slate-500 font-medium text-[14px]">
-                            {side === 'Back' && !src ? 'Back not provided' : 'No Document Image Available'}
-                          </p>
-                        }
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="w-full max-w-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl min-h-[500px] flex flex-col items-center justify-center relative overflow-hidden shadow-sm">
-                 <FileImage
-                   src={doc.image}
-                   alt={doc.name}
-                   className="max-w-full h-auto object-contain max-h-[60vh] z-10"
-                   fallback={
-                     <div className="flex flex-col items-center">
-                       <ImageIcon className="w-16 h-16 text-slate-200 dark:text-slate-700 mb-4" />
-                       <p className="text-slate-400 dark:text-slate-500 font-medium text-[15px]">No Document Image Available</p>
-                     </div>
-                   }
-                 />
-                 <div className="absolute inset-0 bg-gradient-to-tr from-slate-50/50 to-transparent pointer-events-none dark:from-slate-800/30"></div>
-              </div>
-            )}
-          </div>
-
-
-          {/* Footer / Actions */}
-          <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col">
-            {doc.status === 'Verified' ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-emerald-800 dark:text-emerald-400 text-[14px]">Document Verified</p>
-                    {doc.rawDoc?.verifiedAt && (
-                      <p className="text-emerald-600 dark:text-emerald-500/80 text-[12px]">Verified on {fmtDateTime(doc.rawDoc.verifiedAt)}</p>
-                    )}
-                  </div>
-                </div>
-                <button type="button" onClick={() => openDocument(doc.image)} disabled={!doc.image} className="px-6 py-2.5 rounded-lg border-2 border-[#1F2B6D] text-[#1F2B6D] hover:bg-slate-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-slate-800 font-bold transition-colors text-[14px] flex items-center gap-2">
-                  <Download className="w-4 h-4" /> Download
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-end gap-3">
-                {/* PDFs have no inline preview above, so the reviewer opens the file itself. */}
-                <div className="mr-auto flex items-center gap-2">
-                  {([['Open document', doc.image], ['Open back', doc.backImage]] as const)
-                    .filter(([label, src]) => label === 'Open document' || src)
-                    .map(([label, src]) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => openDocument(src, 'inline')}
-                        disabled={!src}
-                        className="px-5 py-2.5 rounded-xl border border-slate-200 text-[#1F2B6D] bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-400 dark:hover:bg-slate-800 font-bold transition-all text-[13px] flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <ExternalLink className="w-4 h-4" /> {label}
-                      </button>
-                    ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMessage('Document is unclear')
-                    setAction('reject')
-                  }}
-                  className="px-6 py-2.5 rounded-xl border border-rose-200 text-rose-600 bg-rose-50/70 hover:bg-rose-100/80 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-400 dark:hover:bg-rose-900/30 font-bold transition-all text-[13px] flex items-center gap-2 cursor-pointer shadow-2xs"
-                >
-                  <ThumbsDown className="w-4 h-4" /> Reject
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMessage('Document is unclear')
-                    setAction('reupload')
-                  }}
-                  className="px-6 py-2.5 rounded-xl border border-amber-200 text-amber-600 bg-amber-50/70 hover:bg-amber-100/80 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-400 dark:hover:bg-amber-900/30 font-bold transition-all text-[13px] flex items-center gap-2 cursor-pointer shadow-2xs"
-                >
-                  <RefreshCw className="w-4 h-4" /> Request Re-upload
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAction('verify')}
-                  className="px-7 py-2.5 rounded-xl bg-[#059669] hover:bg-emerald-700 text-white font-bold transition-all shadow-sm text-[13px] flex items-center gap-2 cursor-pointer active:scale-[0.99]"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> Verify Document
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* ─── Document Custom Confirmation Popup Modal ────────────────────── */}
-          {action !== 'none' && (
-            <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 text-center">
-                <button
-                  type="button"
-                  onClick={() => setAction('none')}
-                  className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-
-                {/* VERIFY DOCUMENT MODAL */}
-                {action === 'verify' && (
-                  <div>
-                    <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-3 shadow-2xs">
-                      <Check className="w-7 h-7 stroke-[2.5]" />
-                    </div>
-                    <h3 className="font-bold text-[18px] text-[#1F2B6D] dark:text-white">
-                      Verify Document?
-                    </h3>
-                    <p className="text-[12.5px] text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-                      Are you sure you want to mark this document as verified?
-                    </p>
-
-                    {/* Document Mini Card */}
-                    <div className="mt-4 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/60 flex items-center gap-3 text-left">
-                      <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-bold text-[#1F2B6D] dark:text-white text-[13px] truncate">
-                          {doc.name}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 font-mono">
-                          {doc.number} • Uploaded on {doc.uploaded}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Checklist */}
-                    <div className="mt-3 p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/40 space-y-2 text-left">
-                      <div className="flex items-center gap-2 text-[12px] text-slate-700 dark:text-slate-300">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <span>Document will be marked as <strong className="text-emerald-800 dark:text-emerald-300 font-semibold">Verified</strong></span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[12px] text-slate-700 dark:text-slate-300">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <span>Application progress will be updated automatically</span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-3 mt-5">
-                      <button
-                        type="button"
-                        onClick={() => setAction('none')}
-                        className="w-full py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[13px] transition cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={handleConfirm}
-                        className="w-full py-2.5 rounded-lg bg-[#059669] hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-[13px] shadow-sm transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
-                      >
-                        {isPending ? 'Verifying...' : 'Yes, Verify Document'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* REJECT DOCUMENT MODAL */}
-                {action === 'reject' && (
-                  <div>
-                    <div className="w-14 h-14 rounded-full bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-3 shadow-2xs">
-                      <ThumbsDown className="w-7 h-7 stroke-[2]" />
-                    </div>
-                    <h3 className="font-bold text-[18px] text-[#1F2B6D] dark:text-white">
-                      Reject Document?
-                    </h3>
-                    <p className="text-[12.5px] text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-                      Please provide a reason for rejecting this document.
-                    </p>
-
-                    {/* Document Mini Card */}
-                    <div className="mt-4 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/60 flex items-center gap-3 text-left">
-                      <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-bold text-[#1F2B6D] dark:text-white text-[13px] truncate">
-                          {doc.name}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 font-mono">
-                          {doc.number} • Uploaded on {doc.uploaded}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Preset Reasons */}
-                    <div className="mt-3 text-left space-y-1.5">
-                      <label className="text-[11.5px] font-bold text-slate-700 dark:text-slate-300">
-                        Select Rejection Reason
-                      </label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {['Document is unclear', 'Document is expired', "Information doesn't match", 'Wrong document'].map((opt) => (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => setMessage(opt)}
-                            className={`text-[11px] px-2.5 py-1 rounded-full border transition font-medium cursor-pointer ${
-                              message === opt
-                                ? 'bg-rose-600 text-white border-rose-600'
-                                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                      <textarea
-                        rows={2}
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Provide details for the driver..."
-                        className="w-full text-xs p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 resize-none outline-none focus:ring-1 focus:ring-rose-500 dark:text-white mt-1"
-                      />
-                    </div>
-
-                    {/* Warning Checklist */}
-                    <div className="mt-3 p-3 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-800/40 space-y-2 text-left">
-                      <div className="flex items-center gap-2 text-[12px] text-slate-700 dark:text-slate-300">
-                        <XCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                        <span>Document will be marked as <strong className="text-rose-800 dark:text-rose-300 font-semibold">Rejected</strong></span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[12px] text-slate-700 dark:text-slate-300">
-                        <XCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                        <span>Driver will be notified of the rejection reason</span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-3 mt-5">
-                      <button
-                        type="button"
-                        onClick={() => setAction('none')}
-                        className="w-full py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[13px] transition cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!message || isPending}
-                        onClick={handleConfirm}
-                        className="w-full py-2.5 rounded-lg bg-[#DC2626] hover:bg-rose-700 active:scale-[0.99] text-white font-bold text-[13px] shadow-sm transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isPending ? 'Rejecting...' : 'Yes, Reject Document'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* RE-UPLOAD DOCUMENT MODAL */}
-                {action === 'reupload' && (
-                  <div>
-                    <div className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3 shadow-2xs">
-                      <RefreshCw className="w-7 h-7 stroke-[2]" />
-                    </div>
-                    <h3 className="font-bold text-[18px] text-[#1F2B6D] dark:text-white">
-                      Request Document Re-upload?
-                    </h3>
-                    <p className="text-[12.5px] text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-                      Driver will receive a request to upload a fresh copy of this document.
-                    </p>
-
-                    {/* Document Mini Card */}
-                    <div className="mt-4 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/60 flex items-center gap-3 text-left">
-                      <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-bold text-[#1F2B6D] dark:text-white text-[13px] truncate">
-                          {doc.name}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 font-mono">
-                          {doc.number} • Uploaded on {doc.uploaded}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Preset Reasons */}
-                    <div className="mt-3 text-left space-y-1.5">
-                      <label className="text-[11.5px] font-bold text-slate-700 dark:text-slate-300">
-                        Select Reason
-                      </label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {['Document is unclear', 'Document is expired', "Information doesn't match", 'Wrong document'].map((opt) => (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => setMessage(opt)}
-                            className={`text-[11px] px-2.5 py-1 rounded-full border transition font-medium cursor-pointer ${
-                              message === opt
-                                ? 'bg-amber-600 text-white border-amber-600'
-                                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                      <textarea
-                        rows={2}
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Instructions for driver what to re-upload..."
-                        className="w-full text-xs p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 resize-none outline-none focus:ring-1 focus:ring-amber-500 dark:text-white mt-1"
-                      />
-                    </div>
-
-                    {/* Info Checklist */}
-                    <div className="mt-3 p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-800/40 space-y-2 text-left">
-                      <div className="flex items-center gap-2 text-[12px] text-slate-700 dark:text-slate-300">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span>Status will be changed to <strong className="text-amber-800 dark:text-amber-300 font-semibold">Re-upload Required</strong></span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[12px] text-slate-700 dark:text-slate-300">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span>Driver will receive notification to upload replacement</span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-3 mt-5">
-                      <button
-                        type="button"
-                        onClick={() => setAction('none')}
-                        className="w-full py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[13px] transition cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!message || isPending}
-                        onClick={handleConfirm}
-                        className="w-full py-2.5 rounded-lg bg-[#F59E0B] hover:bg-amber-600 active:scale-[0.99] text-white font-bold text-[13px] shadow-sm transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isPending ? 'Sending Request...' : 'Send Re-upload Request'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  const steps = ['Overview', 'Claim Form', 'Documents', 'Bank Details', 'Final Review', 'Decision']
+  const steps = APPLICATION_REVIEW_STEPS
 
   return (
     <div className="h-[calc(100vh-4.25rem)] flex flex-col overflow-hidden px-4 sm:px-6 max-w-screen-2xl mx-auto w-full">
@@ -918,38 +349,48 @@ export const ApplicationReviewPage: React.FC = () => {
       <div className="shrink-0 pt-2 pb-2.5 space-y-2.5 bg-background border-b border-slate-200/80 dark:border-slate-800 z-10">
         
         {/* ─── Header ───────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <button 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <button
+            type="button"
             onClick={() => navigate('/driver-management/applications')}
-            className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#1F2B6D] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+            aria-label="Back to applications"
+            className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#1F2B6D] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm shrink-0 cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-[#1F2B6D] dark:text-white flex items-center gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1F2B6D] dark:text-white truncate">
               Driver Application Review
             </h1>
-            <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-[12.5px] sm:text-[13px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
               Review all verification details and make a final decision on this application.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-6">
-          <div className="text-right flex flex-col items-end gap-1">
-            <div className="flex items-center gap-2 text-[12.5px]">
+        <div className="flex flex-wrap items-center gap-4 shrink-0">
+          <div className="text-right flex flex-col items-end gap-0.5">
+            <div className="flex items-center gap-2 text-[12px]">
               <span className="text-slate-500">Application ID</span>
-              <span className="font-bold text-[#1F2B6D] dark:text-[#8B93D9]">{appData.id}</span>
+              <span className="font-bold font-mono text-[#1F2B6D] dark:text-[#8B93D9]">{appData.id}</span>
             </div>
-            <div className="flex items-center gap-2 text-[12.5px]">
+            <div className="flex items-center gap-2 text-[12px]">
               <span className="text-slate-500">Submitted on</span>
               <span className="font-bold text-[#1F2B6D] dark:text-[#8B93D9]">{appData.submittedDate}</span>
             </div>
           </div>
-          <div className={`${statusBadgeClass} border px-4 py-2 rounded-lg font-bold text-[13px] flex items-center gap-2 shadow-sm`}>
-            <div className="w-4 h-4 rounded-full bg-current flex items-center justify-center text-[10px]"><span className="text-white">!</span></div>
-            {appData.statusLabel}
+          <div className={`${statusBadgeClass} border px-3.5 py-2 rounded-lg font-bold text-[12.5px] flex items-center gap-2 shadow-sm`}>
+            {data.applicationStatus === 'approved' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : data.applicationStatus === 'rejected' ? (
+              <XCircle className="w-4 h-4 shrink-0" />
+            ) : data.applicationStatus === 'resubmission_required' ? (
+              <RefreshCw className="w-4 h-4 shrink-0" />
+            ) : (
+              <Clock className="w-4 h-4 shrink-0" />
+            )}
+            <span>{appData.statusLabel}</span>
           </div>
         </div>
       </div>
@@ -974,50 +415,54 @@ export const ApplicationReviewPage: React.FC = () => {
       />
 
       {/* ─── Stepper Row with Prev/Next Buttons ───────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row items-center justify-between w-full py-1 gap-4">
+      <div className="flex flex-wrap items-center justify-between w-full py-1 gap-x-4 gap-y-2">
         {/* Stepper Steps */}
-        <div className="flex items-center flex-1 max-w-4xl">
+        <div className="flex flex-wrap xl:flex-nowrap items-center flex-1 min-w-0 py-0.5">
           {steps.map((step, idx) => {
-            const isActive = idx === activeStep;
-            const isCompleted = stepDone[idx];
+            const isActive = idx === activeStep
+            const isCompleted = stepDone[idx]
 
             return (
               <React.Fragment key={step}>
-                <div
-                  className="flex items-center gap-2 cursor-pointer transition-opacity hover:opacity-80"
-                  onClick={() => {
-                    setReviewedSteps((prev) => new Set([...prev, activeStep]))
-                    setActiveStep(idx)
-                  }}
+                <button
+                  type="button"
+                  className={`flex items-center gap-1.5 shrink-0 rounded-full px-1.5 py-0.5 transition-all cursor-pointer focus:outline-none ${
+                    isActive
+                      ? isCompleted
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-500/30'
+                        : 'bg-[#1F2B6D]/8 dark:bg-blue-950/40 border border-[#1F2B6D]/20 dark:border-blue-800/60 ring-2 ring-[#1F2B6D]/20'
+                      : 'border border-transparent hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
+                  }`}
+                  onClick={() => handleStepChange(idx)}
                 >
                   <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[13px] shadow-sm transition-all ${
-                      isCompleted 
-                        ? isActive
-                          ? 'bg-emerald-500 text-white ring-2 ring-offset-2 ring-[#1F2B6D] dark:ring-blue-400 scale-105'
-                          : 'bg-emerald-500 text-white' 
-                        : isActive 
-                          ? 'bg-[#1F2B6D] text-white' 
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11.5px] transition-colors ${
+                      isCompleted
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : isActive
+                          ? 'bg-[#1F2B6D] text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                     }`}
                   >
-                    {isCompleted ? <Check className="w-4 h-4 stroke-[3]" /> : (idx + 1)}
+                    {isCompleted ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : idx + 1}
                   </div>
                   <span
-                    className={`font-bold text-[13px] ${
+                    className={`font-bold text-[12px] whitespace-nowrap pr-1 ${
                       isActive
-                        ? 'text-[#1F2B6D] dark:text-blue-400'
+                        ? isCompleted
+                          ? 'text-emerald-700 dark:text-emerald-300'
+                          : 'text-[#1F2B6D] dark:text-blue-300'
                         : isCompleted
                           ? 'text-slate-700 dark:text-slate-300'
-                          : 'text-slate-400'
+                          : 'text-slate-400 dark:text-slate-500'
                     }`}
                   >
                     {step}
                   </span>
-                </div>
+                </button>
                 {idx < steps.length - 1 && (
                   <div
-                    className={`flex-1 h-0.5 mx-3 ${
+                    className={`flex-1 min-w-[8px] max-w-[36px] h-0.5 mx-1 transition-colors ${
                       stepDone[idx] ? 'bg-emerald-400' : 'bg-slate-200 dark:bg-slate-800'
                     }`}
                   />
@@ -1028,28 +473,24 @@ export const ApplicationReviewPage: React.FC = () => {
         </div>
 
         {/* Prev / Next Buttons */}
-        <div className="flex items-center gap-3 shrink-0">
-          <button 
-            onClick={() => {
-              setReviewedSteps((prev) => new Set([...prev, activeStep]))
-              setActiveStep(Math.max(0, activeStep - 1))
-            }}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => handleStepChange(Math.max(0, activeStep - 1))}
             disabled={activeStep === 0}
-            className="px-4 py-2 rounded-lg border border-slate-200 text-[#1F2B6D] font-semibold text-[13px] hover:bg-slate-50 transition-colors flex items-center gap-2 bg-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[#1F2B6D] dark:text-slate-200 font-semibold text-[12.5px] hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5" />
             Previous
           </button>
-          <button 
-            onClick={() => {
-              setReviewedSteps((prev) => new Set([...prev, activeStep]))
-              setActiveStep(Math.min(steps.length - 1, activeStep + 1))
-            }}
+          <button
+            type="button"
+            onClick={() => handleStepChange(Math.min(steps.length - 1, activeStep + 1))}
             disabled={activeStep === steps.length - 1}
-            className="px-4 py-2 rounded-lg bg-[#1F2B6D] text-white font-semibold text-[13px] hover:bg-[#1B2A6B] transition-colors flex items-center gap-2 shadow-sm"
+            className="px-3.5 py-1.5 rounded-lg bg-[#1F2B6D] text-white font-semibold text-[12.5px] hover:bg-[#182258] transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -1065,10 +506,10 @@ export const ApplicationReviewPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <ReviewSummaryCard
               icon={<ShieldAlert className="w-5 h-5 text-white" />}
-              iconBgColor="bg-amber-500"
+              iconBgColor={statusCardAccent.iconBg}
               title="Application Status"
               value={appData.statusLabel}
-              valueColor="text-amber-500"
+              valueColor={statusCardAccent.valueColor}
               subtitle={`Submitted on ${appData.submittedDate}`}
             />
             <ReviewSummaryCard
@@ -1206,18 +647,28 @@ export const ApplicationReviewPage: React.FC = () => {
                     })}
                   </div>
                   
-                  <button 
-                    onClick={() => {
-                      setReviewedSteps((prev) => new Set([...prev, activeStep]))
-                      setActiveStep(2)
-                    }} 
-                    className="w-full mt-4 py-2 rounded-lg border border-slate-200 text-[#1F2B6D] font-bold text-[13px] hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
+                  <button
+                    type="button"
+                    onClick={() => handleStepChange(2)}
+                    className="w-full mt-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-[#1F2B6D] dark:text-blue-400 font-bold text-[13px] hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
                   >
                     View All Documents
                   </button>
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Bottom Step Navigation Bar */}
+          <div className="flex items-center justify-end pt-3">
+            <button
+              type="button"
+              onClick={() => handleStepChange(1)}
+              className="px-5 py-2.5 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white font-bold text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              Proceed to Claim Form
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
@@ -1328,13 +779,35 @@ export const ApplicationReviewPage: React.FC = () => {
                 </div>
                 
                 {/* Profile Photo Area */}
-                <div className="shrink-0 flex flex-col items-center gap-3 bg-emerald-50/50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
-                  <div className="w-24 h-24 rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700">
+                <div
+                  className={`shrink-0 flex flex-col items-center gap-3 p-4 rounded-xl border ${
+                    data.profilePhotoUrl
+                      ? 'bg-emerald-50/50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/30'
+                      : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  <div className="w-24 h-24 rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-white dark:bg-slate-900">
                     <FileImage src={data.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" fallback={<User className="w-8 h-8 text-slate-400" />} />
                   </div>
-                  <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 px-3 py-1.5 rounded-full text-[12px] font-bold shadow-sm border border-emerald-200 dark:border-emerald-800">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Profile Photo<br/><span className="text-emerald-500 dark:text-emerald-500 font-medium text-[10px] leading-tight block">{data.profilePhotoUrl ? 'Uploaded' : 'Not uploaded'}</span></span>
+                  <div
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold shadow-sm border ${
+                      data.profilePhotoUrl
+                        ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 border-emerald-200 dark:border-emerald-800'
+                        : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
+                    }`}
+                  >
+                    {data.profilePhotoUrl ? (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      Profile Photo
+                      <br />
+                      <span className="font-medium text-[10px] leading-tight block opacity-85">
+                        {data.profilePhotoUrl ? 'Uploaded' : 'Not uploaded'}
+                      </span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1360,24 +833,31 @@ export const ApplicationReviewPage: React.FC = () => {
               <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-8 text-[13px]">
                 <div className="flex flex-col gap-2">
                   <span className="text-slate-500 mb-0.5">Current Address</span>
-                  <p className="font-semibold text-[#1F2B6D] dark:text-slate-200 leading-relaxed max-w-sm">
-                    {appData.address.split(', ').slice(0, 2).join(', ')}<br/>
-                    {appData.address.split(', ').slice(2).join(', ')}
-                  </p>
-                  <div className="mt-2 self-start bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/30 px-3 py-1.5 rounded flex items-center gap-2 font-bold text-[11.5px]">
-                    <Home className="w-3.5 h-3.5" /> Current Address
-                  </div>
+                  {hasAddress ? (
+                    <>
+                      <p className="font-semibold text-[#1F2B6D] dark:text-slate-200 leading-relaxed max-w-sm">
+                        {appData.address.split(', ').slice(0, 2).join(', ')}
+                        <br />
+                        {appData.address.split(', ').slice(2).join(', ')}
+                      </p>
+                      <div className="mt-2 self-start bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/30 px-3 py-1.5 rounded flex items-center gap-2 font-bold text-[11.5px]">
+                        <Home className="w-3.5 h-3.5" /> Primary Registered Address
+                      </div>
+                    </>
+                  ) : (
+                    <p className="font-medium text-slate-400">Not provided</p>
+                  )}
                 </div>
                 <div className="flex flex-col gap-2 relative">
-                  {/* Decorative divider for desktop */}
-                  <div className="hidden md:block absolute -left-4 top-2 bottom-2 w-px bg-slate-100 dark:bg-slate-800"></div>
-                  <span className="text-slate-500 mb-0.5">Permanent Address</span>
-                  <p className="font-semibold text-[#1F2B6D] dark:text-slate-200 leading-relaxed max-w-sm">
-                    {appData.address.split(', ').slice(0, 2).join(', ')}<br/>
-                    {appData.address.split(', ').slice(2).join(', ')}
-                  </p>
-                  <div className="mt-2 self-start bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/30 px-3 py-1.5 rounded flex items-center gap-2 font-bold text-[11.5px]">
-                    <MapPin className="w-3.5 h-3.5" /> Same as Current Address
+                  <div className="hidden md:block absolute -left-4 top-2 bottom-2 w-px bg-slate-100 dark:bg-slate-800" />
+                  <span className="text-slate-500 mb-0.5">City / State / Postcode</span>
+                  <div className="space-y-1 text-[13px]">
+                    <p className="font-semibold text-[#1F2B6D] dark:text-slate-200">
+                      {appData.location !== '—' ? appData.location : 'Not provided'}
+                    </p>
+                    {data.postcode ? (
+                      <p className="text-xs font-mono text-slate-500">PIN: {data.postcode}</p>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -1502,7 +982,11 @@ export const ApplicationReviewPage: React.FC = () => {
                   </div>
                   <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">Additional Information</h3>
                 </div>
-                <button className="text-blue-600 hover:text-blue-700 text-[12px] font-semibold flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit('status')}
+                  className="text-blue-600 hover:text-blue-700 text-[12px] font-semibold flex items-center gap-1 cursor-pointer"
+                >
                   <Edit className="w-3.5 h-3.5" /> Edit
                 </button>
               </div>
@@ -1518,7 +1002,7 @@ export const ApplicationReviewPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-slate-500 mb-0.5">Online Status</p>
-                    <p className="font-semibold text-[#1F2B6D] dark:text-slate-200">{capitalize(data.onlineStatus)}</p>
+                    <p className="font-semibold text-[#1F2B6D] dark:text-slate-200">{capitalizeLabel(data.onlineStatus)}</p>
                   </div>
                   <div>
                     <p className="text-slate-500 mb-0.5">Completed Trips</p>
@@ -1528,6 +1012,25 @@ export const ApplicationReviewPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Bottom Step Navigation Bar */}
+            <div className="flex items-center justify-between pt-3 w-full">
+              <button
+                type="button"
+                onClick={() => handleStepChange(0)}
+                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-[#1F2B6D] dark:text-slate-200 font-semibold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer bg-white dark:bg-slate-900 shadow-2xs"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Overview
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStepChange(2)}
+                className="px-5 py-2.5 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white font-bold text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                Proceed to Documents
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1620,6 +1123,7 @@ export const ApplicationReviewPage: React.FC = () => {
                       status={doc.status}
                       image={doc.image}
                       expiryDate={doc.expiryDate}
+                      isExpired={doc.isExpired}
                       uploaded={doc.uploaded}
                       variant="standard"
                       onClick={() => setSelectedDocument(doc)}
@@ -1662,6 +1166,7 @@ export const ApplicationReviewPage: React.FC = () => {
                       status={doc.status}
                       image={doc.image}
                       expiryDate={doc.expiryDate}
+                      isExpired={doc.isExpired}
                       uploaded={doc.uploaded}
                       variant="standard"
                       onClick={() => setSelectedDocument(doc)}
@@ -1689,355 +1194,62 @@ export const ApplicationReviewPage: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Bottom Step Navigation Bar */}
+            <div className="flex items-center justify-between pt-4 mt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => handleStepChange(1)}
+                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-[#1F2B6D] dark:text-slate-200 font-semibold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer bg-white dark:bg-slate-900 shadow-2xs"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Claim Form
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStepChange(3)}
+                className="px-5 py-2.5 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white font-bold text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                Proceed to Bank Details
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Document Preview Modal */}
-      <DocumentPreviewModal 
-        doc={selectedDocument} 
-        onClose={() => setSelectedDocument(null)} 
+      <DocumentPreviewModal
+        doc={selectedDocument}
+        applicationId={id || ''}
+        onClose={() => setSelectedDocument(null)}
+        onOpenDocument={openDocument}
       />
 
       {/* ─── Step 3: Bank Details ────────────────────────────────────────── */}
       {activeStep === 3 && (
-        <div className="space-y-4 max-w-6xl mx-auto py-1">
-          {/* Top KPI Cards Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            <ReviewSummaryCard
-              icon={<Building2 className="w-5 h-5 text-white" />}
-              iconBgColor="bg-[#1F2B6D]"
-              title="Settlement Bank"
-              value={appData.bankName !== '—' ? appData.bankName : 'Not Provided'}
-              subtitle={appData.bankIfsc !== '—' ? `IFSC: ${appData.bankIfsc}` : 'IFSC code pending'}
-              valueColor="text-[#1F2B6D] dark:text-white"
-            />
-            <ReviewSummaryCard
-              icon={<CheckCircle2 className="w-5 h-5 text-white" />}
-              iconBgColor={appData.bankPayoutEnabled || appData.bankStatus === 'ACTIVE' || appData.bankStatus === 'VERIFIED' ? 'bg-[#1F2B6D]' : 'bg-amber-600'}
-              title="Payout Status"
-              value={appData.bankPayoutEnabled || appData.bankStatus === 'ACTIVE' || appData.bankStatus === 'VERIFIED' ? 'Active for Payouts' : appData.bankStatus || (appData.bankName !== '—' ? 'Under Review' : 'Pending')}
-              subtitle={appData.bankPayoutEnabled ? 'Auto-settlement enabled' : 'Verification pending approval'}
-              valueColor={appData.bankPayoutEnabled || appData.bankStatus === 'ACTIVE' ? 'text-[#1F2B6D] dark:text-white' : 'text-amber-600 dark:text-amber-400'}
-            />
-            <ReviewSummaryCard
-              icon={<User className="w-5 h-5 text-white" />}
-              iconBgColor="bg-[#1F2B6D]"
-              title="Name Verification"
-              value={
-                appData.bankAccountName !== '—'
-                  ? appData.name.toLowerCase().includes(appData.bankAccountName.toLowerCase().split(' ')[0])
-                    ? 'Name Matched'
-                    : 'Check Required'
-                  : 'No Account Name'
-              }
-              subtitle={appData.bankAccountName !== '—' ? `Holder: ${appData.bankAccountName}` : 'Account holder not entered'}
-              valueColor={
-                appData.bankAccountName !== '—' && appData.name.toLowerCase().includes(appData.bankAccountName.toLowerCase().split(' ')[0])
-                  ? 'text-[#1F2B6D] dark:text-white'
-                  : 'text-amber-600 dark:text-amber-400'
-              }
-            />
-            <ReviewSummaryCard
-              icon={<ShieldCheck className="w-5 h-5 text-white" />}
-              iconBgColor="bg-[#1F2B6D]"
-              title="Vault Security"
-              value="AES-256 GCM"
-              subtitle="End-to-end encrypted storage"
-              valueColor="text-[#1F2B6D] dark:text-white"
-            />
-          </div>
-
-          {/* Main 2-Column Review Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* Left Column (5 cols): Virtual Debit Card & Quick Copy */}
-            <div className="lg:col-span-5 space-y-4">
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs">
-                      <CreditCard className="w-3.5 h-3.5 text-white" />
-                    </div>
-                    <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">
-                      Payout Card Preview
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                    <Check className="w-3 h-3 stroke-[3]" /> IMPS / RTGS
-                  </span>
-                </div>
-
-                {/* Virtual Card Graphic */}
-                <div className="relative rounded-2xl p-5 bg-gradient-to-br from-[#1F2B6D] via-[#16215B] to-[#0D153A] text-white shadow-lg overflow-hidden border border-white/10">
-                  <div className="absolute top-0 right-0 w-36 h-36 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-5 h-5 text-emerald-400" />
-                      <span className="text-[14px] font-bold tracking-wide text-white truncate max-w-[200px]">
-                        {appData.bankName !== '—' ? appData.bankName : 'Settlement Bank'}
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono tracking-widest px-2 py-0.5 rounded bg-white/10 text-slate-200 border border-white/10">
-                      DIRECT PAYOUT
-                    </span>
-                  </div>
-
-                  {/* EMV Chip visual */}
-                  <div className="w-10 h-7 rounded bg-amber-400/90 border border-amber-300/50 mb-3 flex items-center justify-center shadow-inner">
-                    <div className="w-6 h-4 border border-amber-600/40 rounded-sm opacity-60" />
-                  </div>
-
-                  <div className="font-mono text-[18px] sm:text-[20px] font-bold tracking-widest text-slate-100 my-2">
-                    {appData.bankAccountNumber !== '—' ? appData.bankAccountNumber : '•••• •••• •••• ••••'}
-                  </div>
-
-                  <div className="flex items-end justify-between mt-4 pt-2 border-t border-white/10 text-[11px]">
-                    <div>
-                      <span className="text-slate-400 block text-[9.5px] uppercase tracking-wider">Account Holder</span>
-                      <span className="font-bold text-white tracking-wide uppercase truncate max-w-[180px] block text-[12px]">
-                        {appData.bankAccountName !== '—' ? appData.bankAccountName : appData.name}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-slate-400 block text-[9.5px] uppercase tracking-wider">IFSC Code</span>
-                      <span className="font-mono font-bold text-emerald-300 text-[12px]">
-                        {appData.bankIfsc !== '—' ? appData.bankIfsc : '•••••••••••'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Copy Action Buttons */}
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (appData.bankAccountNumber !== '—') {
-                        navigator.clipboard.writeText(appData.bankAccountNumber)
-                        showSuccess('Copied', 'Bank Account Number copied')
-                      }
-                    }}
-                    disabled={appData.bankAccountNumber === '—'}
-                    className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold text-[11.5px] flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Copy Account No.</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (appData.bankIfsc !== '—') {
-                        navigator.clipboard.writeText(appData.bankIfsc)
-                        showSuccess('Copied', 'Bank IFSC Code copied')
-                      }
-                    }}
-                    disabled={appData.bankIfsc === '—'}
-                    className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold text-[11.5px] flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Copy IFSC</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Security & Regulatory Clearance Card */}
-              <div className="bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-2 text-xs">
-                <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-300">
-                  <Lock className="w-4 h-4 text-emerald-600" />
-                  <span>RBI Settlement & Vault Compliance</span>
-                </div>
-                <p className="text-slate-500 dark:text-slate-400 text-[11.5px] leading-relaxed">
-                  Driver earnings and trip settlements are routed directly to this verified beneficiary account. Account details are encrypted with AES-256 GCM in the bank vault.
-                </p>
-              </div>
-            </div>
-
-            {/* Right Column (7 cols): Full Settlement Specifications & Cross-check */}
-            <div className="lg:col-span-7 space-y-4">
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs">
-                      <Building2 className="w-3.5 h-3.5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[15px]">
-                        Settlement Account Particulars
-                      </h3>
-                      <p className="text-[11.5px] text-slate-500">
-                        Review beneficiary information submitted by applicant
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReviewedSteps((prev) => new Set([...prev, activeStep]))
-                      setActiveStep(1)
-                    }}
-                    className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-[11.5px] font-semibold flex items-center gap-1 px-2.5 py-1 rounded border border-blue-200 dark:border-blue-900/40 bg-blue-50/60 hover:bg-blue-50 transition cursor-pointer"
-                  >
-                    <Edit className="w-3 h-3" /> Edit in Claim Form
-                  </button>
-                </div>
-
-                {/* Detailed Table */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[13px]">
-                  <div className="p-3 rounded-lg bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-500 text-[11.5px] block mb-1">Bank Name</span>
-                    <span className="font-bold text-[#1F2B6D] dark:text-white flex items-center gap-1.5">
-                      <Building2 className="w-4 h-4 text-slate-400" />
-                      {appData.bankName}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-500 text-[11.5px] block mb-1">Account Holder Name</span>
-                    <span className="font-bold text-[#1F2B6D] dark:text-white uppercase">
-                      {appData.bankAccountName}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-500 text-[11.5px] block mb-1">Account Number (Masked)</span>
-                    <span className="font-mono font-bold text-[#1F2B6D] dark:text-white">
-                      {appData.bankAccountNumber}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-500 text-[11.5px] block mb-1">IFSC Code</span>
-                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase">
-                      {appData.bankIfsc}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-500 text-[11.5px] block mb-1">UPI ID / VPA</span>
-                    <span className="font-mono font-bold text-[#1F2B6D] dark:text-white flex items-center gap-1.5">
-                      <Smartphone className="w-4 h-4 text-blue-500" />
-                      {appData.bankUpi !== '—' ? appData.bankUpi : 'Not Provided'}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-500 text-[11.5px] block mb-1">Applicant Name Match</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">
-                        {appData.name}
-                      </span>
-                      {appData.bankAccountName !== '—' && (
-                        <span className="text-[10.5px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Check className="w-2.5 h-2.5 stroke-[3]" /> Verified
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Passbook / Cheque Document cross-reference if uploaded */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <h4 className="font-bold text-[13px] text-[#1F2B6D] dark:text-white mb-2 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-400" />
-                    <span>Supporting Bank Documents</span>
-                  </h4>
-                  {rawDocs.find((d) => ['bank_statement', 'passbook', 'cheque', 'cancelled_cheque'].includes(d.docType.toLowerCase())) ? (
-                    (() => {
-                      const bDoc = rawDocs.find((d) => ['bank_statement', 'passbook', 'cheque', 'cancelled_cheque'].includes(d.docType.toLowerCase()))!
-                      return (
-                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <FileText className="w-5 h-5 text-blue-600" />
-                            <div>
-                              <p className="font-bold text-xs text-[#1F2B6D] dark:text-white">{getDocName(bDoc.docType)}</p>
-                              <p className="text-[11px] text-slate-500">Uploaded on {fmtDateTime(bDoc.createdAt)}</p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDocument(toReviewDoc(bDoc))}
-                            className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
-                          >
-                            Inspect Document <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )
-                    })()
-                  ) : (
-                    <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-500 flex items-center justify-between">
-                      <span>No separate cheque/passbook upload required (IFSC + Name verified via penny-drop protocol).</span>
-                      <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
-                        Auto-Cleared
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Bottom navigation buttons */}
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReviewedSteps((prev) => new Set([...prev, activeStep]))
-                      setActiveStep(2)
-                    }}
-                    className="px-4 py-2 rounded-lg border border-slate-200 text-[#1F2B6D] font-semibold text-[13px] hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to Documents
-                  </button>
-
-                  <div className="flex items-center gap-3">
-                    {appData.bankAccount && !isBankCompleted ? (
-                      <button
-                        type="button"
-                        disabled={isVerifyingBank}
-                        onClick={() => {
-                          const driverId = (data as any).driverId || (data as any).id
-                          const accountId = appData.bankAccount?.id
-                          if (driverId && accountId) {
-                            verifyBank(
-                              { driverId, accountId },
-                              {
-                                onSuccess: () => {
-                                  showSuccess('Bank Verified', 'Bank account has been verified and enabled for payouts.')
-                                  refetch()
-                                },
-                                onError: (err: any) => {
-                                  showError('Verification Failed', err?.message || 'Could not verify bank account')
-                                },
-                              },
-                            )
-                          }
-                        }}
-                        className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-[13px] shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        {isVerifyingBank ? 'Verifying...' : 'Verify Bank Account'}
-                      </button>
-                    ) : isBankCompleted ? (
-                      <span className="text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Bank Account Verified
-                      </span>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setReviewedSteps((prev) => new Set([...prev, activeStep]))
-                        setActiveStep(4)
-                      }}
-                      className="px-5 py-2 rounded-lg bg-[#1F2B6D] text-white font-semibold text-[13px] hover:bg-[#1B2A6B] transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
-                    >
-                      Proceed to Final Review
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <BankDetailsReviewStep
+          driverId={(data as any).driverId || (data as any).id || id || ''}
+          applicantName={appData.name}
+          bankAccount={appData.bankAccount}
+          bankName={appData.bankName}
+          bankAccountName={appData.bankAccountName}
+          bankAccountNumber={appData.bankAccountNumber}
+          bankIfsc={appData.bankIfsc}
+          bankUpi={appData.bankUpi}
+          bankStatus={appData.bankStatus}
+          bankPayoutEnabled={appData.bankPayoutEnabled}
+          hasBankDetails={hasBankDetails}
+          isBankCompleted={isBankCompleted}
+          rawDocs={rawDocs}
+          onEditBank={() => handleOpenEdit('status')}
+          onSelectDocument={setSelectedDocument}
+          onRefresh={() => {
+            void refetch()
+          }}
+          onBack={() => handleStepChange(2)}
+          onProceed={() => handleStepChange(4)}
+        />
       )}
 
       {/* ─── Step 4: Final Review ────────────────────────────────────────────── */}
@@ -2218,8 +1430,18 @@ export const ApplicationReviewPage: React.FC = () => {
                 <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-800 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-6 h-6 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-2xs">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      <div
+                        className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 shadow-2xs ${
+                          allVerified
+                            ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+                        }`}
+                      >
+                        {allVerified ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <Clock className="w-3.5 h-3.5" />
+                        )}
                       </div>
                       <span className="text-[11.5px] font-bold text-[#1F2B6D] dark:text-white truncate">
                         {allVerified ? 'Ready for Decision' : 'Review Pending'}
@@ -2249,7 +1471,8 @@ export const ApplicationReviewPage: React.FC = () => {
                 </h3>
               </div>
               <button
-                onClick={() => setActiveStep(2)}
+                type="button"
+                onClick={() => handleStepChange(2)}
                 className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-[12px] font-semibold flex items-center gap-1 hover:underline cursor-pointer"
               >
                 View All Documents <ArrowRight className="w-3.5 h-3.5" />
@@ -2284,6 +1507,7 @@ export const ApplicationReviewPage: React.FC = () => {
                       number={doc.number}
                       status={doc.status}
                       image={doc.image}
+                      isExpired={doc.isExpired}
                       variant="compact"
                       onClick={() => setSelectedDocument(doc)}
                     />
@@ -2318,6 +1542,7 @@ export const ApplicationReviewPage: React.FC = () => {
                       number={doc.number}
                       status={doc.status}
                       image={doc.image}
+                      isExpired={doc.isExpired}
                       variant="compact"
                       onClick={() => setSelectedDocument(doc)}
                     />
@@ -2326,124 +1551,467 @@ export const ApplicationReviewPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Bottom Step Navigation Bar */}
+          <div className="flex items-center justify-between pt-2">
+            <button
+              type="button"
+              onClick={() => handleStepChange(3)}
+              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-[#1F2B6D] dark:text-slate-200 font-semibold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer bg-white dark:bg-slate-900 shadow-2xs"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Bank Details
+            </button>
+            <button
+              type="button"
+              onClick={() => handleStepChange(5)}
+              className="px-5 py-2.5 rounded-lg bg-[#1F2B6D] hover:bg-[#182258] text-white font-bold text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              Proceed to Decision
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
       {/* ─── Step 5: Decision (Step 6 in Stepper) ──────────────────────────────── */}
       {activeStep === 5 && (
-        <div className="max-w-4xl mx-auto py-2">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
-            {/* Left: Driver Summary */}
-            <div className="md:col-span-5">
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-sm space-y-3 h-full flex flex-col justify-between">
+        <div className="w-full py-1">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            {/* Left: Driver Summary & Verification Readiness Checklist */}
+            <div className="lg:col-span-5">
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm flex flex-col justify-between h-full">
                 <div>
-                  <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-800">
-                    <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs">
-                      <User className="w-3.5 h-3.5 text-white" />
+                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs">
+                        <User className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">
+                        Applicant Summary
+                      </h3>
                     </div>
-                    <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[14px]">Driver Summary</h3>
+                    <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusBadgeClass}`}>
+                      {appData.statusLabel}
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-3 py-3">
-                    <div className="w-14 h-14 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shadow-2xs shrink-0">
-                      <FileImage src={data.profilePhotoUrl} alt={appData.name} className="w-full h-full object-cover" fallback={<User className="w-6 h-6 text-slate-400" />} />
+                  <div className="flex items-center gap-3.5 py-4">
+                    <div className="w-13 h-13 rounded-full bg-slate-100 overflow-hidden border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0 flex items-center justify-center">
+                      <FileImage
+                        src={data.profilePhotoUrl}
+                        alt={appData.name}
+                        className="w-full h-full object-cover"
+                        fallback={<User className="w-6 h-6 text-slate-400" />}
+                      />
                     </div>
-                    <div>
-                      <h4 className="font-bold text-[#1F2B6D] dark:text-white text-[15px]">{appData.name}</h4>
-                      <p className="text-slate-500 text-[12px]">{appData.phone}</p>
-                      <p className="text-slate-400 text-[11px] truncate max-w-[180px]">{appData.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <h4 className="font-bold text-[#1F2B6D] dark:text-white text-[15px] truncate">
+                          {appData.name}
+                        </h4>
+                        <span className="font-mono text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                          {appData.id}
+                        </span>
+                      </div>
+                      <p className="text-slate-500 text-[12px] font-mono mt-0.5">{appData.phone}</p>
+                      <p className="text-slate-400 text-[11px] truncate">{appData.email}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-[12px]">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Vehicle:</span>
-                    <span className="font-semibold text-[#1F2B6D] dark:text-slate-200">{appData.vehicleMake} {appData.vehicleModel}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Plate Number:</span>
-                    <span className="font-semibold font-mono text-[#1F2B6D] dark:text-slate-200">{appData.vehicleReg}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Documents:</span>
-                    <span className={`font-bold ${allVerified ? 'text-emerald-600' : 'text-amber-600'}`}>{verifiedTotal} / {totalDocs} Verified</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Application Decision Card (exact card as designed in mockup) */}
-            <div className="md:col-span-7">
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-4 h-full flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <div className="w-7 h-7 rounded-full bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs">
-                      <ShieldCheck className="w-3.5 h-3.5 text-white" />
-                    </div>
-                    <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[15px]">Application Decision</h3>
-                  </div>
-                  <p className="text-[12px] text-slate-500 dark:text-slate-400 mt-2">
-                    Choose the final action for this application. The driver will be notified automatically.
+                <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800 text-[12.5px]">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Verification Readiness Gate
                   </p>
-                </div>
 
-                <div className="space-y-3 pt-1">
-                  {/* Button 1: Approve Application */}
-                  <button
-                    onClick={() => {
-                      setDecisionReason('')
-                      setDecisionModal('approve')
-                    }}
-                    // The server refuses too; this keeps the operator from asking.
-                    disabled={approveBlockedReason !== null}
-                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-[#10B981] hover:bg-[#059669] active:scale-[0.99] text-white transition shadow-sm group cursor-pointer text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#10B981] disabled:active:scale-100"
-                  >
-                    <div className="flex items-center gap-2 font-bold text-[13.5px] text-white shrink-0">
-                      <CheckCircle2 className="w-4 h-4 text-white" />
-                      <span>Approve Application</span>
+                  <div className="space-y-2.5">
+                    {/* Item 1: Documents */}
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        {allVerified ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        ) : (
+                          <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                        )}
+                        <span className="font-medium text-slate-700 dark:text-slate-300">KYC Documents</span>
+                      </div>
+                      <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
+                        allVerified
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
+                          : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40'
+                      }`}>
+                        {verifiedTotal} / {totalDocs} Verified
+                      </span>
                     </div>
-                    <span className="text-[11px] text-emerald-50 text-right max-w-[200px] leading-tight font-medium">
-                      {approveBlockedReason ?? 'Application will be verified and driver can access the app.'}
-                    </span>
-                  </button>
 
-                  {/* Button 2: Request Re-submission */}
-                  <button
-                    onClick={() => {
-                      setDecisionReason('')
-                      setDecisionModal('reupload')
-                    }}
-                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] active:scale-[0.99] text-white transition shadow-sm group cursor-pointer text-left"
-                  >
-                    <div className="flex items-center gap-2 font-bold text-[13.5px] text-white shrink-0">
-                      <RefreshCw className="w-4 h-4 text-white" />
-                      <span>Request Re-submission</span>
+                    {/* Item 2: Expiry */}
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        {expiredDocsCount > 0 ? (
+                          <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        )}
+                        <span className="font-medium text-slate-700 dark:text-slate-300">Document Expiry</span>
+                      </div>
+                      <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
+                        expiredDocsCount > 0
+                          ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40'
+                          : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
+                      }`}>
+                        {expiredDocsCount > 0 ? `${expiredDocsCount} Expired` : 'All In Date'}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-amber-50 text-right max-w-[200px] leading-tight font-medium">
-                      Driver will be asked to re-upload specific information/documents.
-                    </span>
-                  </button>
 
-                  {/* Button 3: Reject Application */}
-                  <button
-                    onClick={() => {
-                      setDecisionReason('')
-                      setDecisionModal('reject')
-                    }}
-                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-[#FEE2E2] hover:bg-[#FECDD3] border border-[#FECDD3] dark:bg-rose-950/30 dark:border-rose-900/40 active:scale-[0.99] transition shadow-2xs group cursor-pointer text-left"
-                  >
-                    <div className="flex items-center gap-2 font-bold text-[13.5px] text-[#DC2626] dark:text-rose-400 shrink-0">
-                      <ThumbsDown className="w-4 h-4 text-[#DC2626] dark:text-rose-400" />
-                      <span>Reject Application</span>
+                    {/* Item 3: Bank Account */}
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        {isBankCompleted ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        ) : (
+                          <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                        )}
+                        <span className="font-medium text-slate-700 dark:text-slate-300">Settlement Account</span>
+                      </div>
+                      <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
+                        isBankCompleted
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
+                          : appData.bankStatus?.toUpperCase() === 'REJECTED'
+                            ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40'
+                            : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40'
+                      }`}>
+                        {formatBankStatusLabel(appData.bankStatus, appData.bankPayoutEnabled)}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-[#DC2626]/80 dark:text-rose-400/80 text-right max-w-[200px] leading-tight font-medium">
-                      Application will be rejected with a reason.
-                    </span>
-                  </button>
+
+                    {/* Item 4: Vehicle Plate */}
+                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <Car className="w-4 h-4 text-[#1F2B6D] dark:text-slate-400 shrink-0" />
+                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                          {appData.vehicleMake} {appData.vehicleModel}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[#1F2B6D] dark:text-slate-200">
+                        {appData.vehicleReg}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* Right: Application Decision Hub (Executive Segmented Console) */}
+            <div className="lg:col-span-7">
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm flex flex-col justify-between h-full space-y-5">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-[#1F2B6D] text-white flex items-center justify-center shadow-2xs">
+                        <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <h3 className="font-bold text-[#1F2B6D] dark:text-white text-[15px]">
+                        Executive Application Decision
+                      </h3>
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium">Final Sign-Off</span>
+                  </div>
+
+                  {/* ─── 3-Segment Executive Tab Selector ──────────────────────── */}
+                  <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100/90 dark:bg-slate-800/70 rounded-xl mt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDecisionTab('approve')
+                        setDecisionReason('')
+                      }}
+                      className={`py-2 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        decisionTab === 'approve'
+                          ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm border border-emerald-200/80 dark:border-emerald-800/50'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="truncate">Approve</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDecisionTab('reupload')
+                        setDecisionReason('')
+                      }}
+                      className={`py-2 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        decisionTab === 'reupload'
+                          ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 shadow-sm border border-amber-200/80 dark:border-amber-800/50'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span className="truncate">Re-submission</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDecisionTab('reject')
+                        setDecisionReason('')
+                      }}
+                      className={`py-2 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                        decisionTab === 'reject'
+                          ? 'bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-400 shadow-sm border border-rose-200/80 dark:border-rose-800/50'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <ThumbsDown className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+                      <span className="truncate">Reject</span>
+                    </button>
+                  </div>
+
+                  {/* ─── TAB 1: APPROVE APPLICATION ────────────────────────────── */}
+                  {decisionTab === 'approve' && (
+                    <div className="space-y-4 mt-4">
+                      {approveBlockedReason ? (
+                        <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/90 dark:bg-amber-950/30 flex items-start justify-between gap-3 shadow-2xs">
+                          <div className="flex items-start gap-2.5">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-bold text-amber-900 dark:text-amber-300">
+                                Approval Blocked
+                              </p>
+                              <p className="text-[12px] text-amber-700 dark:text-amber-400/90 mt-0.5 leading-snug">
+                                {approveBlockedReason}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleStepChange(2)}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 hover:bg-amber-50 shadow-2xs shrink-0 cursor-pointer flex items-center gap-1"
+                          >
+                            Review Docs <ArrowRight className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/90 dark:bg-emerald-950/30 flex items-start gap-2.5 shadow-2xs">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                              Ready for Approval
+                            </p>
+                            <p className="text-[12px] text-emerald-700 dark:text-emerald-400/90 mt-0.5 leading-snug">
+                              All {totalDocs} documents are verified and within validity dates. Approving will activate the driver partner account and send an SMS notification.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-[11.5px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          Approval & Onboarding Note <span className="font-normal text-slate-400">(optional)</span>
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={decisionReason}
+                          onChange={(e) => setDecisionReason(e.target.value)}
+                          placeholder="Add any internal onboarding notes for platform audit records..."
+                          className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 resize-none outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── TAB 2: REQUEST RE-SUBMISSION ───────────────────────────── */}
+                  {decisionTab === 'reupload' && (
+                    <div className="space-y-4 mt-4">
+                      <div className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/90 dark:bg-amber-950/30 flex items-start gap-2.5 shadow-2xs">
+                        <RefreshCw className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-amber-900 dark:text-amber-300">
+                            Request Corrections / Document Re-upload
+                          </p>
+                          <p className="text-[12px] text-amber-700 dark:text-amber-400/90 mt-0.5 leading-snug">
+                            The driver application will be returned to the driver with your instructions. The driver will be notified via SMS and push notification.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[11.5px] font-bold text-slate-700 dark:text-slate-300 block">
+                          Quick Correction Reason Presets
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            'Please upload a clear, legible Driving License photo',
+                            'Vehicle RC plate does not match registration number',
+                            'Document is expired; please provide current valid certificate',
+                            'Bank passbook or cancelled cheque with clear IFSC required',
+                            'Aadhaar card edges cut off; please upload full document',
+                          ].map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => setDecisionReason(chip)}
+                              className={`text-[11px] px-2.5 py-1 rounded-full border transition font-medium cursor-pointer ${
+                                decisionReason === chip
+                                  ? 'bg-amber-500 text-white border-amber-500 font-semibold'
+                                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11.5px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          Instructions for Applicant <span className="text-amber-600 font-bold">*</span>
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={decisionReason}
+                          onChange={(e) => setDecisionReason(e.target.value)}
+                          placeholder="Provide clear instructions for the driver on what needs to be fixed..."
+                          className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 resize-none outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── TAB 3: REJECT APPLICATION ─────────────────────────────── */}
+                  {decisionTab === 'reject' && (
+                    <div className="space-y-4 mt-4">
+                      <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-800/60 bg-rose-50/90 dark:bg-rose-950/30 flex items-start gap-2.5 shadow-2xs">
+                        <ThumbsDown className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-rose-900 dark:text-rose-300">
+                            Permanent Application Rejection
+                          </p>
+                          <p className="text-[12px] text-rose-700 dark:text-rose-400/90 mt-0.5 leading-snug">
+                            Rejecting marks this application as rejected. The rejection reason is permanently stored in the audit trail and sent to the applicant.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[11.5px] font-bold text-slate-700 dark:text-slate-300 block">
+                          Common Rejection Reasons
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            'Invalid or fraudulent document',
+                            'Expired commercial license',
+                            'Vehicle age limit exceeded',
+                            'Failed background verification',
+                            'Multiple compliance discrepancies',
+                          ].map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => setDecisionReason(chip)}
+                              className={`text-[11px] px-2.5 py-1 rounded-full border transition font-medium cursor-pointer ${
+                                decisionReason === chip
+                                  ? 'bg-rose-600 text-white border-rose-600 font-semibold'
+                                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                              }`}
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11.5px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          Rejection Justification <span className="text-rose-600 font-bold">*</span>
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={decisionReason}
+                          onChange={(e) => setDecisionReason(e.target.value)}
+                          placeholder="Provide regulatory justification for rejecting this application..."
+                          className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 resize-none outline-none focus:ring-1 focus:ring-rose-500 text-slate-800 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ─── Bottom Executive Action Bar ─────────────────────────────── */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-[11.5px] text-slate-500 dark:text-slate-400">
+                    {decisionTab === 'approve' ? (
+                      approveBlockedReason ? (
+                        <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          Resolve pending documents before approving
+                        </span>
+                      ) : (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Ready to activate driver partner
+                        </span>
+                      )
+                    ) : decisionTab === 'reupload' ? (
+                      <span>Applicant will receive instructions via SMS/push</span>
+                    ) : (
+                      <span className="text-rose-600 dark:text-rose-400">Application will be marked Rejected</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                    {decisionTab === 'approve' && (
+                      <button
+                        type="button"
+                        onClick={() => setDecisionModal('approve')}
+                        disabled={approveBlockedReason !== null}
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-[#10B981] hover:bg-[#059669] active:scale-[0.99] text-white font-bold text-xs sm:text-sm shadow-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Approve Application
+                      </button>
+                    )}
+
+                    {decisionTab === 'reupload' && (
+                      <button
+                        type="button"
+                        onClick={() => setDecisionModal('reupload')}
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-[#F59E0B] hover:bg-[#D97706] active:scale-[0.99] text-white font-bold text-xs sm:text-sm shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Request Re-submission
+                      </button>
+                    )}
+
+                    {decisionTab === 'reject' && (
+                      <button
+                        type="button"
+                        disabled={data.applicationStatus === 'rejected'}
+                        onClick={() => setDecisionModal('reject')}
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white font-bold text-xs sm:text-sm shadow-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ThumbsDown className="w-4 h-4" />
+                        Reject Application
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Step Navigation Bar */}
+          <div className="flex items-center justify-start pt-2">
+            <button
+              type="button"
+              onClick={() => handleStepChange(4)}
+              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-[#1F2B6D] dark:text-slate-200 font-semibold text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer bg-white dark:bg-slate-900 shadow-2xs"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Final Review
+            </button>
           </div>
         </div>
       )}
@@ -2452,7 +2020,12 @@ export const ApplicationReviewPage: React.FC = () => {
 
       {/* ─── Decision Custom Confirmation Popup Modal ────────────────────── */}
       {decisionModal !== 'none' && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDecisionModal('none')
+          }}
+        >
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 text-center font-sans">
             <button
               type="button"
@@ -2636,6 +2209,20 @@ export const ApplicationReviewPage: React.FC = () => {
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span>Driver will receive an activation SMS</span>
                   </div>
+                </div>
+
+                {/* Optional Internal Approval Note */}
+                <div className="mt-3 text-left">
+                  <label className="text-[11.5px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Approval Note <span className="font-normal text-slate-400">(optional)</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={decisionReason}
+                    onChange={(e) => setDecisionReason(e.target.value)}
+                    placeholder="Optional internal audit note..."
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 resize-none outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-white"
+                  />
                 </div>
 
                 {/* Action Buttons */}

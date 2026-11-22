@@ -156,6 +156,56 @@ export const useVerifyDriverBankAccount = () => {
   })
 }
 
+export const useRejectDriverBankAccount = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      driverId,
+      accountId,
+      reason,
+    }: {
+      driverId: string
+      accountId: string
+      reason: string
+    }) => DriverManagementService.rejectDriverBankAccount(driverId, accountId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
+      qc.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+    },
+  })
+}
+
+export const useEnableDriverBankPayouts = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ driverId, accountId }: { driverId: string; accountId: string }) =>
+      DriverManagementService.enableDriverBankPayouts(driverId, accountId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
+      qc.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+    },
+  })
+}
+
+export const useDisableDriverBankPayouts = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      driverId,
+      accountId,
+      reason,
+    }: {
+      driverId: string
+      accountId: string
+      reason: string
+    }) => DriverManagementService.disableDriverBankPayouts(driverId, accountId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
+      qc.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
+    },
+  })
+}
+
 // ─── Drivers Hooks ─────────────────────────────────────────────────────────
 
 export const useDrivers = (params?: QueryParams) => {
@@ -230,6 +280,8 @@ export const useUpdateDriver = () => {
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ['driver-management', 'drivers'] })
       qc.invalidateQueries({ queryKey: QK.driver(id) })
+      qc.invalidateQueries({ queryKey: ['driver-management', 'applications'] })
+      qc.invalidateQueries({ queryKey: QK.application(id) })
     },
   })
 }
