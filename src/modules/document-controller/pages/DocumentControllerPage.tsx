@@ -19,10 +19,6 @@ import {
 } from 'lucide-react'
 
 // Vehicle thumbnails & document preview assets
-import bikeIcon from '@/assets/images/vehicles/Bike-icon.jpg'
-import autoIcon from '@/assets/images/vehicles/Auto-icon.jpg'
-import cabEconomyIcon from '@/assets/images/vehicles/Cab-Economy-icon.jpg'
-import cabPremiumIcon from '@/assets/images/vehicles/Cab-Premium-icon.jpg'
 import docInsuranceImg from '@/assets/images/vehicle-showcase/doc-insurance.png'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -207,13 +203,6 @@ export const DocumentControllerPage: React.FC = () => {
     const liveSummaries = compliancePage?.data ?? []
     if (!liveSummaries.length) return []
 
-    const vImgMap: Record<string, string> = {
-      bike: bikeIcon,
-      auto: autoIcon,
-      cab_economy: cabEconomyIcon,
-      cab_premium: cabPremiumIcon,
-    }
-
     const liveItems: DocumentExpiryRecord[] = []
     liveSummaries.forEach((d) => {
       d.documents.forEach((doc) => {
@@ -282,7 +271,7 @@ export const DocumentControllerPage: React.FC = () => {
           vehiclePlate,
           vehicleMakeModel,
           vehicleCategoryLabel,
-          vehicleImg: vImgMap[vehicleTypeCode] || cabEconomyIcon,
+          vehicleImg: '',
           expiryDate: formattedExp,
           expiryIso: doc.expiryDate || '',
           issueDate: formatDisplayDate(doc.issueDate),
@@ -1365,11 +1354,15 @@ export const DocumentControllerPage: React.FC = () => {
                         <td className="py-3.5 px-4 border-r border-slate-200 dark:border-slate-800">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="w-9 h-7 rounded bg-slate-50 dark:bg-slate-800 p-0.5 flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
-                              <img
-                                src={item.vehicleImg}
-                                alt=""
-                                className="max-w-full max-h-full object-contain"
-                              />
+                              {item.vehicleImg ? (
+                                <img
+                                  src={item.vehicleImg}
+                                  alt=""
+                                  className="max-w-full max-h-full object-contain"
+                                />
+                              ) : (
+                                <Car className="w-4 h-4 text-slate-500" />
+                              )}
                             </div>
                             <div className="flex flex-col text-left min-w-0 leading-tight">
                               <span className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wide truncate">
@@ -1880,11 +1873,17 @@ export const DocumentControllerPage: React.FC = () => {
                 {/* Vehicle Details Card */}
                 <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2.5">
                   <div className="flex items-center gap-3">
-                    <img
-                      src={drawerDoc.vehicleImg}
-                      alt={drawerDoc.vehicleMakeModel}
-                      className="w-14 h-11 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
-                    />
+                    {drawerDoc.vehicleImg ? (
+                      <img
+                        src={drawerDoc.vehicleImg}
+                        alt={drawerDoc.vehicleMakeModel}
+                        className="w-14 h-11 rounded-lg object-cover border border-slate-200 dark:border-slate-700"
+                      />
+                    ) : (
+                      <div className="w-14 h-11 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                        <Car className="w-6 h-6 text-slate-500" />
+                      </div>
+                    )}
                     <div>
                       <h5 className="font-bold text-slate-900 dark:text-white text-xs">
                         {drawerDoc.vehicleMakeModel}

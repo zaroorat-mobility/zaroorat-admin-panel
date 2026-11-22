@@ -23,6 +23,7 @@ const DEFAULT_ACCEPT: Record<FilePurpose, string> = {
   DRIVER_DOCUMENT: 'image/jpeg,image/png,image/webp,application/pdf',
   VEHICLE_DOCUMENT: 'image/jpeg,image/png,image/webp,application/pdf',
   PROMO_BANNER: 'image/jpeg,image/png,image/webp',
+  VEHICLE_IMAGE: 'image/jpeg,image/png,image/webp',
 }
 
 export const FileUploadField: React.FC<FileUploadFieldProps> = ({

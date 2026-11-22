@@ -1,6 +1,7 @@
 import React from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCancellationRule } from '../../hooks'
+import { NotAppliedNotice } from '../components'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { Card, CardHeader, CardContent } from '@/shared/components/ui/Card'
@@ -67,6 +68,10 @@ export const CancellationRuleDetailsPage: React.FC = () => {
           </div>
         }
       />
+
+      <div className="max-w-3xl mt-4">
+        <NotAppliedNotice />
+      </div>
 
       <Card className="premium-card text-left max-w-3xl mt-4">
         <CardHeader className="pb-3 border-b border-border">

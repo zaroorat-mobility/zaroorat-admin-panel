@@ -225,3 +225,37 @@ export const verifyDriverBankAccount = async (
   return response.data.data
 }
 
+export const rejectDriverBankAccount = async (
+  driverId: string,
+  accountId: string,
+  reason: string,
+): Promise<any> => {
+  const response = await api.post<{ data: any }>(
+    `/admin/drivers/${driverId}/bank-accounts/${accountId}/reject`,
+    { reason },
+  )
+  return response.data.data
+}
+
+export const enableDriverBankPayouts = async (
+  driverId: string,
+  accountId: string,
+): Promise<any> => {
+  const response = await api.post<{ data: any }>(
+    `/admin/drivers/${driverId}/bank-accounts/${accountId}/enable-payouts`,
+  )
+  return response.data.data
+}
+
+export const disableDriverBankPayouts = async (
+  driverId: string,
+  accountId: string,
+  reason: string,
+): Promise<any> => {
+  const response = await api.post<{ data: any }>(
+    `/admin/drivers/${driverId}/bank-accounts/${accountId}/disable-payouts`,
+    { reason },
+  )
+  return response.data.data
+}
+

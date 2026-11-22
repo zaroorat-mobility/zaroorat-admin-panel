@@ -493,7 +493,7 @@ export const Step1CityInformation: React.FC<Step1CityInformationProps> = ({
           <Info className="w-4 h-4 text-[#1F2B6D] shrink-0" />
           <p className="text-xs text-slate-600 leading-tight">
             <span className="font-bold text-[#1F2B6D]">Next Step </span>
-            In the next step, you can define the city boundary using official boundary, radius or custom polygon.
+            In the next step, you will set the Operating Area: where this city takes rides.
           </p>
         </div>
 

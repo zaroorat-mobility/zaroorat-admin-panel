@@ -165,8 +165,14 @@ export const BankInfoCard: React.FC<BankInfoCardProps> = ({
             <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">256-bit Encrypted Settlement</span>
           </div>
-          <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40 shrink-0">
-            {payoutEnabled ? 'PAYOUT READY' : (status ?? 'ENTERED')}
+          <span
+            className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded border shrink-0 ${
+              payoutEnabled || status === 'ACTIVE' || status === 'VERIFIED'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40'
+                : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40'
+            }`}
+          >
+            {payoutEnabled ? 'PAYOUT READY' : (status ?? 'PENDING')}
           </span>
         </div>
       )}

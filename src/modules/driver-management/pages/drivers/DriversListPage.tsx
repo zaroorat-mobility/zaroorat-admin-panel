@@ -19,6 +19,8 @@ import {
   RefreshCw,
   Check,
   Pencil,
+  Car,
+  Bike,
 } from 'lucide-react'
 import {
   ActionDropdown,
@@ -29,10 +31,6 @@ import {
 import { FileImage } from '@/shared/components/FileImage'
 import { cn } from '@/shared/utils'
 import type { DriverEntity } from '../../types'
-
-import cabIcon from '@/assets/images/vehicles/Cab-Economy-icon.jpg'
-import autoIcon from '@/assets/images/vehicles/Auto-icon.jpg'
-import bikeIcon from '@/assets/images/vehicles/Bike-icon.jpg'
 
 // ─── 10 Template Fallback Drivers Matching Template Screenshot ─────────────
 const TEMPLATE_DRIVERS: DriverEntity[] = [
@@ -304,13 +302,10 @@ export const DriversListPage: React.FC = () => {
     )
   }
 
-  // Vehicle Thumbnail Helper
-  const getVehicleThumbnail = (type?: string, make?: string, model?: string) => {
+  // Vehicle Icon Helper
+  const renderVehicleIcon = (type?: string, make?: string, model?: string) => {
     const t = (type || '').toLowerCase()
     const m = `${make || ''} ${model || ''}`.toLowerCase()
-    if (t === 'auto' || m.includes('auto') || m.includes('rickshaw') || m.includes('tvs')) {
-      return autoIcon
-    }
     if (
       t === 'bike' ||
       m.includes('bike') ||
@@ -318,9 +313,9 @@ export const DriversListPage: React.FC = () => {
       m.includes('pulsar') ||
       m.includes('scooter')
     ) {
-      return bikeIcon
+      return <Bike className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
     }
-    return cabIcon
+    return <Car className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
   }
 
   const getMakeModelText = (row: DriverEntity) => {
@@ -575,11 +570,7 @@ export const DriversListPage: React.FC = () => {
       render: (_, row) => (
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-8 h-6 rounded bg-slate-50 dark:bg-slate-800/80 p-0.5 flex items-center justify-center flex-shrink-0 border border-slate-100 dark:border-slate-800">
-            <img
-              src={getVehicleThumbnail(row.vehicleType, row.vehicleMake, row.vehicleModel)}
-              alt=""
-              className="max-w-full max-h-full object-contain"
-            />
+            {renderVehicleIcon(row.vehicleType, row.vehicleMake, row.vehicleModel)}
           </div>
           <div className="flex flex-col text-left min-w-0 leading-tight">
             <span className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wide truncate">

@@ -1,1137 +1,1416 @@
 import React, { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageWrapper } from '@/app/layouts/PageWrapper'
-import { PageHeader } from '@/shared/components/PageHeader'
-import { Button } from '@/shared/components/ui/Button'
-import { DataTable } from '@/shared/components/DataTable'
-import { Card, CardContent } from '@/shared/components/ui/Card'
-import { Download, Eye, Calendar, User, Search, Plus, Trash2, CheckCircle2, X, FileText, Printer, Upload, AlertTriangle, Clock, History, Lock, RotateCcw } from 'lucide-react'
+import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
+import DatePicker from '@/shared/components/ui/DatePicker'
+import { ActionDropdown, type DropdownAction } from '@/modules/driver-management/components/ActionDropdown'
+import { useToast } from '@/shared/context/toast'
+import { useAuthStore } from '@/store/auth.store'
+import { hasPermission } from '@/infrastructure/permissions'
 import {
-  useInvoices,
-  useInvoiceTemplates,
-  useCreateInvoiceTemplate,
-  useDeleteInvoiceTemplate,
-  useSetDefaultInvoiceTemplate,
-} from '../hooks'
-import { buildPreviewContext, substitutePreview } from '../api'
-import type { BillingInvoice, InvoiceTemplate } from '../types'
+  AlertTriangle,
+  ArrowLeft,
+  Building2,
+  Calendar,
+  Coins,
+  Download,
+  Eye,
+  FileSpreadsheet,
+  FileText,
+  Hash,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  ToggleRight,
+  Upload,
+  XCircle,
+} from 'lucide-react'
+import {
+  useActivateComplianceTemplate,
+  useComplianceTemplates,
+  useCreateComplianceTemplate,
+  useCreateDocumentSeries,
+  useDocumentSeries,
+  useFiscalDocuments,
+  useLegalEntities,
+  usePricingSummary,
+  useVoidFiscalDocument,
+} from '../../hooks'
+import { PricingManagementService } from '../../services'
+import type {
+  ComplianceTemplateDto,
+  DocumentSeriesDto,
+  FiscalDocumentDto,
+  FiscalDocumentType,
+} from '../../api/fiscal.api'
+import { PricingSuccessModal } from '../../components/PricingSuccessModal'
+import {
+  PricingDetailsModal,
+  DetailsKpiCard,
+  DetailsSpecList,
+  DetailsSpecRow,
+} from '../../components/PricingDetailsModal'
+import {
+  FiscalDocumentDetailsModal,
+  DOCUMENT_TYPE_LABELS,
+} from '../components/FiscalDocumentDetailsModal'
+import { ComplianceTemplateDetailsModal } from '../components/ComplianceTemplateDetailsModal'
+import {
+  CreateDocumentSeriesModal,
+  type GstRegistrationOption,
+} from '../components/CreateDocumentSeriesModal'
+import { UploadComplianceTemplateModal } from '../components/UploadComplianceTemplateModal'
+import { VoidFiscalDocumentModal } from '../components/VoidFiscalDocumentModal'
+import { DefaultInvoicePreviewModal } from '../components/DefaultInvoicePreviewModal'
 
-// ─── CR-03: Uploaded Compliance Template types ─────────────────────────────────
+type ActiveTab = 'documents' | 'series' | 'templates'
 
-type UploadedTemplateType = 'rider_invoice' | 'driver_settlement' | 'subscription_invoice' | 'services_invoice' | 'credit_note'
-
-interface UploadedTemplate {
-  id: string
-  name: string
-  type: UploadedTemplateType
-  fileName: string
-  fileExt: 'html' | 'docx' | 'pdf'
-  effectiveFrom: string
-  versionNote: string
-  uploadedAt: string
-  isActive: boolean
-  placeholderErrors: string[]  // unrecognised {{...}} tokens found at upload
-  previewApproved: boolean     // must be true before activation
-  content: string              // raw text for placeholder scanning / preview
+function currentIndianFinancialYear(now = new Date()): string {
+  const year = now.getFullYear()
+  const startYear = now.getMonth() >= 3 ? year : year - 1
+  const endShort = String((startYear + 1) % 100).padStart(2, '0')
+  return `${startYear}-${endShort}`
 }
 
-const SUPPORTED_PLACEHOLDERS = new Set([
-  'invoice_number', 'invoice_date',
-  'customer_name', 'customer_contact',
-  'driver_name', 'driver_id',
-  'trip_id', 'booking_id',
-  'fare_breakdown', 'total_amount', 'amount_in_words',
-  'commission_amount',
-  'subscription_plan', 'subscription_amount',
-  'tax_breakdown',
-  'company_gstin', 'company_address',
-])
-
-const validatePlaceholders = (content: string): string[] => {
-  const found = [...content.matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1])
-  return found.filter(p => !SUPPORTED_PLACEHOLDERS.has(p))
+function getApiErrorMessage(err: unknown, fallback: string): string {
+  const maybe = err as {
+    response?: { data?: { error?: { message?: string }; message?: string } }
+    message?: string
+  }
+  return (
+    maybe?.response?.data?.error?.message ||
+    maybe?.response?.data?.message ||
+    maybe?.message ||
+    fallback
+  )
 }
 
-const TEMPLATE_TYPE_LABELS: Record<UploadedTemplateType, string> = {
-  rider_invoice: 'Rider Invoice',
-  driver_settlement: 'Driver Settlement',
-  subscription_invoice: 'Subscription Invoice',
-  services_invoice: 'Services Invoice',
-  credit_note: 'Credit Note',
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function formatNextInvoiceNumber(prefix: string, lastSequence: number): string {
+  return `${prefix}${String(lastSequence + 1).padStart(6, '0')}`
 }
 
 export const InvoiceGenerationPage: React.FC = () => {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'invoices' | 'templates'>('invoices')
-  const [filterType, setFilterType] = useState<'all' | 'rider' | 'driver'>('all')
+  const { success: showSuccess, error: showError } = useToast()
+  const user = useAuthStore((state) => state.user)
+  const canWrite = hasPermission(user, 'pricing:write')
+
+  // Active tab
+  const [activeTab, setActiveTab] = useState<ActiveTab>('documents')
+
+  // Tab 1 filters
   const [searchQuery, setSearchQuery] = useState('')
+  const [recipientFilter, setRecipientFilter] = useState<'all' | 'RIDER' | 'DRIVER'>('all')
+  const [docTypeFilter, setDocTypeFilter] = useState<'' | FiscalDocumentType>('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ISSUED' | 'VOIDED'>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
-  const { data: invoiceData, isLoading: invoicesLoading, isError: invoicesError } = useInvoices({
-    recipientType: filterType,
-    search: searchQuery || undefined,
+  // Tab 2 & 3 filters
+  const [seriesSearch, setSeriesSearch] = useState('')
+  const [templateSearch, setTemplateSearch] = useState('')
+  const [templateTypeFilter, setTemplateTypeFilter] = useState<'' | FiscalDocumentType>('')
+
+  // Selection sets required by shared DataTable
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set())
+  const [selectedSeriesIds, setSelectedSeriesIds] = useState<Set<string>>(new Set())
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set())
+
+  // Busy states
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [exportingCsv, setExportingCsv] = useState(false)
+
+  // Executive Modals
+  const [inspectDoc, setInspectDoc] = useState<FiscalDocumentDto | null>(null)
+  const [inspectSeries, setInspectSeries] = useState<DocumentSeriesDto | null>(null)
+  const [previewTemplate, setPreviewTemplate] = useState<ComplianceTemplateDto | null>(null)
+  const [voidTarget, setVoidTarget] = useState<FiscalDocumentDto | null>(null)
+  const [createSeriesOpen, setCreateSeriesOpen] = useState(false)
+  const [uploadTemplateOpen, setUploadTemplateOpen] = useState(false)
+  const [defaultPreviewOpen, setDefaultPreviewOpen] = useState(false)
+  const [successModal, setSuccessModal] = useState<{
+    title: string
+    message: string
+    primaryText: string
+  } | null>(null)
+
+  const isoFrom = dateFrom ? `${dateFrom}T00:00:00.000Z` : undefined
+  const isoTo = dateTo ? `${dateTo}T23:59:59.999Z` : undefined
+
+  // Queries
+  const docsQ = useFiscalDocuments({
+    page: 1,
+    limit: 100,
+    recipientType: recipientFilter,
+    documentType: docTypeFilter || undefined,
+    status: statusFilter,
+    from: isoFrom,
+    to: isoTo,
+    search: searchQuery.trim() || undefined,
   })
-  const { data: templates = [], refetch: refetchTemplates } = useInvoiceTemplates()
-  const { mutate: createTemplate } = useCreateInvoiceTemplate()
-  const { mutate: deleteTemplate } = useDeleteInvoiceTemplate()
-  const { mutate: setDefaultTemplate } = useSetDefaultInvoiceTemplate()
+  const seriesQ = useDocumentSeries()
+  const templatesQ = useComplianceTemplates()
+  const legalEntitiesQ = useLegalEntities()
+  const summaryQ = usePricingSummary()
 
-  const invoices = invoiceData?.data ?? []
-  const previewContextInvoice = useMemo(() => invoices[0] ?? null, [invoices])
-  const defaultTemplate = templates.find((t) => t.isDefault) ?? templates[0]
+  // Mutations
+  const voidMutation = useVoidFiscalDocument()
+  const createSeriesMutation = useCreateDocumentSeries()
+  const createTemplateMutation = useCreateComplianceTemplate()
+  const activateTemplateMutation = useActivateComplianceTemplate()
 
-  const previewContext = useMemo(() => {
-    if (!previewContextInvoice || !defaultTemplate) return {}
-    return buildPreviewContext(previewContextInvoice, defaultTemplate)
-  }, [previewContextInvoice, defaultTemplate])
-  
-  // Modals state
-  const [previewInvoice, setPreviewInvoice] = useState<BillingInvoice | null>(null)
-  const [showAddTemplateModal, setShowAddTemplateModal] = useState(false)
+  const documents = docsQ.data?.data ?? []
+  const seriesList = seriesQ.data ?? []
+  const templateList = templatesQ.data ?? []
+  const issuanceEnabled = summaryQ.data?.flags.fiscalDocumentsIssue ?? false
 
-  // ── CR-03: Upload Template state ──────────────────────────────────────────
-  const [uploadedTemplates, setUploadedTemplates] = useState<UploadedTemplate[]>([])
-  const [showUploadTemplateModal, setShowUploadTemplateModal] = useState(false)
-  const [previewUploadedTemplate, setPreviewUploadedTemplate] = useState<UploadedTemplate | null>(null)
-  const [versionHistoryType, setVersionHistoryType] = useState<UploadedTemplateType | null>(null)
-  const [uploadForm, setUploadForm] = useState({
-    name: '', type: 'rider_invoice' as UploadedTemplateType,
-    effectiveFrom: '', versionNote: '', file: null as File | null, content: '',
-  })
-
-  const handleUploadTemplate = () => {
-    const errors = validatePlaceholders(uploadForm.content)
-    const fileExt = (uploadForm.file?.name.split('.').pop()?.toLowerCase() ?? 'html') as UploadedTemplate['fileExt']
-    const newTpl: UploadedTemplate = {
-      id: `UTPL-${Date.now()}`,
-      name: uploadForm.name,
-      type: uploadForm.type,
-      fileName: uploadForm.file?.name ?? 'template.html',
-      fileExt,
-      effectiveFrom: uploadForm.effectiveFrom,
-      versionNote: uploadForm.versionNote,
-      uploadedAt: new Date().toISOString().split('T')[0],
-      isActive: false,
-      placeholderErrors: errors,
-      previewApproved: false,
-      content: uploadForm.content,
-    }
-    setUploadedTemplates(prev => [...prev, newTpl])
-    setShowUploadTemplateModal(false)
-    setUploadForm({ name: '', type: 'rider_invoice', effectiveFrom: '', versionNote: '', file: null, content: '' })
-  }
-
-  const handleActivateTemplate = (id: string, type: UploadedTemplateType) => {
-    setUploadedTemplates(prev =>
-      prev.map(t => ({
-        ...t,
-        isActive: t.id === id ? true : t.type === type ? false : t.isActive,
-      }))
+  const allGstRegistrations = useMemo<GstRegistrationOption[]>(() => {
+    const entities = legalEntitiesQ.data ?? []
+    return entities.flatMap((le) =>
+      le.gstRegistrations
+        .filter((reg) => reg.isActive)
+        .map((reg) => ({
+          id: reg.id,
+          gstin: reg.gstin,
+          stateCode: reg.stateCode,
+          stateName: reg.stateName,
+          legalEntityName: le.legalEntityName,
+          label: `${reg.gstin} · ${reg.stateName} (${reg.stateCode}) — ${le.legalEntityName}`,
+        })),
     )
-  }
+  }, [legalEntitiesQ.data])
 
-  const handleRevertTemplate = (id: string, type: UploadedTemplateType) => {
-    handleActivateTemplate(id, type)
-    setVersionHistoryType(null)
-  }
+  // KPI Metrics (100% live from PostgreSQL)
+  const totalDocsCount = docsQ.data?.meta?.totalCount ?? documents.length
+  const issuedDocsCount = useMemo(
+    () => documents.filter((d) => d.status === 'ISSUED').length,
+    [documents],
+  )
+  const voidedDocsCount = useMemo(
+    () => documents.filter((d) => d.status === 'VOIDED').length,
+    [documents],
+  )
+  const totalInvoicedAmount = useMemo(
+    () =>
+      documents
+        .filter((d) => d.status === 'ISSUED')
+        .reduce((sum, d) => sum + d.totalAmount, 0),
+    [documents],
+  )
+  const totalGstCollected = useMemo(
+    () =>
+      documents
+        .filter((d) => d.status === 'ISSUED')
+        .reduce((sum, d) => sum + d.totalTaxAmount, 0),
+    [documents],
+  )
+  const activeSeriesCount = useMemo(
+    () => seriesList.filter((s) => s.isActive).length,
+    [seriesList],
+  )
+  const activeTemplatesCount = useMemo(
+    () => templateList.filter((t) => t.isActive).length,
+    [templateList],
+  )
 
-  const handleApprovePreview = (id: string) => {
-    setUploadedTemplates(prev => prev.map(t => t.id === id ? { ...t, previewApproved: true } : t))
-    setPreviewUploadedTemplate(null)
-  }
+  const filteredSeries = useMemo(() => {
+    if (!seriesSearch.trim()) return seriesList
+    const q = seriesSearch.toLowerCase()
+    return seriesList.filter(
+      (s) =>
+        s.prefix.toLowerCase().includes(q) ||
+        s.gstin.toLowerCase().includes(q) ||
+        s.stateName.toLowerCase().includes(q) ||
+        s.legalEntityName.toLowerCase().includes(q) ||
+        DOCUMENT_TYPE_LABELS[s.documentType].toLowerCase().includes(q),
+    )
+  }, [seriesList, seriesSearch])
 
-  const versionHistoryList = uploadedTemplates.filter(t => t.type === versionHistoryType)
-
-  const [newTemplate, setNewTemplate] = useState<Omit<InvoiceTemplate, 'id'>>({
-    name: '',
-    headerLogoText: 'ZAROORAT MOBILITY',
-    address: 'Bengaluru, India',
-    gstin: '29XXXXX9999X9Z9',
-    footerTerms: 'Thank you for choosing Zaroorat.',
-    cgstRate: 2.5,
-    sgstRate: 2.5,
-    igstRate: 0.0,
-    appliesTo: 'ride',
-    isDefault: false
-  })
-
-  const handleAddTemplate = (e: React.FormEvent) => {
-    e.preventDefault()
-    createTemplate(newTemplate, {
-      onSuccess: () => {
-        setShowAddTemplateModal(false)
-        setNewTemplate({
-          name: '',
-          headerLogoText: 'ZAROORAT MOBILITY',
-          address: 'Bengaluru, India',
-          gstin: '29XXXXX9999X9Z9',
-          footerTerms: 'Thank you for choosing Zaroorat.',
-          cgstRate: 2.5,
-          sgstRate: 2.5,
-          igstRate: 0.0,
-          appliesTo: 'ride',
-          isDefault: false,
-        })
-        void refetchTemplates()
-      },
+  const filteredTemplates = useMemo(() => {
+    return templateList.filter((t) => {
+      if (templateTypeFilter && t.documentType !== templateTypeFilter) return false
+      if (!templateSearch.trim()) return true
+      const q = templateSearch.toLowerCase()
+      return (
+        t.name.toLowerCase().includes(q) ||
+        t.fileName.toLowerCase().includes(q) ||
+        DOCUMENT_TYPE_LABELS[t.documentType].toLowerCase().includes(q)
+      )
     })
+  }, [templateList, templateSearch, templateTypeFilter])
+
+  const hasDocFilters = Boolean(
+    searchQuery || recipientFilter !== 'all' || docTypeFilter || statusFilter !== 'all' || dateFrom || dateTo,
+  )
+
+  const handleResetDocFilters = () => {
+    setSearchQuery('')
+    setRecipientFilter('all')
+    setDocTypeFilter('')
+    setStatusFilter('all')
+    setDateFrom('')
+    setDateTo('')
   }
 
-  const handleDeleteTemplate = (id: string) => {
-    deleteTemplate(id, { onSuccess: () => void refetchTemplates() })
+  const handleRefreshAll = () => {
+    void docsQ.refetch()
+    void seriesQ.refetch()
+    void templatesQ.refetch()
+    void summaryQ.refetch()
   }
 
-  const handleSetDefaultTemplate = (id: string) => {
-    setDefaultTemplate(id, { onSuccess: () => void refetchTemplates() })
+  const handleDownloadPdf = async (doc: FiscalDocumentDto) => {
+    setDownloadingId(doc.id)
+    try {
+      const blob = await PricingManagementService.downloadFiscalPdfBlob(doc.id)
+      triggerBlobDownload(blob, `${doc.documentNumber}.pdf`)
+      showSuccess('PDF Ready', `Downloaded official PDF for ${doc.documentNumber}.`)
+    } catch (err) {
+      showError('PDF Download Failed', getApiErrorMessage(err, 'Failed to download PDF'))
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
-  const getInvoiceData = (inv: BillingInvoice) => {
-    // Find matching template based on vertical, fallback to default
-    const template = templates.find(t => t.appliesTo === (inv.recipientType === 'driver' ? 'services' : 'ride')) || templates.find(t => t.isDefault) || templates[0]
-    if (!template) {
-      return {
-        template: {
-          id: '',
-          name: 'Default',
-          headerLogoText: 'ZAROORAT',
-          address: '',
-          gstin: '',
-          footerTerms: '',
-          cgstRate: 2.5,
-          sgstRate: 2.5,
-          igstRate: 0,
-          appliesTo: 'ride' as const,
-          isDefault: true,
-        },
-        taxableValue: inv.amount,
-        gstAmount: inv.taxAmount,
-        cgstAmount: inv.taxAmount / 2,
-        sgstAmount: inv.taxAmount / 2,
-        igstAmount: 0,
-        totalGstRate: 5,
+  const handleExportCsv = async () => {
+    setExportingCsv(true)
+    try {
+      const blob = await PricingManagementService.exportFiscalDocumentsCsvBlob({
+        recipientType: recipientFilter,
+        documentType: docTypeFilter || undefined,
+        status: statusFilter,
+        from: isoFrom,
+        to: isoTo,
+        search: searchQuery.trim() || undefined,
+      })
+      const stamp = new Date().toISOString().slice(0, 10)
+      triggerBlobDownload(blob, `zaroorat-fiscal-documents-${stamp}.csv`)
+      showSuccess('Audited CSV Exported', 'Export recorded in server admin audit log.')
+    } catch (err) {
+      showError('CSV Export Failed', getApiErrorMessage(err, 'CSV export failed'))
+    } finally {
+      setExportingCsv(false)
+    }
+  }
+
+  const handleConfirmVoid = async (id: string, reason: string) => {
+    const docNum = voidTarget?.documentNumber ?? id
+    try {
+      await voidMutation.mutateAsync({ id, reason })
+      showSuccess(
+        'Fiscal Document Voided',
+        `${docNum} permanently voided. Original sequence number remains immutable.`,
+      )
+      setVoidTarget(null)
+    } catch (err) {
+      showError('Void Failed', getApiErrorMessage(err, 'Failed to void document'))
+    }
+  }
+
+  const handleCreateSeries = async (payload: {
+    gstRegistrationId: string
+    documentType: FiscalDocumentType
+    financialYear: string
+    prefix: string
+  }) => {
+    try {
+      await createSeriesMutation.mutateAsync(payload)
+      setCreateSeriesOpen(false)
+      setActiveTab('series')
+      setSuccessModal({
+        title: 'Document Series Created',
+        message: `Gapless numbering series "${payload.prefix}" (${payload.financialYear}) has been saved to PostgreSQL.`,
+        primaryText: 'View Document Series',
+      })
+    } catch (err) {
+      showError('Could Not Create Series', getApiErrorMessage(err, 'Failed to create document series'))
+    }
+  }
+
+  const handleCreateTemplate = async (payload: {
+    documentType: FiscalDocumentType
+    name: string
+    fileName: string
+    mimeType: 'text/html'
+    content: string
+    versionNote: string | null
+    activateImmediately: boolean
+  }) => {
+    try {
+      const { activateImmediately, ...createPayload } = payload
+      const created = await createTemplateMutation.mutateAsync(createPayload)
+      if (activateImmediately && created?.id) {
+        await activateTemplateMutation.mutateAsync(created.id)
       }
-    }
-    
-    const totalGstRate = template.cgstRate + template.sgstRate + template.igstRate
-    const baseMultiplier = 1 + (totalGstRate / 100)
-    const taxableValue = inv.amount / baseMultiplier
-    const gstAmount = inv.amount - taxableValue
-    
-    const cgstAmount = taxableValue * (template.cgstRate / 100)
-    const sgstAmount = taxableValue * (template.sgstRate / 100)
-    const igstAmount = taxableValue * (template.igstRate / 100)
-
-    return {
-      template,
-      taxableValue,
-      gstAmount,
-      cgstAmount,
-      sgstAmount,
-      igstAmount,
-      totalGstRate
+      setUploadTemplateOpen(false)
+      setActiveTab('templates')
+      setSuccessModal({
+        title: activateImmediately ? 'Invoice Template Activated' : 'Invoice Template Saved',
+        message: activateImmediately
+          ? `Template "${payload.name}" has been saved and set active for ${DOCUMENT_TYPE_LABELS[payload.documentType]}.`
+          : `Template "${payload.name}" has been saved to PostgreSQL. You can activate it anytime.`,
+        primaryText: 'View Compliance Templates',
+      })
+    } catch (err) {
+      showError('Template Validation Failed', getApiErrorMessage(err, 'Failed to save template'))
     }
   }
 
-  const columns = [
-    {
-      key: 'invoiceNumber',
-      label: 'Invoice ID',
-      render: (val: string) => <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{val}</span>
-    },
-    {
-      key: 'bookingId',
-      label: 'Booking ID',
-      render: (val: string | null) => <span className="font-mono text-primary font-semibold">{val ?? '—'}</span>
-    },
-    {
-      key: 'recipientName',
-      label: 'Recipient',
-      render: (val: string, row: BillingInvoice) => (
-        <div className="text-left text-xs font-semibold text-slate-800 dark:text-white flex items-center gap-1.5">
-          <User className="h-3.5 w-3.5 text-slate-400" />
+  const handleActivateTemplate = async (tpl: ComplianceTemplateDto) => {
+    try {
+      const updated = await activateTemplateMutation.mutateAsync(tpl.id)
+      showSuccess(
+        'Template Activated',
+        `"${tpl.name}" is now active for ${DOCUMENT_TYPE_LABELS[tpl.documentType]}.`,
+      )
+      if (previewTemplate?.id === tpl.id) setPreviewTemplate(updated)
+    } catch (err) {
+      showError('Activation Failed', getApiErrorMessage(err, 'Could not activate template'))
+    }
+  }
+
+  // ─── Column Definitions (Shared DataTable) ──────────────────────────────────
+
+  const documentColumns: DataTableColumn<FiscalDocumentDto>[] = useMemo(
+    () => [
+      {
+        key: 'documentNumber',
+        label: 'Document #',
+        sortable: true,
+        align: 'left',
+        render: (_: unknown, row: FiscalDocumentDto) => (
           <div>
-            <span>{val}</span>
-            <span className="block text-[8px] uppercase tracking-wider font-bold text-slate-450 mt-0.5">{row.recipientType}</span>
+            <span className="font-mono font-bold text-[#1F2B6D] dark:text-white text-xs whitespace-nowrap">
+              {row.documentNumber}
+            </span>
+            <p className="text-[10.5px] text-slate-400 font-mono">
+              {new Date(row.issuedAt).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              })}
+            </p>
           </div>
-        </div>
-      )
-    },
-    {
-      key: 'date',
-      label: 'Date Generated',
-      render: (val: string) => (
-        <span className="font-mono text-slate-500 text-[10px] flex items-center gap-1">
-          <Calendar className="h-3.5 w-3.5" />
-          {val}
-        </span>
-      )
-    },
-    {
-      key: 'hsnCode',
-      label: 'HSN/SAC',
-      render: (val: string) => <span className="font-mono text-slate-500 text-[10px] font-bold">{val}</span>
-    },
-    {
-      key: 'taxableValue',
-      label: 'Taxable Value',
-      align: 'right' as const,
-      render: (_, row: BillingInvoice) => {
-        const { taxableValue } = getInvoiceData(row)
-        return <span className="font-mono text-slate-700 dark:text-slate-300">₹{taxableValue.toFixed(2)}</span>
-      }
-    },
-    {
-      key: 'gstRate',
-      label: 'GST Rate',
-      align: 'center' as const,
-      render: (_, row: BillingInvoice) => {
-        const { totalGstRate } = getInvoiceData(row)
-        return <span className="font-mono font-bold text-slate-655">{totalGstRate.toFixed(1)}%</span>
-      }
-    },
-    {
-      key: 'gstAmount',
-      label: 'GST Amt',
-      align: 'right' as const,
-      render: (_, row: BillingInvoice) => {
-        const { gstAmount } = getInvoiceData(row)
-        return <span className="font-mono font-bold text-indigo-650 dark:text-indigo-400">₹{gstAmount.toFixed(2)}</span>
-      }
-    },
-    {
-      key: 'gstSplit',
-      label: 'CGST/SGST/IGST Split',
-      render: (_, row: BillingInvoice) => {
-        const { cgstAmount, sgstAmount, igstAmount, template } = getInvoiceData(row)
-        return (
-          <div className="text-[9px] font-mono text-slate-500 leading-normal">
-            <p>C: ₹{cgstAmount.toFixed(2)} ({template.cgstRate}%) · S: ₹{sgstAmount.toFixed(2)} ({template.sgstRate}%)</p>
-            {igstAmount > 0 && <p>I: ₹{igstAmount.toFixed(2)} ({template.igstRate}%)</p>}
+        ),
+      },
+      {
+        key: 'documentType',
+        label: 'Type / Ride',
+        sortable: true,
+        align: 'left',
+        render: (_: unknown, row: FiscalDocumentDto) => (
+          <div>
+            <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs whitespace-nowrap">
+              {DOCUMENT_TYPE_LABELS[row.documentType]}
+            </span>
+            <p className="text-[10.5px] font-mono text-slate-400">{row.rideCode ?? '—'}</p>
           </div>
-        )
-      }
-    },
-    {
-      key: 'amount',
-      label: 'Total Gross (₹)',
-      align: 'right' as const,
-      render: (val: number) => <span className="font-mono font-black text-slate-900 dark:text-slate-100">₹{val.toFixed(2)}</span>
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (val: string) => (
-        <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] border font-black uppercase tracking-wider ${
-          val === 'generated' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'
-        }`}>
-          {val}
-        </span>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      align: 'center' as const,
-      render: (_, row: BillingInvoice) => (
-        <div className="flex justify-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0 rounded-lg border-border"
-            title="Preview Invoice"
-            onClick={() => setPreviewInvoice(row)}
+        ),
+      },
+      {
+        key: 'recipientName',
+        label: 'Recipient',
+        sortable: true,
+        align: 'left',
+        render: (_: unknown, row: FiscalDocumentDto) => (
+          <div>
+            <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+              {row.recipientName}
+            </span>
+            <p className="text-[10px] uppercase font-bold text-slate-400">{row.recipientType}</p>
+          </div>
+        ),
+      },
+      {
+        key: 'supplierGstin',
+        label: 'GSTIN / Jurisdiction',
+        align: 'left',
+        render: (_: unknown, row: FiscalDocumentDto) => (
+          <div>
+            <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+              {row.supplierGstin}
+            </span>
+            <p className="text-[10.5px] text-slate-400">
+              {row.supplierStateCode} → {row.placeOfSupplyStateCode} (
+              {row.isInterState ? 'IGST' : 'CGST+SGST'})
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: 'taxableValue',
+        label: 'Taxable',
+        sortable: true,
+        align: 'right',
+        render: (_: unknown, row: FiscalDocumentDto) => (
+          <span className="font-mono text-xs text-slate-700 dark:text-slate-300 whitespace-nowrap">
+            ₹{row.taxableValue.toFixed(2)}
+          </span>
+        ),
+      },
+      {
+        key: 'totalTaxAmount',
+        label: 'GST',
+        sortable: true,
+        align: 'right',
+        render: (_: unknown, row: FiscalDocumentDto) => (
+          <div className="text-right">
+            <span className="font-mono text-xs text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              ₹{row.totalTaxAmount.toFixed(2)}
+            </span>
+            <p className="text-[10px] font-mono text-slate-400">
+              {row.isInterState
+                ? `IGST ${row.igstRatePct}%`
+                : `C ${row.cgstRatePct}% + S ${row.sgstRatePct}%`}
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: 'totalAmount',
+        label: 'Total',
+        sortable: true,
+        align: 'right',
+        render: (_: unknown, row: FiscalDocumentDto) => (
+          <span className="font-mono font-bold text-slate-900 dark:text-white text-xs sm:text-[13px] whitespace-nowrap">
+            ₹{row.totalAmount.toFixed(2)}
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        sortable: true,
+        align: 'center',
+        render: (_: unknown, row: FiscalDocumentDto) =>
+          row.status === 'ISSUED' ? (
+            <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold bg-[#E8FAF0] text-[#10B981] dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/50">
+              Issued
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-950/20 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/50">
+              Voided
+            </span>
+          ),
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        align: 'center',
+        render: (_: unknown, row: FiscalDocumentDto) => {
+          const dropActions: DropdownAction[] = [
+            {
+              label: 'View Details',
+              icon: <Eye className="w-4 h-4" />,
+              onClick: () => setInspectDoc(row),
+            },
+            {
+              label: 'Download Official PDF',
+              icon: <Download className="w-4 h-4" />,
+              onClick: () => void handleDownloadPdf(row),
+            },
+          ]
+
+          if (canWrite && row.status === 'ISSUED') {
+            dropActions.push({
+              label: 'Void Document',
+              icon: <XCircle className="w-4 h-4 text-rose-500" />,
+              onClick: () => setVoidTarget(row),
+              variant: 'danger',
+            })
+          }
+
+          return (
+            <div
+              className="flex items-center justify-center gap-1.5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                disabled={downloadingId === row.id}
+                onClick={() => void handleDownloadPdf(row)}
+                title="Download Official PDF"
+                className="p-1.5 text-slate-500 hover:text-[#1F2B6D] dark:hover:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+              <ActionDropdown actions={dropActions} />
+            </div>
+          )
+        },
+      },
+    ],
+    [canWrite, downloadingId],
+  )
+
+  const seriesColumns: DataTableColumn<DocumentSeriesDto>[] = useMemo(
+    () => [
+      {
+        key: 'prefix',
+        label: 'Series Prefix',
+        sortable: true,
+        align: 'left',
+        render: (_: unknown, row: DocumentSeriesDto) => (
+          <div>
+            <span className="font-mono font-bold text-[#1F2B6D] dark:text-white text-xs sm:text-[13px]">
+              {row.prefix}
+            </span>
+            <p className="text-[10.5px] text-slate-400 font-mono">
+              Next: {formatNextInvoiceNumber(row.prefix, row.lastSequence)}
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: 'documentType',
+        label: 'Document Type',
+        sortable: true,
+        align: 'left',
+        render: (_: unknown, row: DocumentSeriesDto) => (
+          <span className="font-semibold text-slate-700 dark:text-slate-200 text-xs">
+            {DOCUMENT_TYPE_LABELS[row.documentType]}
+          </span>
+        ),
+      },
+      {
+        key: 'financialYear',
+        label: 'Financial Year',
+        sortable: true,
+        align: 'center',
+        render: (_: unknown, row: DocumentSeriesDto) => (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-mono text-xs font-bold text-slate-700 dark:text-slate-200">
+            FY {row.financialYear}
+          </span>
+        ),
+      },
+      {
+        key: 'gstin',
+        label: 'State GSTIN / Legal Entity',
+        sortable: true,
+        align: 'left',
+        render: (_: unknown, row: DocumentSeriesDto) => (
+          <div>
+            <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+              {row.gstin}
+            </span>
+            <p className="text-[10.5px] text-slate-400">
+              {row.stateName} ({row.stateCode}) · {row.legalEntityName}
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: 'lastSequence',
+        label: 'Issued Count',
+        sortable: true,
+        align: 'right',
+        render: (_: unknown, row: DocumentSeriesDto) => (
+          <span className="font-mono font-bold text-slate-900 dark:text-white text-xs sm:text-[13px]">
+            {row.lastSequence}
+          </span>
+        ),
+      },
+      {
+        key: 'isActive',
+        label: 'Status',
+        sortable: true,
+        align: 'center',
+        render: (_: unknown, row: DocumentSeriesDto) =>
+          row.isActive ? (
+            <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold bg-[#E8FAF0] text-[#10B981] border border-emerald-200/60">
+              Active
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+              Inactive
+            </span>
+          ),
+      },
+      {
+        key: 'actions',
+        label: 'Details',
+        align: 'center',
+        render: (_: unknown, row: DocumentSeriesDto) => (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setInspectSeries(row)
+            }}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-[#1F2B6D] hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
           >
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0 rounded-lg bg-[#2B317A] hover:bg-[#2B317A]/95 text-white border-transparent"
-            title="Download PDF"
-            onClick={() => alert(`Downloading PDF for ${row.invoiceNumber}`)}
-          >
-            <Download className="h-4 w-4" />
-          </Button>
-        </div>
-      )
-    }
-  ]
+            <Eye className="w-3.5 h-3.5" />
+            <span>View</span>
+          </button>
+        ),
+      },
+    ],
+    [],
+  )
+
+  const templateColumns: DataTableColumn<ComplianceTemplateDto>[] = useMemo(
+    () => [
+      {
+        key: 'name',
+        label: 'Template Name',
+        sortable: true,
+        align: 'left',
+        render: (_: unknown, row: ComplianceTemplateDto) => (
+          <div>
+            <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-[13px]">
+              {row.name}
+            </span>
+            {row.versionNote && (
+              <p className="text-[10.5px] text-slate-400 truncate max-w-[260px]">
+                {row.versionNote}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'version',
+        label: 'Version',
+        sortable: true,
+        align: 'center',
+        render: (_: unknown, row: ComplianceTemplateDto) => (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            v{row.version}
+          </span>
+        ),
+      },
+      {
+        key: 'documentType',
+        label: 'Document Type',
+        sortable: true,
+        align: 'left',
+        render: (_: unknown, row: ComplianceTemplateDto) => (
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            {DOCUMENT_TYPE_LABELS[row.documentType]}
+          </span>
+        ),
+      },
+      {
+        key: 'fileName',
+        label: 'File Name',
+        align: 'left',
+        render: (_: unknown, row: ComplianceTemplateDto) => (
+          <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+            {row.fileName}
+          </span>
+        ),
+      },
+      {
+        key: 'isActive',
+        label: 'Status',
+        sortable: true,
+        align: 'center',
+        render: (_: unknown, row: ComplianceTemplateDto) =>
+          row.isActive ? (
+            <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold bg-[#E8FAF0] text-[#10B981] border border-emerald-200/60">
+              Active
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200/60">
+              Inactive
+            </span>
+          ),
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        align: 'center',
+        render: (_: unknown, row: ComplianceTemplateDto) => {
+          const dropActions: DropdownAction[] = [
+            {
+              label: 'Preview & Inspect',
+              icon: <Eye className="w-4 h-4" />,
+              onClick: () => setPreviewTemplate(row),
+            },
+          ]
+
+          if (canWrite && !row.isActive) {
+            dropActions.push({
+              label: 'Activate Now',
+              icon: <ToggleRight className="w-4 h-4 text-emerald-600" />,
+              onClick: () => void handleActivateTemplate(row),
+            })
+          }
+
+          return (
+            <div
+              className="flex items-center justify-center gap-1.5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setPreviewTemplate(row)}
+                title="Preview Template"
+                className="p-1.5 text-slate-500 hover:text-[#1F2B6D] dark:hover:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+              <ActionDropdown actions={dropActions} />
+            </div>
+          )
+        },
+      },
+    ],
+    [canWrite],
+  )
 
   return (
-    <PageWrapper>
-      <PageHeader
-        title="Invoice Generation Console"
-        description="Generate, review, and download digital VAT/GST-compliant billing invoices, and manage reusable template designs."
-        onBack={() => navigate('/pricing-management')}
-        actions={
-          activeTab === 'templates' ? (
-            <Button
-              onClick={() => setShowUploadTemplateModal(true)}
-              className="gap-1.5 bg-primary text-white hover:bg-primary-hover text-xs font-semibold h-9 rounded-lg"
-            >
-              <Upload className="h-4 w-4" /> Upload Template
-            </Button>
-          ) : undefined
-        }
-      />
-
-      <div className="space-y-6 text-left">
-        {/* Tab Selection */}
-        <div className="flex border-b border-border">
+    <PageWrapper className="space-y-4 pt-1 pb-6 px-3 sm:px-5 w-full max-w-full overflow-x-hidden">
+      {/* ─── 1. Executive Header (Matching Fare / Surge / Cancellation / GST) ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setActiveTab('invoices')}
-            className={`px-4 py-2 text-xs font-extrabold uppercase tracking-wider border-b-2 cursor-pointer transition-all ${
-              activeTab === 'invoices'
-                ? 'border-[#2B317A] text-[#2B317A] dark:border-[#4F5FBF] dark:text-[#4F5FBF]'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
+            type="button"
+            onClick={() => navigate('/pricing-management')}
+            title="Back to Pricing Control Center"
+            className="p-2 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition shadow-2xs cursor-pointer"
           >
-            Invoices List
+            <ArrowLeft className="w-4 h-4 text-[#1F2B6D] dark:text-white" />
           </button>
-          <button
-            onClick={() => setActiveTab('templates')}
-            className={`px-4 py-2 text-xs font-extrabold uppercase tracking-wider border-b-2 cursor-pointer transition-all ${
-              activeTab === 'templates'
-                ? 'border-[#2B317A] text-[#2B317A] dark:border-[#4F5FBF] dark:text-[#4F5FBF]'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Invoice Templates
-          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1F2B6D] dark:text-white">
+              Invoices &amp; Fiscal Documents
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Immutable server-issued tax invoices, gapless state GSTIN numbering series, and versioned compliance templates.
+            </p>
+          </div>
         </div>
 
-        {activeTab === 'invoices' ? (
-          <div className="space-y-6 animate-fade-in">
-            {/* Filters Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-3">
-              <div className="flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 border border-border">
-                {(['all', 'rider', 'driver'] as const).map(type => (
-                  <button
-                    key={type}
-                    onClick={() => setFilterType(type)}
-                    className={`px-3 py-1.5 text-[10px] font-bold rounded-md capitalize transition-all cursor-pointer ${
-                      filterType === type 
-                        ? 'bg-[#2B317A] text-white shadow-sm' 
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
-                    }`}
-                  >
-                    {type === 'all' ? 'All Invoices' : `${type} Invoices`}
-                  </button>
-                ))}
-              </div>
-              <div className="relative w-64">
-                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search recipient or booking ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                />
-              </div>
-            </div>
-
-            {/* Invoice Data Grid */}
-            <DataTable
-              columns={columns}
-              data={invoices}
-              isLoading={invoicesLoading}
-              isError={invoicesError}
-              selectable={false}
-              resultLabel="invoices"
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={handleRefreshAll}
+            title="Refresh data"
+            className="p-2 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition shadow-2xs cursor-pointer"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${
+                docsQ.isFetching || seriesQ.isFetching || templatesQ.isFetching
+                  ? 'animate-spin text-[#1F2B6D]'
+                  : ''
+              }`}
             />
-          </div>
-        ) : (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">Saved Layout Templates</h3>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Custom layout blocks loaded for auto-generation of ride billing receipts.</p>
-              </div>
-              <Button
-                onClick={() => setShowAddTemplateModal(true)}
-                className="gap-1.5 bg-[#2B317A] text-white hover:bg-[#2B317A]/95 text-xs font-semibold h-9 rounded-lg"
-              >
-                <Plus className="h-4 w-4" /> Add Invoice Template
-              </Button>
-            </div>
+          </button>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {templates.map((tpl) => (
-                <Card key={tpl.id} className={`premium-card border-2 ${tpl.isDefault ? 'border-[#2B317A] dark:border-[#4F5FBF]' : 'border-border'}`}>
-                  <CardContent className="p-5 space-y-4 text-xs">
-                    <div className="flex justify-between items-start border-b border-border pb-2.5">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm">{tpl.name}</h4>
-                          <span className="text-[8px] font-mono uppercase bg-slate-100 dark:bg-slate-800 px-1 rounded text-slate-500">
-                            {tpl.appliesTo}
-                          </span>
-                        </div>
-                        <p className="text-[9px] text-slate-400 font-mono mt-0.5">Template ID: {tpl.id}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        {!tpl.isDefault && (
-                          <button
-                            onClick={() => handleSetDefaultTemplate(tpl.id)}
-                            className="text-[10px] text-primary hover:underline font-semibold"
-                          >
-                            Set Default
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteTemplate(tpl.id)}
-                          className="text-rose-600 hover:text-rose-800"
-                          title="Delete Template"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+          <button
+            type="button"
+            onClick={() => setDefaultPreviewOpen(true)}
+            className="px-3.5 py-2 rounded-[10px] border border-[#1F2B6D]/25 dark:border-blue-500/40 bg-blue-50/70 dark:bg-blue-950/30 shadow-2xs text-xs font-semibold text-[#1F2B6D] dark:text-blue-300 flex items-center gap-1.5 hover:bg-blue-100/70 dark:hover:bg-blue-950/50 transition cursor-pointer"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Preview Default Invoice</span>
+          </button>
 
-                    <div className="space-y-2 text-[10px] leading-relaxed">
-                      <div>
-                        <span className="font-bold uppercase tracking-wider text-slate-400 block text-[8px]">Header Brand</span>
-                        <p className="font-bold text-slate-700 dark:text-slate-350">{tpl.headerLogoText}</p>
-                        <p className="text-slate-500">{tpl.address}</p>
-                        <p className="font-mono text-slate-500">GSTIN: {tpl.gstin}</p>
-                      </div>
+          <button
+            type="button"
+            onClick={() => void handleExportCsv()}
+            disabled={exportingCsv}
+            className="px-3.5 py-2 rounded-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer disabled:opacity-60"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>{exportingCsv ? 'Exporting…' : 'Audited CSV'}</span>
+          </button>
 
-                      <div className="grid grid-cols-3 gap-2 border-t border-b border-border py-2 text-center">
-                        <div>
-                          <span className="text-slate-400 text-[8px] block">CGST Rate</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">{tpl.cgstRate.toFixed(1)}%</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 text-[8px] block">SGST Rate</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">{tpl.sgstRate.toFixed(1)}%</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 text-[8px] block">IGST Rate</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">{tpl.igstRate.toFixed(1)}%</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="font-bold uppercase tracking-wider text-slate-400 block text-[8px]">Footer Terms</span>
-                        <p className="text-slate-500 italic">{tpl.footerTerms}</p>
-                      </div>
-                    </div>
-
-                    {tpl.isDefault && (
-                      <div className="flex items-center gap-1 text-emerald-600 font-bold text-[9px] pt-1">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-550" /> Default active layout
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* ── Uploaded Compliance Templates (CR-03) ── */}
-            <div className="space-y-4 border-t border-border pt-6 mt-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">Uploaded Compliance Templates</h3>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Uploaded HTML/DOCX templates with placeholder validation, preview gate, and one-active-per-type enforcement.</p>
-                </div>
-              </div>
-
-              {uploadedTemplates.length === 0 ? (
-                <div className="border border-dashed border-border rounded-xl p-8 text-center space-y-2">
-                  <Upload className="h-8 w-8 text-slate-300 mx-auto" />
-                  <p className="text-xs text-muted-foreground font-semibold">No compliance templates uploaded yet.</p>
-                  <p className="text-[10px] text-slate-400">Use the &ldquo;Upload Template&rdquo; button above to add your first template.</p>
-                </div>
+          {canWrite && (
+            <button
+              type="button"
+              onClick={() =>
+                activeTab === 'templates'
+                  ? setUploadTemplateOpen(true)
+                  : setCreateSeriesOpen(true)
+              }
+              className="bg-[#1F2B6D] hover:bg-[#182258] active:scale-[0.98] text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+            >
+              {activeTab === 'templates' ? (
+                <>
+                  <Upload className="w-4 h-4" />
+                  <span>Upload Template</span>
+                </>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {uploadedTemplates.map(tpl => {
-                    const canActivate = tpl.placeholderErrors.length === 0 && tpl.previewApproved && tpl.fileExt !== 'pdf'
-                    return (
-                      <Card key={tpl.id} className={`premium-card border-2 ${tpl.isActive ? 'border-emerald-400' : 'border-border'}`}>
-                        <CardContent className="p-4 space-y-3 text-xs">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="font-bold text-slate-800 dark:text-slate-100">{tpl.name}</h4>
-                                <span className="text-[8px] uppercase bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-bold text-slate-500">
-                                  {TEMPLATE_TYPE_LABELS[tpl.type]}
-                                </span>
-                                {tpl.isActive && <span className="text-[8px] uppercase bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded font-bold">Active</span>}
-                                {tpl.fileExt === 'pdf' && <span className="text-[8px] uppercase bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded font-bold">Reference Only</span>}
-                              </div>
-                              <p className="text-[9px] text-slate-400 font-mono mt-0.5">{tpl.fileName} · Uploaded: {tpl.uploadedAt}</p>
-                            </div>
-                            <button
-                              onClick={() => setVersionHistoryType(tpl.type)}
-                              className="text-primary hover:underline text-[9px] font-bold flex items-center gap-1 flex-shrink-0"
-                              title="Version History"
-                            >
-                              <History className="h-3 w-3" /> History
-                            </button>
-                          </div>
-
-                          <div className="text-[10px] space-y-1">
-                            <p><span className="text-slate-400 font-bold">Effective From:</span> {tpl.effectiveFrom || '—'}</p>
-                            <p><span className="text-slate-400 font-bold">Version Note:</span> {tpl.versionNote || '—'}</p>
-                          </div>
-
-                          {/* Placeholder errors */}
-                          {tpl.placeholderErrors.length > 0 && (
-                            <div className="bg-rose-50 border border-rose-100 rounded-lg p-2.5 space-y-1">
-                              <p className="text-[9px] font-black text-rose-700 flex items-center gap-1 uppercase tracking-wider">
-                                <AlertTriangle className="h-3 w-3" /> Unrecognised Placeholders — Activation Blocked
-                              </p>
-                              <div className="flex flex-wrap gap-1">
-                                {tpl.placeholderErrors.map(e => (
-                                  <span key={e} className="font-mono text-[8px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">{'{{' + e + '}}'}</span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Controls */}
-                          <div className="flex items-center gap-2 pt-1 border-t border-border flex-wrap">
-                            {tpl.placeholderErrors.length === 0 && !tpl.previewApproved && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-[9px] font-bold border-border gap-1"
-                                onClick={() => setPreviewUploadedTemplate(tpl)}
-                              >
-                                <Eye className="h-3 w-3" /> Preview & Approve
-                              </Button>
-                            )}
-                            {tpl.previewApproved && !tpl.isActive && (
-                              <span className="text-[9px] text-emerald-600 font-bold flex items-center gap-1">
-                                <CheckCircle2 className="h-3 w-3" /> Preview Approved
-                              </span>
-                            )}
-                            <Button
-                              size="sm"
-                              disabled={!canActivate || tpl.isActive}
-                              onClick={() => handleActivateTemplate(tpl.id, tpl.type)}
-                              className={`h-7 text-[9px] font-bold gap-1 ${
-                                tpl.isActive
-                                  ? 'bg-emerald-600 text-white'
-                                  : canActivate
-                                  ? 'bg-primary text-white hover:bg-primary-hover'
-                                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                              }`}
-                              title={!canActivate ? 'Resolve placeholder errors and approve preview first. Activation restricted to Superadmin / Finance.' : ''}
-                            >
-                              {tpl.isActive ? <><CheckCircle2 className="h-3 w-3" /> Active</> : <><Lock className="h-3 w-3" /> Activate</>}
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>Create Series</span>
+                </>
               )}
-            </div>
-          </div>
-        )}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Invoice Preview Modal (High-Fidelity PDF style) */}
-      {previewInvoice && (() => {
-        const {
-          template,
-          taxableValue,
-          gstAmount,
-          cgstAmount,
-          sgstAmount,
-          igstAmount,
-          totalGstRate
-        } = getInvoiceData(previewInvoice)
-
-        return (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col animate-scale-up text-left">
-              {/* Modal Header */}
-              <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-slate-50 dark:bg-slate-800/50">
-                <div className="flex items-center gap-2 text-slate-800 dark:text-white">
-                  <FileText className="h-5 w-5 text-primary" />
-                  <span className="font-bold text-sm">Invoice Preview: {previewInvoice.invoiceNumber}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1 text-xs h-8 border-border"
-                    onClick={() => window.print()}
-                  >
-                    <Printer className="h-3.5 w-3.5" /> Print
-                  </Button>
-                  <button onClick={() => setPreviewInvoice(null)} className="text-slate-400 hover:text-slate-600">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Printable Invoice Page */}
-              <div className="p-8 space-y-6 text-xs text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 font-sans print:p-0">
-                {/* Brand Header */}
-                <div className="flex justify-between items-start border-b-2 border-slate-100 dark:border-slate-850 pb-4">
-                  <div className="space-y-1">
-                    <h2 className="text-base font-black tracking-tight text-slate-900 dark:text-white">
-                      {template.headerLogoText}
-                    </h2>
-                    <p className="text-[10px] text-slate-500 max-w-sm">{template.address}</p>
-                    <p className="font-mono text-[10px] text-slate-550"><strong>GSTIN:</strong> {template.gstin}</p>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <h1 className="text-lg font-black tracking-wider uppercase text-slate-450">INVOICE</h1>
-                    <p className="font-mono"><strong>Invoice No:</strong> {previewInvoice.invoiceNumber}</p>
-                    <p className="font-mono"><strong>Date:</strong> {previewInvoice.date}</p>
-                    <p className="font-mono text-primary font-bold"><strong>Booking ID:</strong> {previewInvoice.bookingId}</p>
-                  </div>
-                </div>
-
-                {/* Bill To Info */}
-                <div className="grid grid-cols-2 gap-6 bg-slate-50 dark:bg-slate-900/30 p-4 rounded-xl border border-border">
-                  <div>
-                    <h3 className="font-bold uppercase tracking-wider text-slate-400 text-[9px] mb-1">Billing Details</h3>
-                    <p className="font-bold text-slate-900 dark:text-white">{previewInvoice.recipientName}</p>
-                    <p className="capitalize text-slate-500">{previewInvoice.recipientType} Profile Account</p>
-                  </div>
-                  <div>
-                    <h3 className="font-bold uppercase tracking-wider text-slate-400 text-[9px] mb-1">Place of Supply</h3>
-                    <p className="font-bold text-slate-800 dark:text-slate-200">Karnataka (State Code 29)</p>
-                    <p className="text-slate-500">Intra-State Transaction</p>
-                  </div>
-                </div>
-
-                {/* Itemized Table */}
-                <div className="overflow-x-auto border border-border rounded-xl">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 dark:bg-slate-900 border-b border-border text-[10px] uppercase font-bold text-slate-450">
-                        <th className="px-4 py-3">Description of Services</th>
-                        <th className="px-4 py-3 text-center">HSN/SAC</th>
-                        <th className="px-4 py-3 text-right">Taxable Value</th>
-                        <th className="px-4 py-3 text-center">GST Rate</th>
-                        <th className="px-4 py-3 text-right">CGST</th>
-                        <th className="px-4 py-3 text-right">SGST</th>
-                        <th className="px-4 py-3 text-right">IGST</th>
-                        <th className="px-4 py-3 text-right">Total GST</th>
-                        <th className="px-4 py-3 text-right">Gross Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      <tr className="hover:bg-slate-50/20">
-                        <td className="px-4 py-3.5">
-                          <p className="font-semibold text-slate-800 dark:text-slate-100">Passenger Transport Services</p>
-                          <p className="text-[9px] text-slate-400 italic">Ride booking: {previewInvoice.fromRoute ?? '—'} to {previewInvoice.toRoute ?? '—'}</p>
-                        </td>
-                        <td className="px-4 py-3.5 text-center font-mono">{previewInvoice.hsnCode}</td>
-                        <td className="px-4 py-3.5 text-right font-mono">₹{taxableValue.toFixed(2)}</td>
-                        <td className="px-4 py-3.5 text-center font-mono">{totalGstRate.toFixed(1)}%</td>
-                        <td className="px-4 py-3.5 text-right font-mono">
-                          <p>₹{cgstAmount.toFixed(2)}</p>
-                          <span className="text-[8px] text-slate-400">({template.cgstRate}%)</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right font-mono">
-                          <p>₹{sgstAmount.toFixed(2)}</p>
-                          <span className="text-[8px] text-slate-400">({template.sgstRate}%)</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right font-mono">
-                          <p>₹{igstAmount.toFixed(2)}</p>
-                          <span className="text-[8px] text-slate-400">({template.igstRate}%)</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right font-mono font-bold text-slate-800 dark:text-white">₹{gstAmount.toFixed(2)}</td>
-                        <td className="px-4 py-3.5 text-right font-mono font-black text-slate-900 dark:text-white">₹{previewInvoice.amount.toFixed(2)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Subtotals & Taxes breakdown */}
-                <div className="flex justify-end">
-                  <div className="w-80 space-y-2 border border-border p-4 rounded-xl bg-slate-50/20">
-                    <div className="flex justify-between font-medium">
-                      <span className="text-slate-450">Taxable Value:</span>
-                      <span className="font-mono">₹{taxableValue.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-550">
-                      <span>Total CGST:</span>
-                      <span className="font-mono">₹{cgstAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-550">
-                      <span>Total SGST:</span>
-                      <span className="font-mono">₹{sgstAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-550 border-b border-dashed pb-2">
-                      <span>Total IGST:</span>
-                      <span className="font-mono">₹{igstAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-black text-slate-900 dark:text-white text-sm pt-1">
-                      <span>Total Fare (incl tax):</span>
-                      <span className="font-mono">₹{previewInvoice.amount.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer and disclaimer */}
-                <div className="border-t border-border pt-4 text-[9px] text-slate-400 text-center leading-relaxed">
-                  {template.footerTerms}
-                </div>
-              </div>
+      {/* ─── 2. Top 4 Executive KPI Cards (Matching Pricing Control Center) ──── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* Card 1: Issued Fiscal Documents */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none font-mono">
+                {totalDocsCount}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                Fiscal Documents
+              </p>
             </div>
           </div>
-        )
-      })()}
-
-      {/* Add Invoice Template Modal */}
-      {showAddTemplateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-border rounded-xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-scale-up text-left">
-            <div className="flex justify-between items-center border-b border-border pb-3">
-              <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Add Invoice Template</h3>
-              <button onClick={() => setShowAddTemplateModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddTemplate} className="space-y-4 text-xs">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Template Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ride Mode Standard Layout"
-                  value={newTemplate.name}
-                  onChange={e => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Header Brand / Logo Text</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. ZAROORAT MOBILITY"
-                  value={newTemplate.headerLogoText}
-                  onChange={e => setNewTemplate({ ...newTemplate, headerLogoText: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Applies To</label>
-                  <select
-                    value={newTemplate.appliesTo}
-                    onChange={e => setNewTemplate({ ...newTemplate, appliesTo: e.target.value as any })}
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]"
-                  >
-                    <option value="ride">Ride Mode</option>
-                    <option value="school">School Mode</option>
-                    <option value="services">Services Mode</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Corporate GSTIN</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. 29AAAAA1111A1Z1"
-                    value={newTemplate.gstin}
-                    onChange={e => setNewTemplate({ ...newTemplate, gstin: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Office Address</label>
-                <textarea
-                  required
-                  rows={2}
-                  placeholder="Street details, building, City, Pin code"
-                  value={newTemplate.address}
-                  onChange={e => setNewTemplate({ ...newTemplate, address: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">CGST Rate (%)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    required
-                    value={newTemplate.cgstRate}
-                    onChange={e => setNewTemplate({ ...newTemplate, cgstRate: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SGST Rate (%)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    required
-                    value={newTemplate.sgstRate}
-                    onChange={e => setNewTemplate({ ...newTemplate, sgstRate: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">IGST Rate (%)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    required
-                    value={newTemplate.igstRate}
-                    onChange={e => setNewTemplate({ ...newTemplate, igstRate: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Footer Terms & Notes</label>
-                <textarea
-                  rows={2}
-                  placeholder="Terms, signatures details, etc."
-                  value={newTemplate.footerTerms}
-                  onChange={e => setNewTemplate({ ...newTemplate, footerTerms: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                />
-              </div>
-
-              <label className="flex items-center gap-2 cursor-pointer pt-1">
-                <input
-                  type="checkbox"
-                  checked={newTemplate.isDefault}
-                  onChange={e => setNewTemplate({ ...newTemplate, isDefault: e.target.checked })}
-                  className="w-4 h-4 accent-primary"
-                />
-                <span className="font-semibold text-slate-655">Mark as default active template</span>
-              </label>
-
-              <div className="flex justify-end gap-2 border-t border-border pt-3.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAddTemplateModal(false)}
-                  className="h-9 border-border"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-[#2B317A] text-white hover:bg-[#2B317A]/95 text-xs font-semibold h-9 rounded-lg px-4"
-                >
-                  Save Template
-                </Button>
-              </div>
-            </form>
-          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            {issuedDocsCount} issued · {voidedDocsCount} voided
+          </p>
         </div>
-      )}
 
-      {/* ══ Upload Template Modal (CR-03) ══ */}
-      {showUploadTemplateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-border rounded-xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-scale-up text-left text-xs">
-            <div className="flex justify-between items-center border-b border-border pb-3">
-              <div>
-                <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Upload Compliance Template</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">Accepts HTML and DOCX (max 5 MB). PDF for reference only — cannot be activated.</p>
-              </div>
-              <button onClick={() => setShowUploadTemplateModal(false)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+        {/* Card 2: Total Invoiced Volume */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
+              <Coins className="w-5 h-5" />
             </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Template Name *</label>
-                  <input type="text" required placeholder="e.g. GST Amendment v2" value={uploadForm.name}
-                    onChange={e => setUploadForm({ ...uploadForm, name: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Template Type *</label>
-                  <select value={uploadForm.type} onChange={e => setUploadForm({ ...uploadForm, type: e.target.value as UploadedTemplateType })}
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none h-[34px]">
-                    {(Object.entries(TEMPLATE_TYPE_LABELS) as [UploadedTemplateType, string][]).map(([v, l]) => (
-                      <option key={v} value={v}>{l}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Effective From *</label>
-                  <input type="date" value={uploadForm.effectiveFrom}
-                    onChange={e => setUploadForm({ ...uploadForm, effectiveFrom: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Version Note</label>
-                <textarea rows={2} placeholder="What changed in this version?" value={uploadForm.versionNote}
-                  onChange={e => setUploadForm({ ...uploadForm, versionNote: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none"
-                />
-              </div>
-
-              {/* File Upload */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">File Upload * (.html · .docx · .pdf, max 5 MB)</label>
-                <label className={`flex items-center gap-3 border-2 border-dashed rounded-lg p-3 cursor-pointer transition-colors ${
-                  uploadForm.file ? 'border-emerald-300 bg-emerald-50/30' : 'border-border hover:border-primary/40 hover:bg-primary/5'
-                }`}>
-                  <Upload className={`h-4 w-4 flex-shrink-0 ${uploadForm.file ? 'text-emerald-600' : 'text-slate-400'}`} />
-                  <span className={uploadForm.file ? 'text-emerald-700 font-semibold' : 'text-slate-500'}>
-                    {uploadForm.file ? uploadForm.file.name : 'Click to choose file'}
-                  </span>
-                  <input type="file" accept=".html,.docx,.pdf" className="hidden"
-                    onChange={e => {
-                      const file = e.target.files?.[0] ?? null
-                      if (file && file.size > 5 * 1024 * 1024) { alert('File exceeds 5 MB'); return }
-                      // Simulate reading text content for placeholder scanning
-                      const simContent = uploadForm.content || '{{invoice_number}} {{invoice_date}} {{customer_name}} {{total_amount}} {{company_gstin}} {{company_address}} {{tax_breakdown}}'
-                      setUploadForm(prev => ({ ...prev, file, content: simContent }))
-                    }}
-                  />
-                </label>
-              </div>
-
-              {/* Content / Placeholder text area (simulates file read for DOCX) */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Template Content / Paste HTML for Placeholder Validation</label>
-                <textarea rows={4} placeholder="Paste template HTML or text here to validate {{placeholders}} before uploading..." value={uploadForm.content}
-                  onChange={e => setUploadForm({ ...uploadForm, content: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-border rounded-lg bg-slate-50 dark:bg-slate-950 focus:ring-1 focus:ring-primary focus:outline-none font-mono"
-                />
-                {uploadForm.content && (() => {
-                  const errs = validatePlaceholders(uploadForm.content)
-                  return errs.length > 0 ? (
-                    <div className="bg-rose-50 border border-rose-100 rounded-lg p-2 mt-1">
-                      <p className="text-[9px] font-black text-rose-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Unrecognised placeholders — activation will be blocked:</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {errs.map(e => <span key={e} className="font-mono text-[8px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">{'{{' + e + '}}'}</span>)}
-                      </div>
-                    </div>
-                  ) : uploadForm.content.includes('{{') ? (
-                    <p className="text-[9px] text-emerald-600 font-bold flex items-center gap-1 mt-1"><CheckCircle2 className="h-3 w-3" /> All placeholders recognised.</p>
-                  ) : null
-                })()}
-              </div>
-
-              <div className="flex justify-end gap-2 border-t border-border pt-3">
-                <Button variant="outline" size="sm" onClick={() => setShowUploadTemplateModal(false)} className="h-9 border-border">Cancel</Button>
-                <Button
-                  disabled={!uploadForm.name || !uploadForm.effectiveFrom}
-                  onClick={handleUploadTemplate}
-                  className="bg-primary text-white hover:bg-primary-hover text-xs font-semibold h-9 rounded-lg px-4"
-                >
-                  Upload & Validate
-                </Button>
-              </div>
+            <div className="min-w-0">
+              <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none font-mono truncate">
+                ₹{totalInvoicedAmount.toFixed(2)}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                Issued Value
+              </p>
             </div>
           </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 font-mono">
+            Includes ₹{totalGstCollected.toFixed(2)} total GST
+          </p>
         </div>
-      )}
 
-      {/* ══ Template Preview Modal (CR-03) ══ */}
-      {previewUploadedTemplate && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-border rounded-xl w-full max-w-2xl max-h-[88vh] overflow-y-auto shadow-2xl animate-scale-up text-left">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-border sticky top-0 bg-white dark:bg-slate-900 z-10">
-              <div>
-                <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Template Preview — Sample Data</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">{previewUploadedTemplate.name} · {TEMPLATE_TYPE_LABELS[previewUploadedTemplate.type]}</p>
-              </div>
-              <button onClick={() => setPreviewUploadedTemplate(null)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+        {/* Card 3: Active Series & Templates */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-[42px] h-[42px] rounded-full bg-[#1F2B6D] flex items-center justify-center text-white shadow-sm flex-shrink-0">
+              <Hash className="w-5 h-5" />
             </div>
-            <div className="p-6 space-y-4 text-xs">
-              <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-[10px] text-amber-700 font-semibold flex items-center gap-2">
-                <Clock className="h-4 w-4 flex-shrink-0" />
-                Previewing with seeded ride data. Approve preview to enable activation for this template.
-              </div>
-              <div className="border border-border rounded-xl p-5 bg-slate-50 dark:bg-slate-950 font-mono text-[10px] whitespace-pre-wrap leading-relaxed min-h-[200px]">
-                {previewUploadedTemplate.content
-                  ? substitutePreview(
-                      previewUploadedTemplate.content,
-                      previewInvoice
-                        ? buildPreviewContext(previewInvoice, defaultTemplate ?? templates[0]!)
-                        : previewContext,
-                    )
-                  : 'No template content to preview.'}
-              </div>
-              <div className="border-t border-border pt-4">
-                <p className="text-[9px] text-slate-500 mb-3">By approving, you confirm this template renders correctly and can be activated for production use.</p>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setPreviewUploadedTemplate(null)} className="h-9 border-border">Close</Button>
-                  <Button
-                    onClick={() => handleApprovePreview(previewUploadedTemplate.id)}
-                    className="bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold h-9 rounded-lg px-4"
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-1" /> Approve Preview
-                  </Button>
-                </div>
-              </div>
+            <div>
+              <p className="text-2xl font-extrabold text-[#1F2B6D] dark:text-white tracking-tight leading-none font-mono">
+                {activeSeriesCount}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                Active Document Series
+              </p>
             </div>
           </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            {activeTemplatesCount} active compliance template{activeTemplatesCount === 1 ? '' : 's'}
+          </p>
         </div>
-      )}
 
-      {/* ══ Version History Modal (CR-03) ══ */}
-      {versionHistoryType && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-border rounded-xl w-full max-w-lg shadow-2xl animate-scale-up text-left">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-border">
-              <div>
-                <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2">
-                  <History className="h-4 w-4" /> Version History
-                </h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">{TEMPLATE_TYPE_LABELS[versionHistoryType]}</p>
-              </div>
-              <button onClick={() => setVersionHistoryType(null)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="p-4 max-h-[60vh] overflow-y-auto space-y-3 text-xs">
-              {versionHistoryList.length === 0 ? (
-                <p className="text-center text-slate-400 py-8">No uploaded templates of this type yet.</p>
+        {/* Card 4: Fiscal Issuance Engine Flag */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-4">
+            <div
+              className={`w-[42px] h-[42px] rounded-full flex items-center justify-center text-white shadow-sm flex-shrink-0 ${
+                issuanceEnabled ? 'bg-emerald-600' : 'bg-amber-500'
+              }`}
+            >
+              {issuanceEnabled ? (
+                <ShieldCheck className="w-5 h-5" />
               ) : (
-                [...versionHistoryList].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom)).map(tpl => (
-                  <div key={tpl.id} className={`border rounded-xl p-3 space-y-1 ${tpl.isActive ? 'border-emerald-300 bg-emerald-50/30' : 'border-border'}`}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-bold text-slate-800 dark:text-slate-200">{tpl.name}</p>
-                        <p className="text-[9px] font-mono text-slate-400">{tpl.fileName} · Effective: {tpl.effectiveFrom}</p>
-                        {tpl.versionNote && <p className="text-[9px] text-slate-500 italic mt-0.5">{tpl.versionNote}</p>}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {tpl.isActive
-                          ? <span className="text-[8px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded font-bold uppercase">Active</span>
-                          : tpl.previewApproved && tpl.placeholderErrors.length === 0 && tpl.fileExt !== 'pdf' && (
-                              <button
-                                onClick={() => handleRevertTemplate(tpl.id, tpl.type)}
-                                className="flex items-center gap-1 text-[9px] text-primary font-bold hover:underline"
-                              >
-                                <RotateCcw className="h-3 w-3" /> Revert
-                              </button>
-                            )
-                        }
-                      </div>
-                    </div>
-                  </div>
-                ))
+                <AlertTriangle className="w-5 h-5" />
               )}
             </div>
+            <div>
+              <p
+                className={`text-xl font-extrabold tracking-tight leading-none ${
+                  issuanceEnabled
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                {issuanceEnabled ? 'Enforced' : 'Flag OFF'}
+              </p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                Fiscal Issuance Flag
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+            {issuanceEnabled
+              ? 'Auto-issued on ride completion'
+              : 'Default OFF — series & templates ready in DB'}
+          </p>
+        </div>
+      </div>
+
+      {/* Live Governance Notice when fiscalDocumentsIssue is OFF */}
+      {!issuanceEnabled && (
+        <div className="bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/90 dark:border-amber-900/50 rounded-xl px-4 py-3 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <p className="leading-relaxed">
+            <strong>Fiscal document issuance is currently OFF by default.</strong> You can
+            configure gapless State GSTIN document series, preview the built-in default production
+            invoice PDF, and manage templates now — invoices will issue automatically on completed
+            rides once <code className="font-mono font-bold">documents.issue</code> is enabled.
+          </p>
+        </div>
+      )}
+
+      {/* ─── 3. Executive Segmented Tabs ─────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            {
+              id: 'documents',
+              label: `Issued Documents (${totalDocsCount})`,
+              icon: FileText,
+            },
+            {
+              id: 'series',
+              label: `Document Series (${seriesList.length})`,
+              icon: Hash,
+            },
+            {
+              id: 'templates',
+              label: `Compliance Templates (${templateList.length})`,
+              icon: ShieldCheck,
+            },
+          ] as const
+        ).map((tab) => {
+          const Icon = tab.icon
+          const active = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-[13px] font-bold transition cursor-pointer ${
+                active
+                  ? 'bg-[#1F2B6D] text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ─── TAB 1: ISSUED FISCAL DOCUMENTS ─────────────────────────────────── */}
+      {activeTab === 'documents' && (
+        <div className="space-y-4">
+          {/* Filter Card (Matching Fare Rules Filter Bar) */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+              <div className="lg:col-span-3 space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block">
+                  Search
+                </label>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Document #, recipient, GSTIN..."
+                    className="w-full h-10 pl-8 pr-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+                  />
+                </div>
+              </div>
+
+              <div className="lg:col-span-2 space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block">
+                  Recipient
+                </label>
+                <select
+                  value={recipientFilter}
+                  onChange={(e) =>
+                    setRecipientFilter(e.target.value as 'all' | 'RIDER' | 'DRIVER')
+                  }
+                  className="w-full h-10 px-3 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+                >
+                  <option value="all">All Recipients</option>
+                  <option value="RIDER">Riders</option>
+                  <option value="DRIVER">Drivers</option>
+                </select>
+              </div>
+
+              <div className="lg:col-span-2 space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block">
+                  Document Type
+                </label>
+                <select
+                  value={docTypeFilter}
+                  onChange={(e) => setDocTypeFilter(e.target.value as '' | FiscalDocumentType)}
+                  className="w-full h-10 px-3 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+                >
+                  <option value="">All Types</option>
+                  {(Object.keys(DOCUMENT_TYPE_LABELS) as FiscalDocumentType[]).map((k) => (
+                    <option key={k} value={k}>
+                      {DOCUMENT_TYPE_LABELS[k]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="lg:col-span-1 space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block">
+                  Status
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'ISSUED' | 'VOIDED')}
+                  className="w-full h-10 px-2.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+                >
+                  <option value="all">All</option>
+                  <option value="ISSUED">Issued</option>
+                  <option value="VOIDED">Voided</option>
+                </select>
+              </div>
+
+              <div className="lg:col-span-2 space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block">
+                  From Date
+                </label>
+                <DatePicker
+                  value={dateFrom}
+                  onChange={setDateFrom}
+                  placeholder="Start date"
+                  iconPosition="left"
+                />
+              </div>
+
+              <div className="lg:col-span-2 flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block">
+                    To Date
+                  </label>
+                  <DatePicker
+                    value={dateTo}
+                    onChange={setDateTo}
+                    placeholder="End date"
+                    iconPosition="left"
+                  />
+                </div>
+                {hasDocFilters && (
+                  <button
+                    type="button"
+                    onClick={handleResetDocFilters}
+                    className="h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-[#1F2B6D] hover:bg-slate-50 transition cursor-pointer shrink-0"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Full-Width DataTable Card */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col w-full min-w-0">
+            <div className="p-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                  <FileText className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-blue-400" strokeWidth={2} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight truncate">
+                    ISSUED FISCAL DOCUMENTS ({documents.length})
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">
+                    Click any row to inspect immutable line items, GST breakdown, and SHA-256 audit hash.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <DataTable
+              data={documents}
+              columns={documentColumns}
+              compact={true}
+              isLoading={docsQ.isLoading}
+              selectable={false}
+              selectedIds={selectedDocIds}
+              onSelectionChange={setSelectedDocIds}
+              hideToolbar={true}
+              className="border-0 shadow-none rounded-none bg-transparent"
+              onRowClick={(row) => setInspectDoc(row)}
+              resultLabel="fiscal documents"
+              pageSizeOptions={[5, 10, 25, 50]}
+            />
           </div>
         </div>
       )}
 
+      {/* ─── TAB 2: GAPLESS DOCUMENT SERIES ─────────────────────────────────── */}
+      {activeTab === 'series' && (
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col w-full min-w-0">
+          <div className="p-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                <Hash className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-blue-400" strokeWidth={2} />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight truncate">
+                  GAPLESS DOCUMENT SERIES ({filteredSeries.length})
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5 truncate">
+                  Row-locked sequential numbering per State GSTIN, Document Type, and Financial Year.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={seriesSearch}
+                  onChange={(e) => setSeriesSearch(e.target.value)}
+                  placeholder="Search prefix, GSTIN, state..."
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DataTable
+            data={filteredSeries}
+            columns={seriesColumns}
+            compact={true}
+            isLoading={seriesQ.isLoading}
+            selectable={false}
+            selectedIds={selectedSeriesIds}
+            onSelectionChange={setSelectedSeriesIds}
+            hideToolbar={true}
+            className="border-0 shadow-none rounded-none bg-transparent"
+            onRowClick={(row) => setInspectSeries(row)}
+            resultLabel="document series"
+            pageSizeOptions={[5, 10, 25, 50]}
+          />
+        </div>
+      )}
+
+      {/* ─── TAB 3: COMPLIANCE TEMPLATES ────────────────────────────────────── */}
+      {activeTab === 'templates' && (
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col w-full min-w-0">
+          <div className="p-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-[18px] h-[18px] text-[#1F2B6D] dark:text-blue-400" strokeWidth={2} />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-bold text-[#1F2B6D] dark:text-white leading-tight truncate">
+                  COMPLIANCE TEMPLATES ({filteredTemplates.length})
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5 truncate">
+                  Versioned HTML invoice layouts validated against supported server placeholders.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <select
+                value={templateTypeFilter}
+                onChange={(e) =>
+                  setTemplateTypeFilter(e.target.value as '' | FiscalDocumentType)
+                }
+                className="h-9 px-3 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+              >
+                <option value="">All Document Types</option>
+                {(Object.keys(DOCUMENT_TYPE_LABELS) as FiscalDocumentType[]).map((k) => (
+                  <option key={k} value={k}>
+                    {DOCUMENT_TYPE_LABELS[k]}
+                  </option>
+                ))}
+              </select>
+
+              <div className="relative w-full sm:w-60">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                  placeholder="Search template name..."
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/20 focus:border-[#1F2B6D]"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DataTable
+            data={filteredTemplates}
+            columns={templateColumns}
+            compact={true}
+            isLoading={templatesQ.isLoading}
+            selectable={false}
+            selectedIds={selectedTemplateIds}
+            onSelectionChange={setSelectedTemplateIds}
+            hideToolbar={true}
+            className="border-0 shadow-none rounded-none bg-transparent"
+            onRowClick={(row) => setPreviewTemplate(row)}
+            resultLabel="compliance templates"
+            pageSizeOptions={[5, 10, 25, 50]}
+          />
+        </div>
+      )}
+
+      {/* ─── Executive Modals ────────────────────────────────────────────────── */}
+      <FiscalDocumentDetailsModal
+        doc={inspectDoc}
+        canWrite={canWrite}
+        downloading={Boolean(inspectDoc && downloadingId === inspectDoc.id)}
+        onClose={() => setInspectDoc(null)}
+        onDownloadPdf={(doc) => void handleDownloadPdf(doc)}
+        onVoid={(doc) => setVoidTarget(doc)}
+      />
+
+      {/* Document Series Details Popup (Shared PricingDetailsModal) */}
+      <PricingDetailsModal
+        isOpen={Boolean(inspectSeries)}
+        onClose={() => setInspectSeries(null)}
+        badge={<Hash className="w-4 h-4" />}
+        title={inspectSeries?.prefix ?? 'Document Series'}
+        subtitle={
+          inspectSeries
+            ? `${DOCUMENT_TYPE_LABELS[inspectSeries.documentType]} · Row-locked gapless sequence in PostgreSQL.`
+            : undefined
+        }
+        statusBadges={
+          inspectSeries
+            ? [
+                {
+                  label: inspectSeries.isActive ? 'Active' : 'Inactive',
+                  tone: inspectSeries.isActive ? 'emerald' : 'slate',
+                },
+                { label: `FY ${inspectSeries.financialYear}`, tone: 'blue' },
+              ]
+            : []
+        }
+      >
+        {inspectSeries && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <DetailsKpiCard
+                icon={<Hash className="w-3.5 h-3.5" />}
+                label="Last Sequence"
+                value={inspectSeries.lastSequence}
+                sublabel="Documents issued so far"
+              />
+              <DetailsKpiCard
+                icon={<Calendar className="w-3.5 h-3.5" />}
+                label="Financial Year"
+                value={inspectSeries.financialYear}
+                sublabel="Indian FY (Apr–Mar)"
+              />
+              <DetailsKpiCard
+                highlighted
+                icon={<FileText className="w-3.5 h-3.5" />}
+                label="Next Document #"
+                value={formatNextInvoiceNumber(inspectSeries.prefix, inspectSeries.lastSequence)}
+                sublabel="Assigned atomically"
+              />
+            </div>
+
+            <DetailsSpecList>
+              <DetailsSpecRow
+                icon={<FileText className="w-4 h-4" />}
+                label="Document Type"
+                value={DOCUMENT_TYPE_LABELS[inspectSeries.documentType]}
+              />
+              <DetailsSpecRow
+                icon={<Building2 className="w-4 h-4" />}
+                label="Legal Entity"
+                value={inspectSeries.legalEntityName}
+              />
+              <DetailsSpecRow
+                icon={<ShieldCheck className="w-4 h-4" />}
+                label="State GSTIN"
+                value={<span className="font-mono">{inspectSeries.gstin}</span>}
+              />
+              <DetailsSpecRow
+                icon={<MapPin className="w-4 h-4" />}
+                label="State Jurisdiction"
+                value={`${inspectSeries.stateName} (${inspectSeries.stateCode})`}
+              />
+              <DetailsSpecRow
+                icon={<Calendar className="w-4 h-4" />}
+                label="Created At"
+                value={
+                  <span className="font-mono">
+                    {new Date(inspectSeries.createdAt).toLocaleString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                }
+              />
+            </DetailsSpecList>
+          </>
+        )}
+      </PricingDetailsModal>
+
+      <ComplianceTemplateDetailsModal
+        template={previewTemplate}
+        canWrite={canWrite}
+        activating={activateTemplateMutation.isPending}
+        onClose={() => setPreviewTemplate(null)}
+        onActivate={(tpl) => void handleActivateTemplate(tpl)}
+      />
+
+      <CreateDocumentSeriesModal
+        isOpen={createSeriesOpen}
+        gstRegistrations={allGstRegistrations}
+        defaultFinancialYear={currentIndianFinancialYear()}
+        isPending={createSeriesMutation.isPending}
+        onClose={() => setCreateSeriesOpen(false)}
+        onNavigateToGst={() => navigate('/pricing-management/gst')}
+        onSubmit={handleCreateSeries}
+      />
+
+      <UploadComplianceTemplateModal
+        isOpen={uploadTemplateOpen}
+        isPending={createTemplateMutation.isPending || activateTemplateMutation.isPending}
+        onClose={() => setUploadTemplateOpen(false)}
+        onSubmit={handleCreateTemplate}
+      />
+
+      <DefaultInvoicePreviewModal
+        isOpen={defaultPreviewOpen}
+        gstRegistrations={allGstRegistrations}
+        onClose={() => setDefaultPreviewOpen(false)}
+      />
+
+      <VoidFiscalDocumentModal
+        target={voidTarget}
+        isPending={voidMutation.isPending}
+        onClose={() => setVoidTarget(null)}
+        onConfirm={handleConfirmVoid}
+      />
+
+      <PricingSuccessModal
+        isOpen={Boolean(successModal)}
+        onClose={() => setSuccessModal(null)}
+        onPrimaryAction={() => setSuccessModal(null)}
+        title={successModal?.title ?? 'Saved'}
+        message={successModal?.message ?? ''}
+        primaryButtonText={successModal?.primaryText ?? 'Done'}
+      />
     </PageWrapper>
   )
 }

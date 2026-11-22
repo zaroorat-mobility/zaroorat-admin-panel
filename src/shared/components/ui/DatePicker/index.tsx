@@ -11,6 +11,7 @@ export interface DatePickerProps {
   disabled?: boolean
   className?: string
   id?: string
+  iconPosition?: 'left' | 'right'
 }
 
 type ViewMode = 'days' | 'months' | 'years'
@@ -24,6 +25,7 @@ export const DatePicker = forwardRef<HTMLDivElement, DatePickerProps>(({
   error,
   className = '',
   id,
+  iconPosition = 'right',
 }, ref) => {
   const [isOpen, setIsOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('days')
@@ -166,17 +168,24 @@ export const DatePicker = forwardRef<HTMLDivElement, DatePickerProps>(({
           disabled={disabled}
           onClick={() => !disabled && setIsOpen(prev => !prev)}
           className={cn(
-            "flex h-9 w-full rounded-lg border border-input bg-white px-3 py-1 text-sm text-foreground shadow-sm transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50 items-center justify-between dark:bg-slate-900",
+            iconPosition === 'left'
+              ? "flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm font-semibold text-foreground shadow-2xs transition-all focus:border-[#1F2B6D] focus:outline-none focus:ring-2 focus:ring-[#1F2B6D]/15 disabled:cursor-not-allowed disabled:opacity-50 items-center gap-2.5 dark:bg-slate-900 dark:border-slate-800"
+              : "flex h-10 w-full rounded-xl border border-input bg-white px-3 py-2 text-sm text-foreground shadow-sm transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50 items-center justify-between dark:bg-slate-900",
             error ? 'border-destructive focus:border-destructive focus:ring-destructive/10' : '',
-            isOpen ? 'border-primary ring-2 ring-primary/10' : ''
+            isOpen ? (iconPosition === 'left' ? 'border-[#1F2B6D] ring-2 ring-[#1F2B6D]/15' : 'border-primary ring-2 ring-primary/10') : ''
           )}
         >
-          {displayValue ? (
-            <span className="truncate text-slate-800 dark:text-slate-200 font-medium">{displayValue}</span>
-          ) : (
-            <span className="text-muted-foreground/60">{placeholder}</span>
+          {iconPosition === 'left' && (
+            <CalendarIcon className="h-4 w-4 text-slate-400 pointer-events-none shrink-0" />
           )}
-          <CalendarIcon className="h-4 w-4 text-slate-400 pointer-events-none" />
+          {displayValue ? (
+            <span className="truncate text-slate-800 dark:text-slate-200 font-semibold text-xs sm:text-sm">{displayValue}</span>
+          ) : (
+            <span className="text-slate-400 text-xs sm:text-sm">{placeholder}</span>
+          )}
+          {iconPosition === 'right' && (
+            <CalendarIcon className="h-4 w-4 text-slate-400 pointer-events-none" />
+          )}
         </button>
 
         {isOpen && (

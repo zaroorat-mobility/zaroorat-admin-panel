@@ -140,6 +140,7 @@ export const GoogleZoneDrawingMap: React.FC<GoogleZoneDrawingMapProps> = memo(({
 
       try {
         const google = await loadGoogleMapsSdk(apiKey)
+        if (isCancelled || !containerRef.current) return
         const computedCenter =
           (cityBoundary?.[0]?.length
             ? {

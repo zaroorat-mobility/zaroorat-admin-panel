@@ -14,6 +14,7 @@ import {
   calculatePolygonPerimeterKm,
   type LatLngPoint,
 } from './geoUtils'
+import type { CoverageMode } from '../../types'
 
 interface Step3ReviewCreateProps {
   country: string
@@ -27,6 +28,9 @@ interface Step3ReviewCreateProps {
   boundaryType: 'official' | 'radius' | 'polygon'
   radiusKm: number
   boundary: number[][][] | null
+  coverageMode: CoverageMode
+  /** Null when the admin cannot set it. */
+  surgeCap: string | null
   isSubmitting?: boolean
   onEditCityInfo: () => void
   onEditBoundary: () => void
@@ -47,6 +51,8 @@ export const Step3ReviewCreate: React.FC<Step3ReviewCreateProps> = ({
   boundaryType,
   radiusKm,
   boundary,
+  coverageMode,
+  surgeCap,
   onEditCityInfo,
   onEditBoundary,
 }) => {
@@ -144,6 +150,18 @@ export const Step3ReviewCreate: React.FC<Step3ReviewCreateProps> = ({
                 {isActive ? 'Active' : 'Inactive'}
               </span>
             </div>
+            <div className="py-1 flex justify-between items-center">
+              <span className="text-slate-500">Rides can start</span>
+              <span className="font-semibold text-slate-900">
+                {coverageMode === 'ZONES_ONLY' ? 'Only inside zones' : 'Everywhere in this city'}
+              </span>
+            </div>
+            {surgeCap !== null && (
+              <div className="py-1 flex justify-between items-center">
+                <span className="text-slate-500">Surge cap</span>
+                <span className="font-semibold text-slate-900">{surgeCap}x</span>
+              </div>
+            )}
           </div>
         </div>
 

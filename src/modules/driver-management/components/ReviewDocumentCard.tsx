@@ -1,5 +1,5 @@
 import React from 'react'
-import { Check, CheckCircle2, Clock, RefreshCw, X, Eye, MoreVertical, Image as ImageIcon } from 'lucide-react'
+import { Check, CheckCircle2, Clock, RefreshCw, X, Eye, ArrowRight, Image as ImageIcon } from 'lucide-react'
 import { FileImage } from '@/shared/components/FileImage'
 
 export interface ReviewDocumentCardProps {
@@ -9,6 +9,7 @@ export interface ReviewDocumentCardProps {
   status: string
   image?: string
   expiryDate?: string
+  isExpired?: boolean
   uploaded?: string
   variant?: 'compact' | 'standard'
   onClick?: () => void
@@ -21,6 +22,7 @@ export const ReviewDocumentCard: React.FC<ReviewDocumentCardProps> = ({
   status,
   image,
   expiryDate,
+  isExpired = false,
   uploaded,
   variant = 'compact',
   onClick,
@@ -44,6 +46,11 @@ export const ReviewDocumentCard: React.FC<ReviewDocumentCardProps> = ({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             fallback={<ImageIcon className="w-7 h-7 text-slate-300" />}
           />
+          {isExpired && (
+            <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-600 text-white shadow-xs uppercase tracking-wide">
+              Expired
+            </span>
+          )}
           <div
             className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center shadow-xs text-white ${
               isVerified
@@ -119,10 +126,14 @@ export const ReviewDocumentCard: React.FC<ReviewDocumentCardProps> = ({
         </h4>
         <div className="text-[12px] text-slate-500 dark:text-slate-400 mb-2 space-y-0.5 font-medium">
           {number && <p className="truncate text-[#1F2B6D] dark:text-slate-300 font-mono">{number}</p>}
-          {expiryDate && <p>Expires: {expiryDate}</p>}
+          {expiryDate && expiryDate !== '—' && (
+            <p className={isExpired ? 'text-rose-600 dark:text-rose-400 font-bold' : undefined}>
+              {isExpired ? `Expired: ${expiryDate}` : `Expires: ${expiryDate}`}
+            </p>
+          )}
         </div>
 
-        <div className="mt-auto flex items-center gap-1.5 mb-2.5">
+        <div className="mt-auto flex flex-wrap items-center gap-1.5 mb-2.5">
           <span
             className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
               isVerified
@@ -140,6 +151,11 @@ export const ReviewDocumentCard: React.FC<ReviewDocumentCardProps> = ({
             {isRejected && <X className="w-3 h-3" />}
             {status}
           </span>
+          {isExpired && (
+            <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
+              Expired
+            </span>
+          )}
         </div>
 
         {uploaded && (
@@ -151,22 +167,16 @@ export const ReviewDocumentCard: React.FC<ReviewDocumentCardProps> = ({
         <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between mt-auto">
           <button
             type="button"
-            className="text-[#1F2B6D] dark:text-blue-400 font-bold text-[12px] flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+            className="w-full text-[#1F2B6D] dark:text-blue-400 font-bold text-[12px] flex items-center justify-between hover:text-blue-600 transition-colors cursor-pointer"
             onClick={(e) => {
               e.stopPropagation()
               onClick?.()
             }}
           >
-            <Eye className="w-3.5 h-3.5" /> View Document
-          </button>
-          <button
-            type="button"
-            className="text-slate-400 hover:text-[#1F2B6D] dark:hover:text-white"
-            onClick={(e) => {
-              e.stopPropagation()
-            }}
-          >
-            <MoreVertical className="w-4 h-4" />
+            <span className="flex items-center gap-1.5">
+              <Eye className="w-3.5 h-3.5" /> View & Review
+            </span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

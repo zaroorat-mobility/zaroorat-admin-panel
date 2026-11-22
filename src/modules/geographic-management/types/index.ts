@@ -67,12 +67,24 @@ export interface CityListItem {
   zoneCount: number
 }
 
+/** WHOLE_CITY: rides start anywhere in the Operating Area. ZONES_ONLY: only inside active zones. */
+export type CoverageMode = 'WHOLE_CITY' | 'ZONES_ONLY'
+
 export interface CityDetail extends CityListItem {
   timezone: string
   currency: string
   launchedAt: string | null
   center: { lng: number; lat: number } | null
   boundary: number[][][] | null
+  coverageMode?: CoverageMode
+  maxSurgeMultiplier?: number
+}
+
+/** The parts of the city checklist the city form uses. */
+export interface CitySetup {
+  coveredPct: number
+  /** How much of the Operating Area active service and airport zones cover, whatever the setting. */
+  zonesCoveredPct: number
 }
 
 export interface ServiceZoneListItem {

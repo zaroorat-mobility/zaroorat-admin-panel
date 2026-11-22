@@ -77,7 +77,7 @@ export const SurgeZonesPage: React.FC = () => {
     <PageWrapper>
       <PageHeader
         title="Surge Zones"
-        description="Demand multiplier geofences used by surge windows (pricing module)."
+        description="Areas used by surge rules. The price and times are set in Surge Rules."
         onBack={() => navigate('/geographic-management')}
         actions={
           canWrite ? (
@@ -88,7 +88,7 @@ export const SurgeZonesPage: React.FC = () => {
         }
       />
       <p className="text-xs text-muted-foreground mb-4">
-        Service zones define ride coverage; surge zones define where demand multipliers apply.
+        A surge zone never blocks a ride. It only marks where a surge rule can raise the fare.
       </p>
       <DataTable
         columns={columns}
