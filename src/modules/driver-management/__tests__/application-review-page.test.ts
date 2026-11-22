@@ -15,6 +15,12 @@ import { api } from '@/infrastructure/api'
 import { useAuthStore, type User } from '@/store/auth.store'
 import { ToastProvider } from '@/shared/context/toast'
 import { ApplicationReviewPage } from '../pages/applications/ApplicationReviewPage'
+import {
+  evaluateBankNameMatch,
+  formatBankStatusLabel,
+  isDocumentExpired,
+  validateBankAccountDetails,
+} from '../utils/application-review.utils'
 
 const admin: User = {
   id: 'u-admin',
@@ -25,14 +31,22 @@ const admin: User = {
   permissions: ['drivers:read', 'drivers:verify'],
 }
 
-type Doc = { id: string; docType: string; verifyStatus: string; fileUrl: string; category: 'driver' | 'vehicle' }
+type Doc = {
+  id: string
+  docType: string
+  verifyStatus: string
+  fileUrl: string
+  category: 'driver' | 'vehicle'
+  expiryDate?: string
+}
 const doc = (
   id: string,
   docType: string,
   verifyStatus: 'approved' | 'pending' | 'rejected',
   fileUrl = `https://example.invalid/${docType}.jpg`,
   category: 'driver' | 'vehicle' = 'driver',
-): Doc => ({ id, docType, verifyStatus, fileUrl, category })
+  expiryDate?: string,
+): Doc => ({ id, docType, verifyStatus, fileUrl, category, ...(expiryDate ? { expiryDate } : {}) })
 
 function application(documents: Doc[]) {
   return {
@@ -172,13 +186,25 @@ afterEach(async () => {
   window.open = originalOpen
 })
 
-describe('ApplicationReviewPage — progress follows the documents (M1)', () => {
-  it('marks data-present steps complete and refuses Approve when no documents were uploaded', async () => {
+const stepButton = (label: string) => {
+  const span = [...container.querySelectorAll('span')].find(
+    (s) => s.textContent === label && s.previousElementSibling?.classList.contains('rounded-full'),
+  )
+  assert.ok(span?.parentElement, `step button "${label}"`)
+  return span.parentElement as HTMLElement
+}
+
+describe('ApplicationReviewPage — progress follows real DB verification state', () => {
+  it('opens on Overview with no premature green ticks and refuses Approve when no documents were uploaded', async () => {
     await render([])
 
+    // Starts on Overview (Step 1) with no ticks on current or upcoming steps
+    assert.ok(container.textContent?.includes('Application Status'))
+    assert.ok(container.textContent?.includes('Required Documents'))
+
     assert.deepEqual(steps(), {
-      Overview: true,
-      'Claim Form': true,
+      Overview: false,
+      'Claim Form': false,
       Documents: false,
       'Bank Details': false,
       'Final Review': false,
@@ -187,7 +213,7 @@ describe('ApplicationReviewPage — progress follows the documents (M1)', () => 
     assert.ok(container.textContent?.includes('0 / 0 documents verified'))
     assert.ok(!container.textContent?.includes('sections completed'))
 
-    await click(button('Next'))
+    await click(stepButton('Decision'))
     assert.equal(button('Approve Application').disabled, true)
   })
 
@@ -198,27 +224,36 @@ describe('ApplicationReviewPage — progress follows the documents (M1)', () => 
     assert.equal(steps()['Final Review'], false)
     assert.ok(container.textContent?.includes('1 / 2 documents verified'))
 
-    await click(button('Next'))
+    await click(stepButton('Decision'))
     assert.equal(button('Approve Application').disabled, true)
   })
 
-  it('marks Documents and Final Review complete and offers Approve once every document is verified', async () => {
+  it('marks Documents complete when all documents are verified and offers Approve on Decision', async () => {
     await render([
       doc('d1', 'driving_license', 'approved'),
       doc('v1', 'rc', 'approved', 'https://example.invalid/rc.jpg', 'vehicle'),
     ])
 
+    // On initial load at Overview, upcoming steps have no premature ticks
     assert.deepEqual(steps(), {
-      Overview: true,
-      'Claim Form': true,
-      Documents: true,
+      Overview: false,
+      'Claim Form': false,
+      Documents: false,
       'Bank Details': false,
-      'Final Review': true,
+      'Final Review': false,
       Decision: false,
     })
     assert.ok(container.textContent?.includes('2 / 2 documents verified'))
 
-    await click(button('Next'))
+    await click(stepButton('Decision'))
+    assert.deepEqual(steps(), {
+      Overview: true,
+      'Claim Form': true,
+      Documents: true,
+      'Bank Details': true,
+      'Final Review': true,
+      Decision: false,
+    })
     assert.equal(button('Approve Application').disabled, false)
   })
 
@@ -229,8 +264,8 @@ describe('ApplicationReviewPage — progress follows the documents (M1)', () => 
         {
           id: 'ba-1',
           bankName: 'HDFC Bank',
-          accountHolderName: 'Test Applicant',
-          ifscCode: 'HDFC0001234',
+          bankAccountName: 'Test Applicant',
+          bankIfsc: 'HDFC0001234',
           accountNumberMasked: '•••• •••• 1234',
           status: 'VERIFIED',
           payoutEnabled: true,
@@ -264,6 +299,7 @@ describe('ApplicationReviewPage — progress follows the documents (M1)', () => 
     )
     await settle()
 
+    await click(stepButton('Final Review'))
     assert.equal(steps()['Bank Details'], true)
   })
 
@@ -314,51 +350,191 @@ describe('ApplicationReviewPage — progress follows the documents (M1)', () => 
     })
   })
 
-  it('dynamically marks Documents and Bank Details complete as reviewer advances with Next', async () => {
+  it('marks each step complete with green checkmarks as the reviewer reviews and advances via Next', async () => {
     await render([doc('d1', 'driving_license', 'pending')])
 
-    // Initially Documents and Bank Details are not complete
     assert.equal(steps().Documents, false)
     assert.equal(steps()['Bank Details'], false)
 
-    // Navigate to Documents tab
-    const docStepSpan = [...container.querySelectorAll('span')].find(
-      (s) => s.textContent === 'Documents' && s.previousElementSibling?.classList.contains('rounded-full'),
+    // Step sequentially through all tabs via Next
+    await click(button('Next')) // Claim Form
+    await click(button('Next')) // Documents
+    await click(button('Next')) // Bank Details
+    await click(button('Next')) // Final Review
+    await click(button('Next')) // Decision
+
+    // Stepping sequentially records each reviewed step with its green checkmark
+    assert.deepEqual(steps(), {
+      Overview: true,
+      'Claim Form': true,
+      Documents: true,
+      'Bank Details': true,
+      'Final Review': true,
+      Decision: false,
+    })
+
+    // Clicking Previous back to Overview removes ticks from backed-out steps
+    await click(button('Previous')) // Final Review
+    await click(button('Previous')) // Bank Details
+    await click(button('Previous')) // Documents
+    await click(button('Previous')) // Claim Form
+    await click(button('Previous')) // Overview
+
+    assert.deepEqual(steps(), {
+      Overview: false,
+      'Claim Form': false,
+      Documents: false,
+      'Bank Details': false,
+      'Final Review': false,
+      Decision: false,
+    })
+
+    // Clicking Next again brings the tick back
+    await click(button('Next')) // Claim Form
+    assert.deepEqual(steps(), {
+      Overview: true,
+      'Claim Form': false,
+      Documents: false,
+      'Bank Details': false,
+      'Final Review': false,
+      Decision: false,
+    })
+  })
+
+  it('marks all steps complete with green ticks when an application is fully approved in DB', async () => {
+    fixture = {
+      ...application([doc('d1', 'driving_license', 'approved'), doc('v1', 'rc', 'approved')]),
+      applicationStatus: 'approved',
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await act(async () =>
+      root.render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(
+            ToastProvider,
+            null,
+            createElement(
+              MemoryRouter,
+              { initialEntries: ['/driver-management/applications/drv-1'] },
+              createElement(
+                Routes,
+                null,
+                createElement(Route, {
+                  path: '/driver-management/applications/:id',
+                  element: createElement(ApplicationReviewPage),
+                }),
+              ),
+            ),
+          ),
+        ),
+      ),
     )
-    assert.ok(docStepSpan, 'Documents step element')
-    await click(docStepSpan.parentElement!)
+    await settle()
 
-    // Reviewer advances from Documents to Bank Details via Next button
-    await click(button('Next'))
+    assert.deepEqual(steps(), {
+      Overview: true,
+      'Claim Form': true,
+      Documents: true,
+      'Bank Details': true,
+      'Final Review': true,
+      Decision: true,
+    })
+  })
 
-    // Documents is now dynamically marked complete with a green tick!
-    assert.equal(steps().Documents, true)
+  it('evaluates bank holder name matching accurately without hardcoding Verified', () => {
+    assert.equal(evaluateBankNameMatch('Bilal Ahmad', 'BILAL AHMAD').level, 'exact')
+    assert.equal(evaluateBankNameMatch('Bilal Ahmad', 'Bilal A').level, 'partial')
+    assert.equal(evaluateBankNameMatch('Bilal Ahmad', 'John Smith').level, 'mismatch')
+    assert.equal(evaluateBankNameMatch('Bilal Ahmad', '—').level, 'missing')
+  })
 
-    // Reviewer advances from Bank Details to Final Review via Next button
-    await click(button('Next'))
+  it('flags placeholder/invalid bank details and formats raw bank status enums cleanly', () => {
+    const placeholder = validateBankAccountDetails({
+      bankName: 'Bank',
+      accountHolderName: 'Bilal Ahmad',
+      accountNumber: '****0000',
+      ifscCode: 'IFSC0000000',
+    })
+    assert.equal(placeholder.isValid, false)
+    assert.equal(placeholder.isIfscValid, false)
+    assert.ok(placeholder.issues.length >= 2)
 
-    // Bank Details is now also dynamically marked complete with a green tick!
-    assert.equal(steps()['Bank Details'], true)
+    const valid = validateBankAccountDetails({
+      bankName: 'J&K Bank',
+      accountHolderName: 'Bilal Ahmad',
+      accountNumber: '****4821',
+      ifscCode: 'JAKA0PATTAN',
+    })
+    assert.equal(valid.isValid, true)
+    assert.equal(valid.isIfscValid, true)
 
-    // Reviewer navigates back via Previous button
-    await click(button('Previous'))
+    assert.equal(formatBankStatusLabel('ENTERED', false), 'Pending Verification')
+    assert.equal(formatBankStatusLabel('VERIFIED', false), 'Verified')
+    assert.equal(formatBankStatusLabel('PAYOUT_ENABLED', true), 'Active for Payouts')
+    assert.equal(formatBankStatusLabel('REJECTED', false), 'Rejected')
+  })
 
-    // All green ticks are preserved and NOT removed when going back!
-    assert.equal(steps().Overview, true)
-    assert.equal(steps()['Claim Form'], true)
-    assert.equal(steps().Documents, true)
-    assert.equal(steps()['Bank Details'], true)
+  it('detects expired documents accurately and blocks approval even if marked approved', async () => {
+    assert.equal(isDocumentExpired('2020-01-01T00:00:00.000Z'), true)
+    assert.equal(isDocumentExpired('2099-12-31T00:00:00.000Z'), false)
+    assert.equal(isDocumentExpired(undefined), false)
+    assert.equal(isDocumentExpired('not-a-date'), false)
 
-    // Reviewer navigates all the way back to Overview via Previous button
-    await click(button('Previous'))
-    await click(button('Previous'))
-    await click(button('Previous'))
+    await render([
+      doc('d1', 'driving_license', 'approved', 'https://example.invalid/dl.jpg', 'driver', '2020-01-01T00:00:00.000Z'),
+      doc('v1', 'rc', 'approved', 'https://example.invalid/rc.jpg', 'vehicle', '2099-12-31T00:00:00.000Z'),
+    ])
 
-    // Green ticks remain preserved on earlier steps!
-    assert.equal(steps().Overview, true)
-    assert.equal(steps()['Claim Form'], true)
-    assert.equal(steps().Documents, true)
-    assert.equal(steps()['Bank Details'], true)
+    await click(stepButton('Decision'))
+    assert.equal(button('Approve Application').disabled, true)
+    assert.ok(container.textContent?.includes('expired'))
+  })
+
+  it('shows a clear recovery state with Verified Driver Profile link on 409 already-verified error', async () => {
+    api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+      const error = Object.assign(new Error('Driver is already verified'), {
+        isAxiosError: true,
+        response: {
+          status: 409,
+          statusText: 'Conflict',
+          data: { message: 'This driver application has already been verified.' },
+          headers: {},
+          config,
+        },
+      })
+      throw error
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await act(async () =>
+      root.render(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(
+            ToastProvider,
+            null,
+            createElement(
+              MemoryRouter,
+              { initialEntries: ['/driver-management/applications/drv-1'] },
+              createElement(
+                Routes,
+                null,
+                createElement(Route, {
+                  path: '/driver-management/applications/:id',
+                  element: createElement(ApplicationReviewPage),
+                }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    )
+    await settle()
+
+    assert.ok(container.textContent?.includes('Open Verified Driver Profile'))
   })
 })
 
@@ -440,7 +616,7 @@ describe('ApplicationReviewPage — accepting an application', () => {
       doc('d1', 'driving_license', 'approved'),
       doc('v1', 'rc', 'approved', 'https://example.invalid/rc.jpg', 'vehicle'),
     ])
-    await click(button('Next'))
+    await click(stepButton('Decision'))
     await click(button('Approve Application'))
 
     assert.ok(button('Yes, Approve Application'), 'the confirmation is open')
@@ -452,7 +628,7 @@ describe('ApplicationReviewPage — accepting an application', () => {
       doc('d1', 'driving_license', 'approved'),
       doc('v1', 'rc', 'approved', 'https://example.invalid/rc.jpg', 'vehicle'),
     ])
-    await click(button('Next'))
+    await click(stepButton('Decision'))
     await click(button('Approve Application'))
     await click(button('Yes, Approve Application'))
 

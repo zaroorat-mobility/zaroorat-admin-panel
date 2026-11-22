@@ -54,7 +54,9 @@ export interface DataTableProps<T = any> {
   enableDraggableExport?: boolean;
   draggablePersistenceKey?: string;
   hidePagination?: boolean;
+  hideToolbar?: boolean;
   compact?: boolean;
+  className?: string;
 }
 
 export function DataTable<T extends Record<string, any> = any>({
@@ -81,7 +83,9 @@ export function DataTable<T extends Record<string, any> = any>({
   enableDraggableExport = false,
   draggablePersistenceKey,
   hidePagination = false,
+  hideToolbar = false,
   compact,
+  className,
 }: DataTableProps<T>) {
 
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string>>(new Set());
@@ -129,20 +133,22 @@ export function DataTable<T extends Record<string, any> = any>({
     [initialColumns, visibleColumns]
   );
 
+  const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+
   const statusOptions = useMemo(() => {
     const counts: Record<string, number> = {};
-    data.forEach(row => {
+    safeData.forEach(row => {
       const status = String(row[statusKey] || "Unknown").trim();
       counts[status] = (counts[status] || 0) + 1;
     });
     return Object.entries(counts).map(([status, count]) => ({ status, count }))
       .sort((a, b) => a.status.localeCompare(b.status));
-  }, [data, statusKey]);
+  }, [safeData, statusKey]);
 
   const toggleColumn = (key: string) => setVisibleColumns(prev => ({ ...prev, [key]: !prev[key] }));
 
   const filteredData = useMemo(() => {
-    let result = [...data];
+    let result = [...safeData];
     const q = search.trim().toLowerCase();
     if (q) result = result.filter(row => columns.some(col => String(row[col.key] ?? "").toLowerCase().includes(q)));
     if (selectedStatuses.length > 0) result = result.filter(row => selectedStatuses.includes(String(row[statusKey])));
@@ -192,7 +198,7 @@ export function DataTable<T extends Record<string, any> = any>({
     }
 
     return result;
-  }, [data, search, columns, selectedStatuses, statusKey, fromDate, toDate, globalStatusFilter]);
+  }, [safeData, search, columns, selectedStatuses, statusKey, fromDate, toDate, globalStatusFilter]);
 
   const sorted = useMemo(() => {
     if (!sortCol) return filteredData;
@@ -268,10 +274,11 @@ export function DataTable<T extends Record<string, any> = any>({
   };
 
   return (
-    <div className="bg-surface rounded-lg border border-border shadow-sm overflow-hidden text-left">
+    <div className={cn("bg-surface rounded-lg border border-border shadow-sm overflow-hidden text-left", className)}>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-border">
+      {!hideToolbar && (
+        <div className="flex items-center justify-between px-6 py-3 border-b border-border">
         <div className="flex items-center gap-4">
           {toolbarLeft}
           <div className="relative w-80">
@@ -423,6 +430,7 @@ export function DataTable<T extends Record<string, any> = any>({
           )}
         </div>
       </div>
+      )}
 
       {/* Table Section */}
       <div className="overflow-x-auto overflow-y-auto border-t-2 border-primary" style={{ maxHeight }}>

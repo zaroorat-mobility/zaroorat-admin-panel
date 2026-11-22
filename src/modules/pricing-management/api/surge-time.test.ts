@@ -45,16 +45,16 @@ function fakeServer(window: SurgeWindowDto) {
     const ok = (data: unknown) => ({ data, status: 200, statusText: 'OK', headers: {}, config })
     if (config.method === 'patch') {
       patches.push(JSON.parse(String(config.data)) as Record<string, unknown>)
-      return ok(window)
+      return ok({ data: window })
     }
     if (config.method === 'post') {
       posts.push(JSON.parse(String(config.data)) as Record<string, unknown>)
-      return ok(window)
+      return ok({ data: window })
     }
     if (String(config.url).includes('vehicle')) {
       return ok({ data: [{ id: 'v-cab', code: 'CAB_ECONOMY', name: 'Economy Cab' }] })
     }
-    return ok(window)
+    return ok({ data: window })
   }
   return { patches, posts }
 }
@@ -188,12 +188,83 @@ describe('saving a surge rule', () => {
     assert.equal('vehicleTypeId' in posts[0], false)
   })
 
-  it('uses the real vehicle ids it was given, never an old code', async () => {
+  it('uses the real vehicle ids it was given in one atomic multi-vehicle request', async () => {
     const { posts } = fakeServer(dto())
     await createSurgeRule({ ...rule, vehicleTypeIds: ['v-mini', 'v-xl'] })
-    assert.deepEqual(
-      posts.map((p) => p.vehicleTypeId),
-      ['v-mini', 'v-xl'],
+    assert.equal(posts.length, 1)
+    assert.deepEqual(posts[0]?.vehicleTypeIds, ['v-mini', 'v-xl'])
+  })
+
+  it('supports citywide surge rules without requiring a zone polygon', async () => {
+    const { posts } = fakeServer(dto({ zoneId: null, cityCode: 'SGR', zoneName: 'SGR (Citywide)' }))
+    await createSurgeRule({
+      ruleName: 'Snowfall Citywide',
+      cityCode: 'SGR',
+      vehicleTypeIds: [],
+      multiplier: 1.4,
+      effectiveFrom: '2026-11-10',
+      status: 'active',
+    })
+    assert.equal(posts.length, 1)
+    assert.equal(posts[0]?.cityCode, 'SGR')
+    assert.equal('zoneId' in posts[0]!, false)
+  })
+
+  it('persists daysOfWeek and leaves endsAt open for ongoing recurring peak-hour schedules', async () => {
+    const { posts } = fakeServer(
+      dto({
+        zoneId: null,
+        cityCode: 'SGR',
+        isPeakHourOnly: true,
+        peakHourStart: '17:00',
+        peakHourEnd: '22:00',
+        daysOfWeek: [1, 2, 3, 4, 5],
+      }),
     )
+    await createSurgeRule({
+      ruleName: 'Weekday Evening Peak',
+      cityCode: 'SGR',
+      vehicleTypeIds: [],
+      multiplier: 1.5,
+      isPeakHourOnly: true,
+      peakHourStart: '17:00',
+      peakHourEnd: '22:00',
+      daysOfWeek: [1, 2, 3, 4, 5],
+      effectiveFrom: '2026-11-18',
+      status: 'active',
+    })
+    assert.equal(posts.length, 1)
+    assert.deepEqual(posts[0]?.daysOfWeek, [1, 2, 3, 4, 5])
+    assert.equal(posts[0]?.isPeakHourOnly, true)
+    assert.equal(posts[0]?.peakHourStart, '17:00')
+    assert.equal(posts[0]?.peakHourEnd, '22:00')
+    assert.equal('endsAt' in posts[0]!, false)
+  })
+
+  it('sends exact event start and end timestamps for a timed continuous event window', async () => {
+    const { posts } = fakeServer(
+      dto({
+        zoneId: null,
+        cityCode: 'SGR',
+        isPeakHourOnly: false,
+        startsAt: combineDateTime('2026-11-20', '18:00'),
+        endsAt: combineDateTime('2026-11-20', '22:00'),
+      }),
+    )
+    await createSurgeRule({
+      ruleName: 'Concert Night Surge',
+      cityCode: 'SGR',
+      vehicleTypeIds: [],
+      multiplier: 1.6,
+      isPeakHourOnly: false,
+      effectiveFrom: '2026-11-20',
+      startTime: '18:00',
+      endTime: '22:00',
+      status: 'active',
+    })
+    assert.equal(posts.length, 1)
+    assert.equal(posts[0]?.isPeakHourOnly, false)
+    assert.equal(posts[0]?.startsAt, combineDateTime('2026-11-20', '18:00'))
+    assert.equal(posts[0]?.endsAt, combineDateTime('2026-11-20', '22:00'))
   })
 })

@@ -1,4 +1,6 @@
 export { ImagePreviewModal } from './ImagePreviewModal'
+export { DocumentPreviewModal } from './DocumentPreviewModal'
+export { BankDetailsReviewStep } from './BankDetailsReviewStep'
 export { CompletenessCard } from './CompletenessCard'
 export { AcknowledgementTemplate } from './AcknowledgementTemplate'
 export { ExpiryIndicator } from './ExpiryIndicator'

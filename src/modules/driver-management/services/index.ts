@@ -184,6 +184,9 @@ export const DriverManagementService = {
   flagVehicleForRenewal,
   getExpiryAlerts: () => driversApi.getExpiryAlerts(),
   verifyDriverBankAccount: driversApi.verifyDriverBankAccount,
+  rejectDriverBankAccount: driversApi.rejectDriverBankAccount,
+  enableDriverBankPayouts: driversApi.enableDriverBankPayouts,
+  disableDriverBankPayouts: driversApi.disableDriverBankPayouts,
 }
 
 export default DriverManagementService

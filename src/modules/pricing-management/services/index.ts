@@ -1,242 +1,74 @@
 import type { QueryParams, PaginatedResponse } from '@/shared/types'
 import type { FareRule, SurgeRule, CancellationRule } from '../types'
-import { logAuditAction, type AuditLogEntry } from '@/shared/services/auditLogger'
+import type { AuditLogEntry } from '@/shared/services/auditLogger'
 import * as pricingApi from '../api'
+import * as governanceApi from '../api/governance.api'
+import * as fiscalApi from '../api/fiscal.api'
 
-const AUDIT_LOGS_KEY = 'zaroorat_audit_logs_db'
-
-const getAuditDb = (): AuditLogEntry[] => {
-  const db = localStorage.getItem(AUDIT_LOGS_KEY)
-  if (!db) return []
-  try {
-    return JSON.parse(db) as AuditLogEntry[]
-  } catch {
-    return []
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FARE RULES
-// ─────────────────────────────────────────────────────────────────────────────
+// All administrative mutations record audit rows transactionally in PostgreSQL (`admin_audit_logs`)
+// on the server — zero browser-side audit storage.
 
 const getFareRules = (params?: QueryParams): Promise<PaginatedResponse<FareRule>> =>
   pricingApi.getFareRules(params)
-
 const getFareRuleById = (id: string): Promise<FareRule> => pricingApi.getFareRuleById(id)
-
-const createFareRule = async (
+const getFareRuleVersions = (id: string): Promise<FareRule[]> => pricingApi.getFareRuleVersions(id)
+const createFareRule = (
   data: Omit<FareRule, 'id' | 'createdAt' | 'updatedAt' | 'version'>,
-): Promise<FareRule> => {
-  const rule = await pricingApi.createFareRule(data)
-  logAuditAction(
-    `Created Fare Rule: ${rule.ruleName} (V${rule.version})`,
-    `Vehicle: ${rule.vehicleType.toUpperCase()}, Base Fare: ₹${rule.baseFare}, Min Fare: ₹${rule.minimumFare}, Status: ${rule.status}`,
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-const updateFareRule = async (id: string, updates: Partial<FareRule>): Promise<FareRule> => {
-  const rule = await pricingApi.updateFareRule(id, updates)
-  logAuditAction(
-    `Updated Fare Rule to ${rule.ruleName} (V${rule.version})`,
-    'Created new version due to updates',
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-const deleteFareRule = async (id: string): Promise<void> => {
-  await pricingApi.deleteFareRule(id)
-  logAuditAction(`Deleted Fare Rule`, `Fare rule ${id} deactivated`, id, 'fare_config')
-}
-
-const activateFareRule = async (id: string): Promise<FareRule> => {
-  const rule = await pricingApi.activateFareRule(id)
-  logAuditAction(
-    `Activated Fare Rule: ${rule.ruleName} (V${rule.version})`,
-    `Vehicle: ${rule.vehicleType.toUpperCase()} rule is now active.`,
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-const deactivateFareRule = async (id: string): Promise<FareRule> => {
-  const rule = await pricingApi.deactivateFareRule(id)
-  logAuditAction(
-    `Deactivated Fare Rule: ${rule.ruleName} (V${rule.version})`,
-    `Vehicle: ${rule.vehicleType.toUpperCase()} rule is now inactive.`,
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SURGE RULES (mapped to surge windows)
-// ─────────────────────────────────────────────────────────────────────────────
+): Promise<FareRule> => pricingApi.createFareRule(data)
+const updateFareRule = (id: string, updates: Partial<FareRule>): Promise<FareRule> =>
+  pricingApi.updateFareRule(id, updates)
+const deleteFareRule = (id: string): Promise<void> => pricingApi.deleteFareRule(id)
+const activateFareRule = (id: string): Promise<FareRule> => pricingApi.activateFareRule(id)
+const deactivateFareRule = (id: string): Promise<FareRule> => pricingApi.deactivateFareRule(id)
 
 const getSurgeRules = (params?: QueryParams): Promise<PaginatedResponse<SurgeRule>> =>
   pricingApi.getSurgeRules(params)
-
 const getSurgeRuleById = (id: string): Promise<SurgeRule> => pricingApi.getSurgeRuleById(id)
-
-const createSurgeRule = async (
+const getSurgeRuleVersions = (id: string): Promise<SurgeRule[]> =>
+  pricingApi.getSurgeRuleVersions(id)
+const updateCitySurgeCap = (cityCode: string, maxSurgeMultiplier: number) =>
+  pricingApi.updateCitySurgeCap(cityCode, maxSurgeMultiplier)
+const createSurgeRule = (
   data: Omit<SurgeRule, 'id' | 'createdAt' | 'updatedAt'>,
-): Promise<SurgeRule> => {
-  const rule = await pricingApi.createSurgeRule(data)
-  logAuditAction(
-    `Created Surge Rule: ${rule.ruleName}`,
-    `Vehicle: ${rule.vehicleLabel ?? 'All vehicles'}, Multiplier: ${rule.multiplier}x, Status: ${rule.status}`,
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-const updateSurgeRule = async (id: string, updates: Partial<SurgeRule>): Promise<SurgeRule> => {
-  const rule = await pricingApi.updateSurgeRule(id, updates)
-  logAuditAction(
-    `Updated Surge Rule: ${rule.ruleName}`,
-    'Surge window updated',
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-const deleteSurgeRule = async (id: string): Promise<void> => {
-  await pricingApi.deleteSurgeRule(id)
-  logAuditAction(`Deleted Surge Rule`, `Surge window ${id} deactivated`, id, 'fare_config')
-}
-
-const activateSurgeRule = async (id: string): Promise<SurgeRule> => {
-  const rule = await pricingApi.activateSurgeRule(id)
-  logAuditAction(
-    `Activated Surge Rule: ${rule.ruleName}`,
-    `Multiplier ${rule.multiplier}x is now active.`,
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-const deactivateSurgeRule = async (id: string): Promise<SurgeRule> => {
-  const rule = await pricingApi.deactivateSurgeRule(id)
-  logAuditAction(
-    `Deactivated Surge Rule: ${rule.ruleName}`,
-    'Surge window deactivated.',
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CANCELLATION RULES
-// ─────────────────────────────────────────────────────────────────────────────
+): Promise<SurgeRule> => pricingApi.createSurgeRule(data)
+const updateSurgeRule = (id: string, updates: Partial<SurgeRule>): Promise<SurgeRule> =>
+  pricingApi.updateSurgeRule(id, updates)
+const deleteSurgeRule = (id: string): Promise<void> => pricingApi.deleteSurgeRule(id)
+const activateSurgeRule = (id: string): Promise<SurgeRule> => pricingApi.activateSurgeRule(id)
+const deactivateSurgeRule = (id: string): Promise<SurgeRule> => pricingApi.deactivateSurgeRule(id)
 
 const getCancellationRules = (
   params?: QueryParams,
 ): Promise<PaginatedResponse<CancellationRule>> => pricingApi.getCancellationRules(params)
-
 const getCancellationRuleById = (id: string): Promise<CancellationRule> =>
   pricingApi.getCancellationRuleById(id)
-
-const createCancellationRule = async (
+const getCancellationRuleVersions = (id: string): Promise<CancellationRule[]> =>
+  pricingApi.getCancellationRuleVersions(id)
+const evaluateCancellationPolicy = (
+  input: pricingApi.EvaluateCancellationInput,
+): Promise<pricingApi.EvaluateCancellationResult> =>
+  pricingApi.evaluateCancellationPolicy(input)
+const createCancellationRule = (
   data: Omit<CancellationRule, 'id' | 'createdAt' | 'updatedAt' | 'version'>,
-): Promise<CancellationRule> => {
-  const rule = await pricingApi.createCancellationRule(data)
-  logAuditAction(
-    `Created Cancellation Rule: ${rule.ruleName}`,
-    `Actor: ${rule.actor.toUpperCase()}, Scenario: ${rule.scenario}, Fee: ${rule.chargeAmount}`,
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-const updateCancellationRule = async (
+): Promise<CancellationRule> => pricingApi.createCancellationRule(data)
+const updateCancellationRule = (
   id: string,
   updates: Partial<CancellationRule>,
-): Promise<CancellationRule> => {
-  const rule = await pricingApi.updateCancellationRule(id, updates)
-  logAuditAction(
-    `Updated Cancellation Rule: ${rule.ruleName}`,
-    'Cancellation policy updated',
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
+): Promise<CancellationRule> => pricingApi.updateCancellationRule(id, updates)
+const deleteCancellationRule = (id: string): Promise<void> => pricingApi.deleteCancellationRule(id)
+const activateCancellationRule = (id: string): Promise<CancellationRule> =>
+  pricingApi.activateCancellationRule(id)
+const deactivateCancellationRule = (id: string): Promise<CancellationRule> =>
+  pricingApi.deactivateCancellationRule(id)
 
-const deleteCancellationRule = async (id: string): Promise<void> => {
-  await pricingApi.deleteCancellationRule(id)
-  logAuditAction(
-    `Deleted Cancellation Rule`,
-    `Cancellation policy ${id} deactivated`,
-    id,
-    'fare_config',
-  )
-}
-
-const activateCancellationRule = async (id: string): Promise<CancellationRule> => {
-  const rule = await pricingApi.activateCancellationRule(id)
-  logAuditAction(
-    `Activated Cancellation Rule: ${rule.ruleName}`,
-    `Actor: ${rule.actor.toUpperCase()}, Scenario: ${rule.scenario} rule is now active.`,
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-const deactivateCancellationRule = async (id: string): Promise<CancellationRule> => {
-  const rule = await pricingApi.deactivateCancellationRule(id)
-  logAuditAction(
-    `Deactivated Cancellation Rule: ${rule.ruleName}`,
-    `Actor: ${rule.actor.toUpperCase()}, Scenario: ${rule.scenario} rule deactivated.`,
-    rule.id,
-    'fare_config',
-  )
-  return rule
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PRICING HISTORY (local audit log — out of scope for API this pass)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const getPricingHistory = async (
-  params?: QueryParams,
-): Promise<PaginatedResponse<AuditLogEntry>> => {
-  let filtered = getAuditDb().filter((item) => item.entityType === 'fare_config')
-  const search = ((params?.search as string) || '').toLowerCase()
-  if (search) {
-    filtered = filtered.filter(
-      (item) =>
-        item.actor.toLowerCase().includes(search) ||
-        item.action.toLowerCase().includes(search) ||
-        (item.notes && item.notes.toLowerCase().includes(search)),
-    )
-  }
-  filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-  return {
-    data: filtered,
-    meta: {
-      currentPage: 1,
-      totalPages: Math.max(1, Math.ceil(filtered.length / 25)),
-      pageSize: 25,
-      totalCount: filtered.length,
-    },
-  }
-}
+// Live server-backed audit logs from GET /api/v1/admin/audit/logs
+const getPricingHistory = (params?: QueryParams): Promise<PaginatedResponse<AuditLogEntry>> =>
+  governanceApi.getServerPricingAuditLogs(params)
 
 export const PricingManagementService = {
   getFareRules,
   getFareRuleById,
+  getFareRuleVersions,
   createFareRule,
   updateFareRule,
   deleteFareRule,
@@ -245,6 +77,8 @@ export const PricingManagementService = {
 
   getSurgeRules,
   getSurgeRuleById,
+  getSurgeRuleVersions,
+  updateCitySurgeCap,
   createSurgeRule,
   updateSurgeRule,
   deleteSurgeRule,
@@ -253,6 +87,8 @@ export const PricingManagementService = {
 
   getCancellationRules,
   getCancellationRuleById,
+  getCancellationRuleVersions,
+  evaluateCancellationPolicy,
   createCancellationRule,
   updateCancellationRule,
   deleteCancellationRule,
@@ -261,6 +97,45 @@ export const PricingManagementService = {
 
   getPricingHistory,
   getSurgeZones: pricingApi.getSurgeZones,
+
+  // Phase 4 & 5 Governance APIs
+  getPricingSummary: governanceApi.getPricingSummary,
+  getCommissionConfigs: governanceApi.getCommissionConfigs,
+  createCommissionConfig: governanceApi.createCommissionConfig,
+  approveCommissionConfig: governanceApi.approveCommissionConfig,
+  activateCommissionConfig: governanceApi.activateCommissionConfig,
+  deactivateCommissionScope: governanceApi.deactivateCommissionScope,
+  deleteCommissionConfig: governanceApi.deleteCommissionConfig,
+  getTaxConfigs: governanceApi.getTaxConfigs,
+  createTaxConfig: governanceApi.createTaxConfig,
+  approveTaxConfig: governanceApi.approveTaxConfig,
+  getGstRecoveryConfigs: governanceApi.getGstRecoveryConfigs,
+  createGstRecoveryConfig: governanceApi.createGstRecoveryConfig,
+  approveGstRecoveryConfig: governanceApi.approveGstRecoveryConfig,
+  getLegalEntities: governanceApi.getLegalEntities,
+  createLegalEntity: governanceApi.createLegalEntity,
+  createGstRegistration: governanceApi.createGstRegistration,
+  getCitySupplyRegistrations: governanceApi.getCitySupplyRegistrations,
+  createCitySupplyRegistration: governanceApi.createCitySupplyRegistration,
+  getSettlementFailures: governanceApi.getSettlementFailures,
+  recoverSettlementFailure: governanceApi.recoverSettlementFailure,
+  waiveSettlementFailure: governanceApi.waiveSettlementFailure,
+  getPricingReconciliation: governanceApi.getPricingReconciliation,
+  sweepStaleReservations: governanceApi.sweepStaleReservations,
+
+  // Phase 6 (M-09) Fiscal Documents, Gapless Series & Persisted Templates
+  getFiscalDocuments: fiscalApi.getFiscalDocuments,
+  createFiscalDownloadUrl: fiscalApi.createFiscalDownloadUrl,
+  downloadFiscalPdfBlob: fiscalApi.downloadFiscalPdfBlob,
+  previewSampleFiscalPdfBlob: fiscalApi.previewSampleFiscalPdfBlob,
+  exportFiscalDocumentsCsvBlob: fiscalApi.exportFiscalDocumentsCsvBlob,
+  voidFiscalDocument: fiscalApi.voidFiscalDocument,
+  getDocumentSeries: fiscalApi.getDocumentSeries,
+  createDocumentSeries: fiscalApi.createDocumentSeries,
+  getComplianceTemplates: fiscalApi.getComplianceTemplates,
+  createComplianceTemplate: fiscalApi.createComplianceTemplate,
+  approveComplianceTemplatePreview: fiscalApi.approveComplianceTemplatePreview,
+  activateComplianceTemplate: fiscalApi.activateComplianceTemplate,
 }
 
 export default PricingManagementService

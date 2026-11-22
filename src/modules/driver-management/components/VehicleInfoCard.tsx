@@ -1,7 +1,6 @@
 import React from 'react'
 import { Car, Edit } from 'lucide-react'
 import { FileImage } from '@/shared/components/FileImage'
-import photoFrontShowcase from '@/assets/images/vehicle-showcase/photo-front.png'
 
 export interface VehicleInfoCardProps {
   vehicleType: string
@@ -74,15 +73,13 @@ export const VehicleInfoCard: React.FC<VehicleInfoCardProps> = ({
             title={onPreviewPhoto ? 'Click to inspect vehicle front photo' : undefined}
           >
             <FileImage
-              src={photoUrl || photoFrontShowcase}
+              src={photoUrl}
               alt="Vehicle Front Preview"
               className="w-full h-full object-cover rounded"
               fallback={
-                <img
-                  src={photoFrontShowcase}
-                  alt="Vehicle Front Preview"
-                  className="w-full h-full object-cover rounded"
-                />
+                <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400">
+                  <Car className="w-5 h-5" />
+                </div>
               }
             />
           </div>

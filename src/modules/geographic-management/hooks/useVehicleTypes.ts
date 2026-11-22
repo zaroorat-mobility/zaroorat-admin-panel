@@ -6,6 +6,8 @@ export interface VehicleTypeDto {
   code: string
   name: string
   icon?: string | null
+  imageUrl?: string | null
+  badge?: string | null
   displayOrder?: number
   passengerCapacity?: number | null
   luggageCapacity?: number | null

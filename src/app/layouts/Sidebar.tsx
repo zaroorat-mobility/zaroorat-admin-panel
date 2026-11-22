@@ -19,8 +19,6 @@ import {
   RefreshCw,
   AlertTriangle,
   CreditCard,
-  School,
-  GraduationCap,
   Tag,
   Gift,
   History,
@@ -100,7 +98,13 @@ const navItems: NavItem[] = [
     href: "geographic-management",
     icon: Globe2,
     children: [
-      { href: "/geographic-management", label: "Coverage Dashboard", icon: LayoutDashboard, permission: "geography:read" },
+      {
+        href: "/geographic-management",
+        label: "Coverage Dashboard",
+        icon: LayoutDashboard,
+        permission: "geography:read",
+        matchActive: (path: string) => path === "/geographic-management" || path === "/geographic-management/coverage",
+      },
       { href: "/geographic-management/countries", label: "Countries", icon: Globe2, permission: "geography:read" },
       { href: "/geographic-management/states", label: "States", icon: MapPin, permission: "geography:read" },
       { href: "/geographic-management/cities", label: "Cities", icon: MapPin, permission: "geography:read" },
@@ -113,7 +117,13 @@ const navItems: NavItem[] = [
     href: "pricing-management",
     icon: DollarSign,
     children: [
-      { href: "/pricing-management", label: "Pricing Control Center", icon: LayoutDashboard, permission: "pricing:read" },
+      {
+        href: "/pricing-management",
+        label: "Pricing Control Center",
+        icon: LayoutDashboard,
+        permission: "pricing:read",
+        matchActive: (path: string) => path === "/pricing-management" || path === "/pricing-management/overview",
+      },
       { href: "/pricing-management/fare-rules", label: "Fare Rules", icon: DollarSign },
       { href: "/pricing-management/surge-rules", label: "Surge Rules", icon: Activity },
       { href: "/pricing-management/cancellation-rules", label: "Cancellation Rules", icon: ShieldCheck },
@@ -159,16 +169,6 @@ const navItems: NavItem[] = [
       { href: "/financial-operations/settlements", label: "Settlements", icon: Landmark },
       { href: "/financial-operations/audit-logs", label: "Finance Audit Logs", icon: FileText },
     ],
-  },
-  {
-    label: "School Mobility",
-    href: "school-mobility",
-    icon: School,
-    children: [
-      { href: "/school-mobility/student-registry", label: "Student Registry", icon: GraduationCap, permission: "school:read" },
-      { href: "/school-mobility/route-optimization", label: "Route Optimization", icon: Navigation },
-      { href: "/school-mobility/parent-portal", label: "Parent Portal Settings", icon: Settings }
-    ]
   },
   {
     label: "Promotions & Campaigns",
@@ -250,7 +250,7 @@ export const Sidebar: React.FC = () => {
     .filter((item): item is NavItem => item != null);
   const [expandedSections, setExpandedSections] = useState<string[]>([
     "access-control", "user-management", "rider-management", "driver-management", "vehicle-management", "geographic-management", "pricing-management",
-    "promotions-management", "referral-management", "communications", "operations", "financial-operations", "school-mobility", "platform"
+    "promotions-management", "referral-management", "communications", "operations", "financial-operations", "platform"
   ]);
 
   const toggleSection = (href: string) => {
@@ -259,16 +259,30 @@ export const Sidebar: React.FC = () => {
     );
   };
 
-  const isItemActive = (item: NavItem): boolean => {
+  const isItemActive = (item: NavItem, siblings?: NavItem[]): boolean => {
     if (item.matchActive) return item.matchActive(location.pathname);
     const href = item.href;
     if (href === "/dashboard") return location.pathname === "/dashboard";
-    return location.pathname === href || location.pathname.startsWith(href + "/");
+    if (location.pathname === href) return true;
+    if (location.pathname.startsWith(href + "/")) {
+      if (siblings) {
+        const hasMoreSpecificSibling = siblings.some(
+          (s) =>
+            s !== item &&
+            ((s.matchActive && s.matchActive(location.pathname)) ||
+              location.pathname === s.href ||
+              (s.href.startsWith(href + "/") && location.pathname.startsWith(s.href)))
+        );
+        if (hasMoreSpecificSibling) return false;
+      }
+      return true;
+    }
+    return false;
   };
 
   const isChildActive = (item: NavItem): boolean => {
     if (!item.children) return false;
-    return item.children.some((child) => isItemActive(child));
+    return item.children.some((child) => isItemActive(child, item.children));
   };
 
   return (
@@ -346,7 +360,7 @@ export const Sidebar: React.FC = () => {
                   <div className="ml-4 mt-1 space-y-1 border-l border-slate-200 dark:border-slate-800 pl-2">
                     {item.children!.map((child) => {
                       const ChildIcon = child.icon;
-                      const isChildActiveItem = isItemActive(child);
+                      const isChildActiveItem = isItemActive(child, item.children);
 
                       return (
                         <button
