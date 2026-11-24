@@ -32,220 +32,6 @@ import { FileImage } from '@/shared/components/FileImage'
 import { cn } from '@/shared/utils'
 import type { DriverEntity } from '../../types'
 
-// ─── 10 Template Fallback Drivers Matching Template Screenshot ─────────────
-const TEMPLATE_DRIVERS: DriverEntity[] = [
-  {
-    id: 'drv_1_saqib',
-    applicationId: 'app_1',
-    driverCode: 'DRV_MUSFDU7F',
-    driverName: 'Saqib Mir',
-    mobileNumber: '+9196005774525',
-    vehicleType: 'cab',
-    registrationPlate: 'JK01AB1234',
-    vehicleMake: 'Maruti',
-    vehicleModel: 'WagonR',
-    driverStatus: 'active',
-    subscription: {
-      status: 'active',
-      planName: 'Auto Monthly',
-    },
-    walletBalance: 1250,
-    totalTrips: 320,
-    ratingAvg: 4.8,
-    joinedAt: '2026-10-03T10:00:00.000Z',
-    isOnline: true,
-  },
-  {
-    id: 'drv_2_imran',
-    applicationId: 'app_2',
-    driverCode: 'DRV_7KSD92P1',
-    driverName: 'Imran Ahmad',
-    mobileNumber: '+917006588912',
-    vehicleType: 'auto',
-    registrationPlate: 'JK01AA9876',
-    vehicleMake: 'Bajaj',
-    vehicleModel: 'Auto',
-    driverStatus: 'active',
-    subscription: {
-      status: 'active',
-      planName: 'Auto Monthly',
-    },
-    walletBalance: 850,
-    totalTrips: 218,
-    ratingAvg: 4.6,
-    joinedAt: '2026-09-21T10:00:00.000Z',
-    isOnline: true,
-  },
-  {
-    id: 'drv_3_rahil',
-    applicationId: 'app_3',
-    driverCode: 'DRV_3PDA812K',
-    driverName: 'Rahil Khan',
-    mobileNumber: '+916005211334',
-    vehicleType: 'bike',
-    registrationPlate: 'JK01AX4455',
-    vehicleMake: 'Hero',
-    vehicleModel: 'Splendor',
-    driverStatus: 'active',
-    subscription: {
-      status: 'active',
-      planName: 'Bike Monthly',
-    },
-    walletBalance: 420,
-    totalTrips: 156,
-    ratingAvg: 4.7,
-    joinedAt: '2026-09-18T10:00:00.000Z',
-    isOnline: true,
-  },
-  {
-    id: 'drv_4_aamir',
-    applicationId: 'app_4',
-    driverCode: 'DRV_9KJD72MS',
-    driverName: 'Aamir Lone',
-    mobileNumber: '+917780922115',
-    vehicleType: 'cab',
-    registrationPlate: 'JK01AC7766',
-    vehicleMake: 'Hyundai',
-    vehicleModel: 'Grand i10',
-    driverStatus: 'on_trip',
-    subscription: {
-      status: 'active',
-      planName: 'Cab Monthly',
-    },
-    walletBalance: 2340,
-    totalTrips: 412,
-    ratingAvg: 4.9,
-    joinedAt: '2026-09-12T10:00:00.000Z',
-    isOnline: true,
-  },
-  {
-    id: 'drv_5_shabir',
-    applicationId: 'app_5',
-    driverCode: 'DRV_2LPA9Q1D',
-    driverName: 'Shabir Ahmad',
-    mobileNumber: '+919797166542',
-    vehicleType: 'cab',
-    registrationPlate: 'JK01AD3321',
-    vehicleMake: 'Toyota',
-    vehicleModel: 'Etios',
-    driverStatus: 'active',
-    subscription: {
-      status: 'active',
-      planName: 'Cab Monthly',
-    },
-    walletBalance: 680,
-    totalTrips: 198,
-    ratingAvg: 4.5,
-    joinedAt: '2026-09-10T10:00:00.000Z',
-    isOnline: true,
-  },
-  {
-    id: 'drv_6_bilal',
-    applicationId: 'app_6',
-    driverCode: 'DRV_8MNS13PQ',
-    driverName: 'Bilal Ahmad',
-    mobileNumber: '+918492133455',
-    vehicleType: 'auto',
-    registrationPlate: 'JK01AA2211',
-    vehicleMake: 'TVS',
-    vehicleModel: 'King',
-    driverStatus: 'offline',
-    subscription: {
-      status: 'expired',
-      expiryDate: '2026-10-05T00:00:00.000Z',
-    },
-    walletBalance: 120,
-    totalTrips: 86,
-    ratingAvg: 4.2,
-    joinedAt: '2026-09-05T10:00:00.000Z',
-    isOnline: false,
-  },
-  {
-    id: 'drv_7_tariq',
-    applicationId: 'app_7',
-    driverCode: 'DRV_4PQK72LM',
-    driverName: 'Tariq Hussain',
-    mobileNumber: '+919622277411',
-    vehicleType: 'bike',
-    registrationPlate: 'JK01AZ9988',
-    vehicleMake: 'Bajaj',
-    vehicleModel: 'Pulsar',
-    driverStatus: 'suspended',
-    subscription: {
-      status: 'active',
-      planName: 'Bike Monthly',
-    },
-    walletBalance: 0,
-    totalTrips: 45,
-    ratingAvg: 3.8,
-    joinedAt: '2026-09-02T10:00:00.000Z',
-    isOnline: false,
-    isSuspended: true,
-  },
-  {
-    id: 'drv_8_yasir',
-    applicationId: 'app_8',
-    driverCode: 'DRV_1NMD92JK',
-    driverName: 'Yasir Ahmed',
-    mobileNumber: '+917780544112',
-    vehicleType: 'cab',
-    registrationPlate: 'JK01AE6677',
-    vehicleMake: 'Maruti',
-    vehicleModel: 'Dzire',
-    driverStatus: 'active',
-    subscription: {
-      status: 'active',
-      planName: 'Cab Monthly',
-    },
-    walletBalance: 980,
-    totalTrips: 276,
-    ratingAvg: 4.6,
-    joinedAt: '2026-08-28T10:00:00.000Z',
-    isOnline: true,
-  },
-  {
-    id: 'drv_9_adnan',
-    applicationId: 'app_9',
-    driverCode: 'DRV_6KLP33DA',
-    driverName: 'Adnan Malik',
-    mobileNumber: '+919055188900',
-    vehicleType: 'auto',
-    registrationPlate: 'JK01AA5566',
-    vehicleMake: 'Bajaj',
-    vehicleModel: 'Auto',
-    driverStatus: 'pending',
-    subscription: {
-      status: 'none',
-    },
-    walletBalance: 0,
-    totalTrips: 0,
-    ratingAvg: 0,
-    joinedAt: '2026-08-26T10:00:00.000Z',
-    isOnline: false,
-  },
-  {
-    id: 'drv_10_shahid',
-    applicationId: 'app_10',
-    driverCode: 'DRV_0LNP77QK',
-    driverName: 'Shahid Bashir',
-    mobileNumber: '+919622133490',
-    vehicleType: 'cab',
-    registrationPlate: 'JK01AF1122',
-    vehicleMake: 'Kia',
-    vehicleModel: 'Seltos',
-    driverStatus: 'active',
-    subscription: {
-      status: 'active',
-      planName: 'Cab Monthly',
-    },
-    walletBalance: 1800,
-    totalTrips: 190,
-    ratingAvg: 4.4,
-    joinedAt: '2026-08-24T10:00:00.000Z',
-    isOnline: true,
-  },
-]
-
 export const DriversListPage: React.FC = () => {
   const navigate = useNavigate()
   const { success: showSuccess, error: showError } = useToast()
@@ -322,9 +108,10 @@ export const DriversListPage: React.FC = () => {
     if (row.vehicleMake || row.vehicleModel) {
       return `${row.vehicleMake || ''} ${row.vehicleModel || ''}`.trim()
     }
-    if (row.vehicleType === 'auto') return 'Bajaj Auto'
-    if (row.vehicleType === 'bike') return 'Hero Splendor'
-    return 'Maruti WagonR'
+    if (row.vehicleType === 'auto') return 'Auto'
+    if (row.vehicleType === 'bike') return 'Bike'
+    if (row.vehicleType === 'cab') return 'Cab'
+    return '-'
   }
 
   const getCategoryText = (type?: string) => {
@@ -335,7 +122,7 @@ export const DriversListPage: React.FC = () => {
   }
 
   const formatPhoneNumber = (phone?: string) => {
-    if (!phone) return '+91 96005 774525'
+    if (!phone) return '-'
     const clean = phone.trim()
     if (clean.startsWith('+91') && clean.length >= 13) {
       return `+91 ${clean.slice(3, 8)} ${clean.slice(8)}`
@@ -574,7 +361,7 @@ export const DriversListPage: React.FC = () => {
           </div>
           <div className="flex flex-col text-left min-w-0 leading-tight">
             <span className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wide truncate">
-              {row.registrationPlate || 'JK01AB1234'}
+              {row.registrationPlate || '-'}
             </span>
             <span className="text-[10px] text-slate-600 dark:text-slate-400 truncate">
               {getMakeModelText(row)}
@@ -715,39 +502,17 @@ export const DriversListPage: React.FC = () => {
     },
   ]
 
-  // Determine source data: use live API drivers or fallback to screenshot template
+  // Determine source data: use live API drivers only
   const apiDrivers = data?.data ?? []
   const enrichedData: DriverEntity[] = useMemo(() => {
-    const list = apiDrivers.length > 0 ? apiDrivers : TEMPLATE_DRIVERS
-    return list.map((d, i) => ({
+    return apiDrivers.map((d, i) => ({
       ...d,
       rowIndex: i + 1,
       driverCode: d.driverCode || `DRV_${d.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`,
-      vehicleMake:
-        d.vehicleMake ||
-        (d.vehicleType === 'auto' ? 'Bajaj' : d.vehicleType === 'bike' ? 'Hero' : 'Maruti'),
-      vehicleModel:
-        d.vehicleModel ||
-        (d.vehicleType === 'auto' ? 'Auto' : d.vehicleType === 'bike' ? 'Splendor' : 'WagonR'),
-      registrationPlate: d.registrationPlate || 'JK01AB1234',
-      subscription:
-        d.subscription ||
-        (apiDrivers.length === 0
-          ? {
-              status:
-                d.driverStatus === 'active' || d.driverStatus === 'on_trip' || d.driverStatus === 'online'
-                  ? 'active'
-                  : d.driverStatus === 'suspended'
-                    ? 'active'
-                    : 'none',
-              planName:
-                d.vehicleType === 'auto'
-                  ? 'Auto Monthly'
-                  : d.vehicleType === 'bike'
-                    ? 'Bike Monthly'
-                    : 'Cab Monthly',
-            }
-          : undefined),
+      vehicleMake: d.vehicleMake,
+      vehicleModel: d.vehicleModel,
+      registrationPlate: d.registrationPlate,
+      subscription: d.subscription,
     }))
   }, [apiDrivers])
 

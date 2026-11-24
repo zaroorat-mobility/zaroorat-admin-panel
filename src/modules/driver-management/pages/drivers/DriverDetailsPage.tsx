@@ -1642,17 +1642,17 @@ export const DriverDetailsPage: React.FC = () => {
                           <span className="text-slate-500 dark:text-slate-400 font-medium">Vehicle Type</span>
                           <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 capitalize">
                             <Car className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
-                            {driverVehicleType || 'Auto'}
+                            {driverVehicleType || 'N/A'}
                           </span>
 
                           <span className="text-slate-500 dark:text-slate-400 font-medium">Make & Model</span>
                           <span className="font-bold text-slate-900 dark:text-white truncate">
-                            {driverMakeModel || 'Maruti Suzuki WagonR'}
+                            {driverMakeModel || 'N/A'}
                           </span>
 
                           <span className="text-slate-500 dark:text-slate-400 font-medium">Registration No.</span>
                           <div className="flex items-center gap-1.5 font-bold font-mono text-slate-900 dark:text-white">
-                            <span>{driverRegPlate || 'JK01AB1234'}</span>
+                            <span>{driverRegPlate || 'N/A'}</span>
                             <button
                               type="button"
                               onClick={() => {
