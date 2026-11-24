@@ -94,15 +94,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: cached.user,
   isLoading: false,
   setCredentials: (token, user, refreshToken = null, options = {}) => {
-    const rememberMe = options.rememberMe === true
+    // Default to true for admin panel so session persists across tabs and window refreshes
+    const rememberMe = options.rememberMe !== false
     const tokenExpiresAt = resolveTokenExpiryMs(token, options.accessTokenExpiresInSec)
     clearAuthStorage()
 
-    const store = rememberMe ? storage : storage.session
-    store.set(AUTH_TOKEN_KEY, token)
-    store.set(AUTH_USER_KEY, user)
-    store.set(AUTH_TOKEN_EXPIRES_KEY, tokenExpiresAt)
-    if (refreshToken) store.set(AUTH_REFRESH_KEY, refreshToken)
+    // Always populate localStorage so multi-tab sync works via window storage events
+    storage.set(AUTH_TOKEN_KEY, token)
+    storage.set(AUTH_USER_KEY, user)
+    storage.set(AUTH_TOKEN_EXPIRES_KEY, tokenExpiresAt)
+    if (refreshToken) storage.set(AUTH_REFRESH_KEY, refreshToken)
 
     if (rememberMe) {
       storage.set(AUTH_REMEMBER_KEY, true)
@@ -114,12 +115,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isAuthenticated: true, token, user, refreshToken, tokenExpiresAt })
   },
   updateTokens: (token, refreshToken, accessTokenExpiresInSec) => {
-    const rememberMe = storage.get<boolean>(AUTH_REMEMBER_KEY) === true
     const tokenExpiresAt = resolveTokenExpiryMs(token, accessTokenExpiresInSec)
-    const store = rememberMe ? storage : storage.session
-    store.set(AUTH_TOKEN_KEY, token)
-    store.set(AUTH_REFRESH_KEY, refreshToken)
-    store.set(AUTH_TOKEN_EXPIRES_KEY, tokenExpiresAt)
+    // Always persist to localStorage so all tabs receive the updated tokens
+    storage.set(AUTH_TOKEN_KEY, token)
+    storage.set(AUTH_REFRESH_KEY, refreshToken)
+    storage.set(AUTH_TOKEN_EXPIRES_KEY, tokenExpiresAt)
+    // Also mirror to sessionStorage if present
+    storage.session.set(AUTH_TOKEN_KEY, token)
+    storage.session.set(AUTH_REFRESH_KEY, refreshToken)
+    storage.session.set(AUTH_TOKEN_EXPIRES_KEY, tokenExpiresAt)
     set({ token, refreshToken, tokenExpiresAt })
   },
   clearCredentials: () => {
