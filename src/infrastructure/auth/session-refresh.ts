@@ -1,6 +1,7 @@
 import axios, { isAxiosError } from 'axios'
 import { APP_CONFIG } from '@/app/config'
 import { decodeJwtExpiryMs } from '@/infrastructure/auth/token-utils'
+import { storage } from '@/infrastructure/storage'
 import { useAuthStore } from '@/store/auth.store'
 import { parseTokenPair } from './token-utils'
 
@@ -18,6 +19,15 @@ export async function refreshSession(options?: { force?: boolean }): Promise<str
   const { refreshToken, token, tokenExpiresAt, isAuthenticated } = useAuthStore.getState()
   if (!isAuthenticated || !refreshToken) return null
 
+  // Check if another tab has already refreshed the token in localStorage
+  const latestStoredToken = storage.get<string>('auth_token')
+  const latestExpiry = storage.get<number>('auth_token_expires_at')
+  if (latestStoredToken && latestStoredToken !== token && latestExpiry && latestExpiry - Date.now() > 90_000) {
+    const latestRefresh = storage.get<string>('auth_refresh_token')
+    useAuthStore.getState().updateTokens(latestStoredToken, latestRefresh || refreshToken)
+    return latestStoredToken
+  }
+
   if (!options?.force && token) {
     const expiresAt = tokenExpiresAt ?? decodeJwtExpiryMs(token)
     if (expiresAt && expiresAt - Date.now() > 90_000) {
@@ -25,7 +35,7 @@ export async function refreshSession(options?: { force?: boolean }): Promise<str
     }
   }
 
-  const refreshTokenSnapshot = useAuthStore.getState().refreshToken
+  const refreshTokenSnapshot = storage.get<string>('auth_refresh_token') || useAuthStore.getState().refreshToken
   if (!refreshTokenSnapshot) return null
 
   if (!refreshPromise) {
@@ -49,6 +59,16 @@ export async function refreshSession(options?: { force?: boolean }): Promise<str
         useAuthStore.getState().updateTokens(pair.accessToken, pair.refreshToken, pair.accessTokenExpiresInSec)
         return pair.accessToken
       } catch (error) {
+        // Before clearing credentials, check if another tab has already refreshed successfully
+        const latestToken = storage.get<string>('auth_token')
+        const latestTokenExpiry = storage.get<number>('auth_token_expires_at')
+        if (latestToken && latestToken !== token && (!latestTokenExpiry || latestTokenExpiry > Date.now())) {
+          const latestRefresh = storage.get<string>('auth_refresh_token')
+          if (latestRefresh) {
+            useAuthStore.getState().updateTokens(latestToken, latestRefresh)
+            return latestToken
+          }
+        }
         if (isRefreshAuthFailure(error)) {
           useAuthStore.getState().clearCredentials()
         }
